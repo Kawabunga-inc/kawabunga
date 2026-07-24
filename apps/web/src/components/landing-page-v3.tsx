@@ -475,7 +475,7 @@ export function LandingPageV3() {
   return (
     <>
       <main
-        className="relative z-10 flex w-full flex-col rounded-b-4xl bg-white text-[#07110f]"
+        className="relative z-10 flex w-full flex-col text-[#07110f]"
         style={{ fontFamily: "var(--font-body)" }}
       >
         <ScrollStoryShowcase embedded />
@@ -540,7 +540,7 @@ export function LandingPageV3() {
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className="pb-24 pt-12 sm:pb-32 sm:pt-16 lg:pb-36">
+      <section id="features" className="bg-white pb-24 pt-12 sm:pb-32 sm:pt-16 lg:pb-36">
         <div className="px-6 sm:px-10 lg:px-20">
           <Reveal>
             <h2
@@ -564,7 +564,7 @@ export function LandingPageV3() {
       </section>
 
       {/* ── How It Works · Technology ── */}
-      <section id="how-it-works" className="px-6 py-24 sm:px-10 sm:py-32 lg:px-20 lg:py-36">
+      <section id="how-it-works" className="bg-white px-6 py-24 sm:px-10 sm:py-32 lg:px-20 lg:py-36">
         <Reveal>
           <h2
             className="max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl lg:leading-tight"
@@ -658,7 +658,7 @@ export function LandingPageV3() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="relative overflow-hidden rounded-b-4xl border-t border-[#0b3732]/10 px-6 py-20 text-center sm:px-10 sm:py-28 lg:px-20">
+      <section className="relative overflow-hidden rounded-b-4xl border-t border-[#0b3732]/10 bg-white px-6 py-20 text-center sm:px-10 sm:py-28 lg:px-20">
         <ParallaxLayer className="absolute -inset-y-12 inset-x-0" speed={0.04} maxOffset={24}>
           <MeshGradient />
         </ParallaxLayer>

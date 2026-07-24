@@ -12,12 +12,14 @@ html {
   overflow-x: hidden;
   overflow-y: auto;
   scroll-behavior: smooth;
+  background: #0a0a0a;
 }
 
 body {
   min-height: 100%;
   height: auto;
   overflow: clip;
+  background: #0a0a0a;
 }
 
 /* Landing-page motion primitives. Content remains visible before hydration;
