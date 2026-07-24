@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { MeshGradient } from "./mesh-gradient";
+import { RootFooter } from "./root-footer";
 import { ScrollStoryShowcase } from "./scroll-story-showcase";
 
 const heading = "var(--font-heading)";
@@ -692,38 +693,7 @@ export function LandingPageV3() {
         </Reveal>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-[#0b3732]/10 px-6 py-8 sm:px-10 lg:px-20">
-        <Reveal variant="fade">
-          <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
-            <span
-              className="text-sm font-semibold text-[#07110f]/55"
-              style={{ fontFamily: heading }}
-            >
-              Kawabunga
-            </span>
-            <div className="flex gap-6 sm:gap-8">
-              {[
-                { label: "About", href: "/about" },
-                { label: "Overview", href: "#what-is-kawabunga" },
-                { label: "Experience", href: "#features" },
-                { label: "How It Works", href: "#how-it-works" },
-              ].map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="text-xs text-[#07110f]/45 transition-colors hover:text-[#07110f]/75"
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-            <span className="text-[11px] text-[#07110f]/35">
-              Built with conviction, not permission.
-            </span>
-          </div>
-        </Reveal>
-      </footer>
+      <RootFooter />
     </main>
   );
 }
