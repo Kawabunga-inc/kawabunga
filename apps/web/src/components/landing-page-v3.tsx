@@ -1,51 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import { GoogleAuthButton } from "./google-auth-button";
 import { MeshGradient } from "./mesh-gradient";
-
-const HERO_TIERS = [
-  { src: "/landing-hero-placeholder.jpg", minWidth: 0 },
-  { src: "/landing-hero-sm.jpg", minWidth: 0 },
-  { src: "/landing-hero-md.jpg", minWidth: 0 },
-  { src: "/landing-hero-lg.jpg", minWidth: 1280 },
-  { src: "/landing-hero.jpg", minWidth: 2560 },
-] as const;
-
-function useProgressiveHero() {
-  const [tierIndex, setTierIndex] = useState(0);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const vw = window.innerWidth * (window.devicePixelRatio ?? 1);
-    let targetTier = HERO_TIERS.length - 1;
-    for (let i = HERO_TIERS.length - 1; i > 0; i--) {
-      if (vw < HERO_TIERS[i].minWidth) {
-        targetTier = i - 1;
-      }
-    }
-
-    let cancelled = false;
-    const img = new window.Image();
-    img.src = HERO_TIERS[targetTier].src;
-    img.onload = () => {
-      if (cancelled) return;
-      setTierIndex(targetTier);
-    };
-
-    const kickoff = requestAnimationFrame(() => setReady(true));
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(kickoff);
-    };
-  }, []);
-
-  return { src: HERO_TIERS[tierIndex].src, ready, isPlaceholder: tierIndex === 0 };
-}
+import { ScrollStoryShowcase } from "./scroll-story-showcase";
 
 const heading = "var(--font-heading)";
 const mono = "var(--font-mono)";
@@ -506,52 +465,7 @@ function ExperienceCanvas({
   );
 }
 
-function AudioWaveBars() {
-  const barsRef = useRef<(HTMLDivElement | null)[]>([]);
-  const BAR_COUNT = 7;
-  const BASE_HEIGHTS = [12, 20, 8, 24, 14, 18, 10];
-  const BASE_OPACITIES = [0.5, 0.7, 0.4, 1, 0.6, 0.8, 0.45];
-
-  useEffect(() => {
-    let frame: number;
-    const animate = () => {
-      const t = performance.now() / 1000;
-      barsRef.current.forEach((bar, i) => {
-        if (!bar) return;
-        const phase = i * 0.9;
-        const wave = Math.sin(t * 2.5 + phase) * 0.4 + 0.6;
-        const h = BASE_HEIGHTS[i] * wave;
-        const o = BASE_OPACITIES[i] * (0.5 + wave * 0.5);
-        bar.style.height = `${h}px`;
-        bar.style.opacity = `${o}`;
-      });
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
-  return (
-    <div className="flex items-end gap-[3px]" style={{ height: 24 }}>
-      {Array.from({ length: BAR_COUNT }, (_, i) => (
-        <div
-          key={i}
-          ref={(el) => { barsRef.current[i] = el; }}
-          className="w-[3px] rounded-full bg-[#8fd1cb]"
-          style={{
-            height: BASE_HEIGHTS[i],
-            opacity: BASE_OPACITIES[i],
-            transition: "height 0.15s ease, opacity 0.15s ease",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 export function LandingPageV3() {
-  const hero = useProgressiveHero();
-
   useEffect(() => {
     document.documentElement.classList.add("motion-ready");
     return () => document.documentElement.classList.remove("motion-ready");
@@ -559,90 +473,7 @@ export function LandingPageV3() {
 
   return (
     <main className="w-full bg-[#0a0a0a] text-white" style={{ fontFamily: "var(--font-body)" }}>
-      {/* ── Hero ── */}
-      <section className="relative h-screen w-full overflow-hidden">
-        <ParallaxLayer className="absolute -inset-y-16 inset-x-0 scale-[1.04]" speed={0.075} maxOffset={52}>
-          <Image
-            src={hero.src}
-            alt="Immersive digital forest — streams of light and data flowing through ancient trees"
-            fill
-            className={`object-cover transition-[filter] duration-700 ${hero.isPlaceholder ? "blur-xl scale-105" : ""}`}
-            priority
-            quality={90}
-            sizes="100vw"
-          />
-        </ParallaxLayer>
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-black/20 to-black/40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent" />
-
-        <div className="relative z-10 flex h-full flex-col">
-          <Reveal variant="fade">
-            <header className="flex items-center justify-between px-6 py-5 sm:px-10 lg:px-20">
-              <Link href="/" className="flex items-center gap-2">
-                <svg width="42" height="20" viewBox="0 0 846 412" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M95.3349 32.3641C140.828 3.25796 195.953 -6.74816 248.769 4.51353C312.506 18.4369 362.941 64.7739 397.235 118.473C410.998 140.106 422.66 163.002 432.08 186.848C421.115 170.658 410.555 155.156 397.782 140.268C361.529 98.0309 311.248 62.4632 255.858 51.8407C210.161 42.6698 162.694 52.098 123.967 78.037C89.616 101.278 65.8722 137.189 57.9364 177.904C50.5371 217.4 60.869 257.572 83.3974 290.488C110.917 330.697 154.914 357.222 202.501 366.101C407.637 404.376 607.843 107.979 769.333 158.584C793.265 166.084 813.762 180.166 828.095 200.908C843.455 223.529 849.163 251.339 843.973 278.183C830.533 351.268 750.98 393.03 681.973 378.139C673.993 376.417 666.987 374.613 659.18 372.195C651.147 369.298 644.255 366.779 636.477 363.311C643.351 364.372 653.293 368.279 661.545 370.065L662.338 370.231L664.285 370.659C705.105 379.466 740.631 377.231 777.088 355C849.38 310.926 853.407 203.84 759.095 182.902C693.35 168.305 627.252 214.01 573.867 246.973C454.512 322.209 319.778 436.396 168.664 407.001C113.639 396.297 64.2686 362.463 33.0341 316.001C-29.8667 222.432 0.428465 93.4192 95.3349 32.3641Z" fill="#8fd1cb"/>
-                </svg>
-                <span className="text-xl font-bold tracking-tight" style={{ fontFamily: heading }}>
-                  Kawabunga
-                </span>
-              </Link>
-
-              <div className="flex items-center gap-2">
-                <GoogleAuthButton />
-              </div>
-            </header>
-          </Reveal>
-
-          <div className="flex flex-1 flex-col justify-end px-6 pb-12 sm:px-10 lg:px-20 lg:pb-16">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-              <Reveal delay={120}>
-                <div className="max-w-xl space-y-6">
-                  <h1
-                    className="text-4xl font-semibold leading-[1.1] sm:text-5xl lg:text-[64px]"
-                    style={{ fontFamily: heading, letterSpacing: "-0.04em" }}
-                  >
-                    <span className="text-[#8fd1cb]">Step into any world</span>
-                    <br />
-                    you can imagine
-                  </h1>
-                  <div className="flex flex-wrap gap-3 pt-2">
-                    <Link
-                      href="/about"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-6 py-2.5 text-sm backdrop-blur-lg transition-all hover:scale-[1.03] hover:border-white/40 hover:bg-white/25"
-                      style={{ fontFamily: mono }}
-                    >
-                      Explore Worlds
-                      <span className="text-white/60">&rarr;</span>
-                    </Link>
-                    <Link
-                      href="/about"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-6 py-2.5 text-sm backdrop-blur-md transition-all hover:scale-[1.03] hover:border-white/30 hover:bg-white/15"
-                      style={{ fontFamily: mono }}
-                    >
-                      Learn More
-                      <span className="text-white/60">&rarr;</span>
-                    </Link>
-                  </div>
-                </div>
-              </Reveal>
-
-              <Reveal delay={260}>
-                <div className="flex flex-col items-start gap-4">
-                  <AudioWaveBars />
-                  <p
-                    className="max-w-md text-sm leading-relaxed text-white/60 lg:text-[15px] lg:leading-6"
-                    style={{ fontFamily: mono }}
-                  >
-                    A voice-first immersive reality engine where you inhabit
-                    characters, shape narratives, and experience worlds that respond
-                    to every choice you make.
-                  </p>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </div>
-      </section>
+      <ScrollStoryShowcase embedded />
 
       {/* ── What is Kawabunga ── */}
       <section id="what-is-kawabunga" className="px-6 py-24 sm:px-10 sm:py-28 lg:px-20 lg:py-32">
