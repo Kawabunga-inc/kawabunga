@@ -1,6 +1,6 @@
-# Odyssey
+# Kawabunga
 
-Odyssey is a Vercel-ready Next.js application for voice-first AI simulations. Phase 1 ships a reusable engine that supports structured worlds, dynamic event generation, explicit state tracking, resumable sessions, and a minimal web client with chat fallback.
+Kawabunga is a Vercel-ready Next.js application for voice-first AI simulations. Phase 1 ships a reusable engine that supports structured worlds, dynamic event generation, explicit state tracking, resumable sessions, and a minimal web client with chat fallback.
 
 ## Stack
 
@@ -77,7 +77,7 @@ npm run db:generate
 npm run db:push
 ```
 
-The schema lives in [`src/lib/db/schema.ts`](/Users/joshsassoon/Documents/odyssey/src/lib/db/schema.ts).
+The schema lives in [`packages/db/src/schema.ts`](packages/db/src/schema.ts).
 
 ## Test and build
 

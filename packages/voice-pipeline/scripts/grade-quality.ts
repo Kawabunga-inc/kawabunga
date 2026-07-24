@@ -9,7 +9,7 @@
  *
  * JUDGE_MODEL overrides the judge. GRADE_RESPONSE="..." grades an injected response.
  */
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { replayAndEval } from "./lib/grounding";
 
 const CHARACTER = process.argv[2] ?? "abraham";

@@ -6,8 +6,8 @@ import type {
   SceneDefinition,
   SceneRecord,
   SceneSound,
-} from "@odyssey/types";
-import { sceneDefinitionSchema } from "@odyssey/types";
+} from "@kawabunga/types";
+import { sceneDefinitionSchema } from "@kawabunga/types";
 import { normalizeSoundDesign, soundDesignToSceneSounds } from "./character-store";
 import { getDb } from "./client";
 import { retryRead } from "./retry";

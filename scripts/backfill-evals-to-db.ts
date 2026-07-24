@@ -19,9 +19,9 @@ dotenv.config({ override: true });
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { getCharacterStore, getEvalStore } from "@odyssey/db";
-import type { EvalRun } from "@odyssey/evals";
-import type { SweepResult } from "@odyssey/evals/dist/sweep";
+import { getCharacterStore, getEvalStore } from "@kawabunga/db";
+import type { EvalRun } from "@kawabunga/evals";
+import type { SweepResult } from "@kawabunga/evals/dist/sweep";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");

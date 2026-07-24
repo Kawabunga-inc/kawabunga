@@ -1,5 +1,5 @@
-import type { AudioAssetSource, AudioAssetStatus } from "@odyssey/db";
-import { getAudioAssetStore } from "@odyssey/db";
+import type { AudioAssetSource, AudioAssetStatus } from "@kawabunga/db";
+import { getAudioAssetStore } from "@kawabunga/db";
 import { SoundsGrid } from "@/components/sounds-grid";
 
 /** Summary shape consumed by SoundsGrid. Co-located with the page so

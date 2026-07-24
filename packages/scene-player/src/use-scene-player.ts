@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { OrchestratorDecision, Scene, SceneState } from "@odyssey/types";
+import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
 import {
   buildSpeakerTurnRequest,
   createInitialSceneState,
   resolveSceneDecision,
   type SpeakerTurnRequest,
-} from "@odyssey/orchestration/client";
+} from "@kawabunga/orchestration/client";
 import { SceneAudioBus, type SceneAudioMetrics } from "./scene-audio-bus";
 
 // Trace payloads are opaque JSON the player forwards from the orchestrate /

@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { getCharacterStore, getVoiceStore, getSceneSessionStore } from "@odyssey/db";
+import { getCharacterStore, getVoiceStore, getSceneSessionStore } from "@kawabunga/db";
 import {
   createStreamingTtsAdapterForVoice,
   type StreamingTtsProvider,
   type VoiceForRouting,
-} from "@odyssey/engine";
+} from "@kawabunga/engine";
 import {
   sandboxVoiceContextCacheKeyForDebug,
   startSandboxVoiceContextCacheWarm,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/voice-ack-audio-cache";
 import { isAckLaneEnabled, selectVoiceAck } from "@/lib/voice-ack-lane";
 import { createEmbeddingSignedUrl } from "@/lib/voices-storage";
-import type { Scene } from "@odyssey/wiki-curator";
+import type { Scene } from "@kawabunga/wiki-curator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

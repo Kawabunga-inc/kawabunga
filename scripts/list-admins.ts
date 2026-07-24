@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { eq } from "drizzle-orm";
-import { getDb, usersTable } from "@odyssey/db";
+import { getDb, usersTable } from "@kawabunga/db";
 
 async function main() {
   const db = getDb();

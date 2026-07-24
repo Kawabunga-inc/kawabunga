@@ -1,7 +1,7 @@
 import "server-only";
 
 import { notFound, redirect } from "next/navigation";
-import { getCharacterStore, getWikisStore } from "@odyssey/db";
+import { getCharacterStore, getWikisStore } from "@kawabunga/db";
 
 /**
  * Resolve the wiki id bound to a character (primary > any active > any)

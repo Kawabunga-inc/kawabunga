@@ -2,7 +2,7 @@ import type {
   CharacterDirective,
   CharacterIdentity,
   CharacterVoiceStyle,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { compileDirectiveXml } from "./directive-xml";
 import { compileIdentityXml } from "./identity-xml";
 import { compileVoiceXml } from "./voice-xml";

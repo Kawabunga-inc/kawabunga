@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CharacterSoundDesign } from "@odyssey/db";
+import type { CharacterSoundDesign } from "@kawabunga/db";
 import {
   SoundLibraryPicker,
   type PickerSound,

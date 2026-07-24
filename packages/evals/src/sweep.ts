@@ -1,4 +1,4 @@
-import { getCharacterStore, type CharacterBrainModel, type CharacterRecord } from "@odyssey/db";
+import { getCharacterStore, type CharacterBrainModel, type CharacterRecord } from "@kawabunga/db";
 import { runEvalSuite, type RunOptions } from "./runner";
 import type { EvalRun, ProbeSuite } from "./types";
 

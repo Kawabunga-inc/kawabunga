@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getWikisStore, type UpdateWikiInput } from "@odyssey/db";
+import { getWikisStore, type UpdateWikiInput } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 
 const MAX_PROMPT_LENGTH = 32_000;

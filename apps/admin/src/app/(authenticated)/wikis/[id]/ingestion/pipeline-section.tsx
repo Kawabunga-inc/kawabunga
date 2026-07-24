@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, type ReactNode } from "react";
-import { MODELS, type ModelId } from "@odyssey/wiki-ingest";
+import { MODELS, type ModelId } from "@kawabunga/wiki-ingest";
 
 /**
  * Pipeline section — Step 03 of the wiki ingestion flow.

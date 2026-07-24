@@ -1,6 +1,6 @@
 "use client";
 
-import type { PlanOp } from "@odyssey/wiki-ingest";
+import type { PlanOp } from "@kawabunga/wiki-ingest";
 
 /**
  * OpsLog — compact execution trace for the active ingestion plan.

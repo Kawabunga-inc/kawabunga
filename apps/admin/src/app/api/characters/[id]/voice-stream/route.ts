@@ -4,10 +4,10 @@ import {
   VoiceStreamHttpError,
   type VoiceStreamBody,
   type VoiceStreamEvent,
-} from "@odyssey/voice-pipeline";
+} from "@kawabunga/voice-pipeline";
 
 // The voice-turn pipeline (retrieval → curator → LLM → TTS) now lives in
-// @odyssey/voice-pipeline as the transport-agnostic `runVoiceStream` generator
+// @kawabunga/voice-pipeline as the transport-agnostic `runVoiceStream` generator
 // so the warm voice-host can run byte-identical logic. This route is just the
 // Vercel/SSE transport adapter over it. Flip to the host by pointing the client
 // at NEXT_PUBLIC_VOICE_HOST_URL — this route stays as the instant fallback.

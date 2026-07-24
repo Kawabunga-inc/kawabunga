@@ -14,7 +14,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { DEFAULT_JUDGE_MODEL, mapPool, replayAndEval, type EvalResult } from "./lib/grounding";
 
 const HERE = dirname(fileURLToPath(import.meta.url));

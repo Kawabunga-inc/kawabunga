@@ -1,11 +1,7 @@
 "use client";
 
 import { useId, type CSSProperties } from "react";
-import {
-  ODYSSEY_FRONT_TRACE_PATH,
-  ODYSSEY_ICON_PATH,
-  ODYSSEY_LOADER_VISIBLE_PATH,
-} from "@/components/odyssey-logo-paths";
+import { KAWABUNGA_ICON_PATHS } from "@/components/kawabunga-logo-paths";
 
 type LoadingIndicatorProps = {
   size?: number | string;
@@ -49,25 +45,15 @@ export function LoadingIndicator({
   style,
 }: LoadingIndicatorProps) {
   const id = useId().replace(/:/g, "");
-  const clipId = `odyssey-loader-clip-${id}`;
-  const frontMaskId = `odyssey-loader-front-mask-${id}`;
-  const pathId = `odyssey-loader-path-${id}`;
-  const glowId = `odyssey-loader-glow-${id}`;
-  const coreId = `odyssey-loader-core-${id}`;
+  const clipId = `kawabunga-loader-clip-${id}`;
+  const gradientId = `kawabunga-loader-gradient-${id}`;
   const safeSpeed = clamp(Number.isFinite(speedSeconds) ? speedSeconds : 1.35, 0.6, 4);
   const safeIntensity = clamp(Number.isFinite(intensity) ? intensity : 0.85, 0.2, 1);
   const safeThickness = clamp(Number.isFinite(thickness) ? thickness : 1.7, 0.7, 3.5);
   const safePulseLength = clamp(Number.isFinite(pulseLength) ? pulseLength : 1.25, 0.7, 3);
-  const maskStrokeWidth = 72 * safeThickness;
   const width = typeof size === "number" ? `${size}px` : size;
-
-  const rootStyle = {
-    ...style,
-    width,
-    "--oli-speed": `${safeSpeed}s`,
-    "--oli-pulse-speed": `${safeSpeed * 0.72}s`,
-    "--oli-intensity": safeIntensity,
-  } as CSSProperties;
+  const sweepWidth = 54 * safePulseLength;
+  const blur = 4 + safeThickness * 3;
 
   return (
     <div
@@ -77,13 +63,14 @@ export function LoadingIndicator({
       style={{
         position: "relative",
         display: "inline-flex",
+        width,
         color: "var(--accent)",
-        ...rootStyle,
+        ...style,
       }}
     >
       <svg
         aria-hidden="true"
-        viewBox="0 0 846 412"
+        viewBox="0 -105.402 315.009 236.299"
         fill="none"
         style={{
           display: "block",
@@ -94,168 +81,69 @@ export function LoadingIndicator({
       >
         <defs>
           <clipPath id={clipId}>
-            <path d={ODYSSEY_ICON_PATH} />
+            {KAWABUNGA_ICON_PATHS.map((path) => (
+              <path key={path} d={path} />
+            ))}
           </clipPath>
-          <mask
-            id={frontMaskId}
-            maskUnits="userSpaceOnUse"
-            x="0"
-            y="0"
-            width="846"
-            height="412"
-          >
-            <rect width="846" height="412" fill="black" />
-            <path
-              d={ODYSSEY_LOADER_VISIBLE_PATH}
-              fill="white"
-              transform="scale(0.9929577465 1.0172839506)"
-            />
-            <path
-              d={ODYSSEY_FRONT_TRACE_PATH}
-              fill="none"
-              stroke="white"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={maskStrokeWidth}
-            />
-          </mask>
-          <path id={pathId} d={ODYSSEY_FRONT_TRACE_PATH} />
-          <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.5" />
-            <stop offset="48%" stopColor="currentColor" stopOpacity="0.3" />
-            <stop offset="82%" stopColor="currentColor" stopOpacity="0.1" />
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+            <stop offset="46%" stopColor="currentColor" stopOpacity={0.25 * safeIntensity} />
+            <stop offset="58%" stopColor="currentColor" stopOpacity={safeIntensity} />
+            <stop offset="72%" stopColor="currentColor" stopOpacity={0.35 * safeIntensity} />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id={coreId} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
-            <stop offset="42%" stopColor="currentColor" stopOpacity="0.72" />
-            <stop offset="78%" stopColor="currentColor" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </radialGradient>
+          </linearGradient>
+          <filter id={`kawabunga-loader-glow-${id}`} x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation={blur} result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
 
-        {showBase ? (
-          <path
-            d={ODYSSEY_ICON_PATH}
-            fill="currentColor"
-            opacity={0.12 + safeIntensity * 0.1}
-          />
-        ) : null}
+        {showBase
+          ? KAWABUNGA_ICON_PATHS.map((path) => (
+              <path
+                key={path}
+                d={path}
+                fill="currentColor"
+                opacity={0.1 + safeIntensity * 0.08}
+              />
+            ))
+          : null}
 
-        <g clipPath={`url(#${clipId})`} mask={`url(#${frontMaskId})`}>
-          <g className="odyssey-loader-orb odyssey-loader-orb-soft">
-            <ellipse
-              cx="0"
-              cy="0"
-              rx={190 * safePulseLength}
-              ry={70 * safeThickness}
-              fill={`url(#${glowId})`}
-            />
-            <animateMotion dur={`${safeSpeed * 1.12}s`} repeatCount="indefinite" rotate="auto">
-              <mpath href={`#${pathId}`} />
-            </animateMotion>
+        <g clipPath={`url(#${clipId})`}>
+          <rect
+            x={-sweepWidth}
+            y="-120"
+            width={sweepWidth}
+            height="270"
+            fill={`url(#${gradientId})`}
+            filter={`url(#kawabunga-loader-glow-${id})`}
+          >
             <animate
-              attributeName="opacity"
-              dur={`${safeSpeed * 1.12}s`}
-              repeatCount="indefinite"
-              values={`0;${0.42 * safeIntensity};${0.42 * safeIntensity};0`}
-              keyTimes="0;0.08;0.95;1"
-            />
-          </g>
-          <g className="odyssey-loader-orb odyssey-loader-orb-core">
-            <ellipse
-              cx="0"
-              cy="0"
-              rx={112 * safePulseLength}
-              ry={44 * safeThickness}
-              fill={`url(#${coreId})`}
-            />
-            <animateMotion dur={`${safeSpeed}s`} repeatCount="indefinite" rotate="auto">
-              <mpath href={`#${pathId}`} />
-            </animateMotion>
-            <animate
-              attributeName="opacity"
+              attributeName="x"
+              values={`${-sweepWidth};${315 + sweepWidth}`}
               dur={`${safeSpeed}s`}
               repeatCount="indefinite"
-              values={`0;${safeIntensity};${safeIntensity};0`}
-              keyTimes="0;0.08;0.95;1"
             />
-          </g>
+          </rect>
         </g>
 
-        {showBase ? (
-          <path
-            d={ODYSSEY_ICON_PATH}
-            fill="currentColor"
-            opacity={0.05 + safeIntensity * 0.05}
-          />
-        ) : null}
-
-        {showLoaderPathOverlay ? (
-          <g pointerEvents="none">
-            <path
-              d={ODYSSEY_LOADER_VISIBLE_PATH}
-              fill="#ff2d2d"
-              opacity="0.3"
-              transform="scale(0.9929577465 1.0172839506)"
-            />
-            <path
-              d={ODYSSEY_LOADER_VISIBLE_PATH}
-              fill="none"
-              stroke="#ff2d2d"
-              strokeWidth="7"
-              opacity="0.95"
-              vectorEffect="non-scaling-stroke"
-              transform="scale(0.9929577465 1.0172839506)"
-            />
-            <path
-              d={ODYSSEY_FRONT_TRACE_PATH}
-              fill="none"
-              stroke="#facc15"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={maskStrokeWidth}
-              opacity="0.24"
-              vectorEffect="non-scaling-stroke"
-            />
-            <path
-              d={ODYSSEY_FRONT_TRACE_PATH}
-              fill="none"
-              stroke="#ffffff"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="16"
-              opacity="0.9"
-              vectorEffect="non-scaling-stroke"
-            />
-            <path
-              d={ODYSSEY_FRONT_TRACE_PATH}
-              fill="none"
-              stroke="#22d3ee"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="8"
-              strokeDasharray="24 16"
-              opacity="1"
-              vectorEffect="non-scaling-stroke"
-            />
-            <circle cx="433" cy="125" r="13" fill="#22c55e" stroke="#ffffff" strokeWidth="4" />
-            <circle cx="676" cy="356" r="13" fill="#f59e0b" stroke="#ffffff" strokeWidth="4" />
-          </g>
-        ) : null}
+        {showLoaderPathOverlay
+          ? KAWABUNGA_ICON_PATHS.map((path) => (
+              <path
+                key={path}
+                d={path}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={safeThickness}
+                opacity={0.4}
+              />
+            ))
+          : null}
       </svg>
       <span style={srOnly}>{label}</span>
-      <style>{`
-        .odyssey-loader-orb {
-          will-change: transform, opacity;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .odyssey-loader-orb {
-            opacity: var(--oli-intensity);
-          }
-        }
-      `}</style>
     </div>
   );
 }

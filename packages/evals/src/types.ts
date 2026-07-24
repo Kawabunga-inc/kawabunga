@@ -9,7 +9,7 @@ import type {
   CharacterIdentity,
   CharacterBrainModel,
   CharacterVoiceStyle,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 /* ── Probes ──────────────────────────────────────────────── */
 

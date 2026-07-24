@@ -8,8 +8,8 @@
  * runner reads from there. This helper centralizes that read.
  */
 
-import { getEvalStore, type EvalSuiteRecord } from "@odyssey/db";
-import type { Probe, ProbeSuite } from "@odyssey/evals";
+import { getEvalStore, type EvalSuiteRecord } from "@kawabunga/db";
+import type { Probe, ProbeSuite } from "@kawabunga/evals";
 
 /**
  * Fetch the latest published version of a suite by slug, return it as a

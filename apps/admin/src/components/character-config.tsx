@@ -40,7 +40,7 @@ import type {
   IdentityTrait,
   KnowledgeGraphData,
   VoiceSettingsOverride,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { DEFAULT_CHAT_MODEL, type ModelOption } from "@/lib/model-registry";
 import { CharacterNodeCard } from "@/components/character-node-card";
 import { KnowledgeGraphIcon } from "@/components/knowledge-graph-icon";

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAudioAssetStore } from "@odyssey/db";
+import { getAudioAssetStore } from "@kawabunga/db";
 import { serveSoundStream } from "@/lib/sounds-stream";
 
 export const runtime = "nodejs";

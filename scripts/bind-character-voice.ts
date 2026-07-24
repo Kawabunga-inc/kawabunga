@@ -18,7 +18,7 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getCharacterStore, getVoiceStore } from "@odyssey/db";
+import { getCharacterStore, getVoiceStore } from "@kawabunga/db";
 
 const args = process.argv.slice(2);
 const characterSlug = readFlag("--character") ?? "abraham";

@@ -7,7 +7,7 @@ import type {
   WikiEdgeRecord,
   WikiPageRecord,
   WikiPageType,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 /* ── Tokens ────────────────────────────────────────────────────── */
 

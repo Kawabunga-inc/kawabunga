@@ -14,7 +14,7 @@
  */
 
 import "dotenv/config";
-import { getCharacterStore, type CharacterVoiceStyle } from "@odyssey/db";
+import { getCharacterStore, type CharacterVoiceStyle } from "@kawabunga/db";
 
 const VOICE_STYLE: CharacterVoiceStyle = {
   tone: ["sharp", "unadorned", "unflinching", "dryly funny"],

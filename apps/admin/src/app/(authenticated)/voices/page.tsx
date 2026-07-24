@@ -2,7 +2,7 @@ import type {
   BoundCharacterPreview,
   VoiceProvider,
   VoiceStatus,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { VoicesGrid } from "@/components/voices-grid";
 import { listVoiceSummaries } from "@/lib/voices-cache";
 

@@ -30,7 +30,7 @@ const QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 const MAX_INPUT_CHARS = 2000;
 
 // Lazy singleton: the heavy transformers.js + onnxruntime load happens on the
-// FIRST embed, not when @odyssey/engine is imported — so routes that only use
+// FIRST embed, not when @kawabunga/engine is imported — so routes that only use
 // the OpenAI path or audio never pay for it.
 let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
 

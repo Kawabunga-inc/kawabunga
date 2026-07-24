@@ -24,7 +24,7 @@ import type {
   WikiPageType,
   WikiSourceRecord,
   WikiSourceRefRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { updateWikiPage as updateCharacterWikiPage } from "@/app/(authenticated)/characters/actions";
 import { updateWikiPage as updateScopedWikiPage } from "@/app/(authenticated)/wikis/actions";
 

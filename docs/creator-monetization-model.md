@@ -1,10 +1,10 @@
-# Odyssey Credit + Creator Revenue Model
+# Kawabunga Credit + Creator Revenue Model
 
-This paper describes a credit-based user billing model with creator revenue sharing for knowledge graphs. It is designed around the current Odyssey architecture: sessions, turns, wiki-backed knowledge graphs, curator-selected pages, and provider usage events.
+This paper describes a credit-based user billing model with creator revenue sharing for knowledge graphs. It is designed around the current Kawabunga architecture: sessions, turns, wiki-backed knowledge graphs, curator-selected pages, and provider usage events.
 
 ## 1. Core Business Model
 
-Users do not pay directly for raw LLM tokens, TTS characters, STT minutes, or orchestration calls. They buy or receive **credits**. Odyssey meters the actual provider usage internally, converts that usage into a user-facing credit charge, and then attributes part of the paid turn value to creators whose knowledge graphs were selected into model context.
+Users do not pay directly for raw LLM tokens, TTS characters, STT minutes, or orchestration calls. They buy or receive **credits**. Kawabunga meters the actual provider usage internally, converts that usage into a user-facing credit charge, and then attributes part of the paid turn value to creators whose knowledge graphs were selected into model context.
 
 The main rule:
 

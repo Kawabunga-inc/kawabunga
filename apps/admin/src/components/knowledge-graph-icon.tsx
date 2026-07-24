@@ -1,4 +1,4 @@
-import type { KnowledgeGraphData, WikiPageType } from "@odyssey/db";
+import type { KnowledgeGraphData, WikiPageType } from "@kawabunga/db";
 
 /** Per-type dot color — matches the canvas palette. */
 const TYPE_COLOR: Record<WikiPageType, string> = {

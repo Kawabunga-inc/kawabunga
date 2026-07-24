@@ -13,7 +13,7 @@
  */
 
 import "dotenv/config";
-import { getCharacterStore, type CharacterDirective } from "@odyssey/db";
+import { getCharacterStore, type CharacterDirective } from "@kawabunga/db";
 
 const DIRECTIVE: CharacterDirective = {
   scope: {

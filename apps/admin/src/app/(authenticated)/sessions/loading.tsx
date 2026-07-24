@@ -1,4 +1,4 @@
-import { Skeleton } from "@odyssey/ui";
+import { Skeleton } from "@kawabunga/ui";
 
 const CARD: React.CSSProperties = {
   background: "var(--material-card)",

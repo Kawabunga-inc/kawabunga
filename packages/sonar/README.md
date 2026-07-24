@@ -1,12 +1,12 @@
-# Odyssey Sonar
+# Kawabunga Sonar
 
-Versioned benchmark harness for the Odyssey world simulation pipeline. The
+Versioned benchmark harness for the Kawabunga world simulation pipeline. The
 first Sonar layer is **voice-to-voice**: emit a spoken pulse, time the echo.
 Every Sonar turn starts from *spoken audio* — a synthesized user utterance
 streamed into the audio-rt STT WebSocket at real-time pace — runs through the
 real admin routes (STT → optional orchestrator → voice-stream), and is timed
 to the agent's first audio. Text-initiated turns don't exist here: they'd hide
-the two biggest real costs (VAD endpointing + STT), and Odyssey is
+the two biggest real costs (VAD endpointing + STT), and Kawabunga is
 voice-first.
 
 Sonar also owns benchmark suites for world-simulation behavior, including

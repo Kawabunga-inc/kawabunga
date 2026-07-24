@@ -14,8 +14,8 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { retryRead } from "./retry";
 import { charactersTable, worldNodesTable, worldsTable } from "./schema";
-import { isoNow } from "@odyssey/utils";
-import { worldRecordSchema } from "@odyssey/types";
+import { isoNow } from "@kawabunga/utils";
+import { worldRecordSchema } from "@kawabunga/types";
 const globalWorldStore = globalThis;
 const memoryWorldStore = (_a = globalWorldStore.__odysseyWorldStore) !== null && _a !== void 0 ? _a : (globalWorldStore.__odysseyWorldStore = {
     worlds: new Map(),

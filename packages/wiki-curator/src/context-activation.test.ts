@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 dotenv.config({ override: true, quiet: true });
 
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { curate } from "./index";
 
 const TOKEN_BUDGET = 3000;

@@ -1,4 +1,4 @@
-import type { CharacterIdentity } from "@odyssey/db";
+import type { CharacterIdentity } from "@kawabunga/db";
 
 /**
  * Compile an L01 Identity into the `<identity>` block that lives at the
@@ -10,7 +10,7 @@ import type { CharacterIdentity } from "@odyssey/db";
  *     beats abstract + long.
  *   - Araujo et al. 2025 — top-2 attributes recover >80% of behavioural
  *     fidelity; more dilutes. Hence the hard cap enforced upstream.
- *   - Synthesized in `odyssey labs - harness` Paper file, artboard 7QO-0
+ *   - Synthesized in `kawabunga labs - harness` Paper file, artboard 7QO-0
  *     "L01 Identity".
  *
  * Falls back to the hardcoded "You are {name}…" line when identity is

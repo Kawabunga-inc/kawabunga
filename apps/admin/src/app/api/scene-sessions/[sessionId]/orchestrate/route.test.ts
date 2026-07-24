@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Scene } from "@odyssey/types";
+import type { Scene } from "@kawabunga/types";
 
 // Store + dependency spies. The orchestrate route's single-character
 // fast-path must synthesize the decision WITHOUT touching the orchestrator
@@ -13,7 +13,7 @@ const updateCurrentScene = vi.hoisted(() => vi.fn(async () => {}));
 const resolveScene = vi.hoisted(() => vi.fn());
 const resolveOrchestratorExecutor = vi.hoisted(() => vi.fn());
 
-vi.mock("@odyssey/db", () => ({
+vi.mock("@kawabunga/db", () => ({
   getSceneSessionStore: () => ({ getSession, appendEvent, updateCurrentScene }),
 }));
 

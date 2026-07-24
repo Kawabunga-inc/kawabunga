@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Sidebar, type SidebarItem, type SidebarTab } from "@odyssey/ui";
+import { Sidebar, type SidebarItem, type SidebarTab } from "@kawabunga/ui";
 import { HeaderProvider, useHeaderContent } from "./header-context";
 import { SettingsOverlay } from "./settings-overlay";
 import { AdminAgentSidebar } from "./admin-agent-sidebar";
@@ -54,20 +54,18 @@ const icons = {
   sounds: <Wind size={I} />,
 };
 
-/* ── Brand icon ──────────────────────────────────────────────── */
-
-const ODYSSEY_BRAND = "var(--accent-strong)";
-const odysseyIcon = (
+const kawabungaWordmark = (
   <span
-    aria-hidden="true"
+    role="img"
+    aria-label="Kawabunga"
     style={{
       display: "inline-block",
-      width: 34,
-      height: 17,
+      width: 142,
+      height: 20,
       flexShrink: 0,
-      background: ODYSSEY_BRAND,
-      mask: "url('/odyssey_icon.svg') center / contain no-repeat",
-      WebkitMask: "url('/odyssey_icon.svg') center / contain no-repeat",
+      background: "var(--sidebar-foreground, var(--foreground))",
+      mask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
+      WebkitMask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
     }}
   />
 );
@@ -188,8 +186,8 @@ function AdminShellInner({ children, initialCollapsed }: { children: React.React
 
   return (
     <Sidebar
-      brand="Odyssey"
-      brandIcon={odysseyIcon}
+      brand="Kawabunga"
+      brandIcon={kawabungaWordmark}
       items={items}
       tabs={tabs}
       pathname={pathname}
@@ -197,7 +195,7 @@ function AdminShellInner({ children, initialCollapsed }: { children: React.React
       userName={userName}
       userRole={userRole}
       userEmail={userEmail}
-      workspaceName="odyssey-labs"
+      workspaceName="kawabunga-labs"
       docsHref="/docs"
       headerContent={headerContent}
       actions={agentOpen ? [] : [

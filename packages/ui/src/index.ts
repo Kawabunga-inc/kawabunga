@@ -1,9 +1,9 @@
 /**
- * Odyssey Design System
+ * Kawabunga Design System
  *
  * CSS imports (use in app globals.css):
- *   @import "@odyssey/ui/styles/base.css";
- *   @import "@odyssey/ui/styles/themes/ocean.css";  -- or neutral.css
+ *   @import "@kawabunga/ui/styles/base.css";
+ *   @import "@kawabunga/ui/styles/themes/ocean.css";  -- or neutral.css
  *
  * Palette constants (for JS/TS when you need raw hex values):
  */

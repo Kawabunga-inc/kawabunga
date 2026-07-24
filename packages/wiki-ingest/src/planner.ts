@@ -6,7 +6,7 @@
  * plus flagged contradictions and a rough confidence.
  */
 
-import type { WikiPageRecord } from "@odyssey/db";
+import type { WikiPageRecord } from "@kawabunga/db";
 import { call, extractToolUse } from "./client";
 import type { ModelId } from "./models";
 import {

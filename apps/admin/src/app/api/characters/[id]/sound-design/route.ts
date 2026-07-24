@@ -5,7 +5,7 @@ import {
   getCharacterStore,
   type CharacterSceneSound,
   type CharacterSoundDesign,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 

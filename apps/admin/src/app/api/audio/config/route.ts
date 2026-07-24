@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAudioRuntimeConfig } from "@odyssey/engine";
+import { getAudioRuntimeConfig } from "@kawabunga/engine";
 import { VOICE_PIPELINE_CONFIG } from "@/lib/voice-pipeline-config";
 
 export const dynamic = "force-dynamic";

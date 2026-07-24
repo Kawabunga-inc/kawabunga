@@ -13,7 +13,7 @@ import type {
   Perspective,
   TimeIndex,
   WikiPageRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { call, extractToolUse } from "./client";
 import type { ModelId } from "./models";
 import {

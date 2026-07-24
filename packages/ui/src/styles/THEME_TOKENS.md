@@ -1,4 +1,4 @@
-# Odyssey Theme Tokens
+# Kawabunga Theme Tokens
 
 `themes/ocean.css` is the source of truth for runtime theme variables. New UI
 should use the canonical tokens below. Compatibility aliases remain available so
@@ -125,8 +125,8 @@ Use the canonical token in new code:
 `data-theme` controls mode: `dark` or `light`. `data-theme-variant` controls
 the palette family inside that mode:
 
-- `ocean`: current atmospheric Odyssey palette
-- `clean`: clean light/dark palette with Odyssey blue-green accents
+- `ocean`: current atmospheric Kawabunga palette
+- `clean`: clean light/dark palette with Kawabunga blue-green accents
 - `mono-ink`: highest-neutral ink/grayscale palette
 - `mono-slate`: cool blue-gray monotone palette
 - `mono-graphite`: neutral graphite palette

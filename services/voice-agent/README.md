@@ -1,7 +1,7 @@
-# @odyssey/voice-agent
+# @kawabunga/voice-agent
 
 The LiveKit twin of `services/voice-host`. A long-running `@livekit/agents` worker that
-registers with LiveKit, is dispatched into a room, and (from A2 on) runs the Odyssey voice
+registers with LiveKit, is dispatched into a room, and (from A2 on) runs the Kawabunga voice
 pipeline server-side over a WebRTC track — gaining real-time transport, AEC, and barge-in
 that the SSE path can't do. The knowledge-graph brain (`runVoiceStream`) is reused unchanged.
 
@@ -22,8 +22,8 @@ Sequenced next:
    version isn't pinned yet, so add it explicitly to lock the real one:
    ```
    npm install                                             # reconciles the new workspace into the lockfile
-   npm install @livekit/agents@latest -w @odyssey/voice-agent   # adds the framework, pins the real version
-   # A3/A4: npm install @livekit/agents-plugin-silero@latest @livekit/agents-plugin-livekit@latest -w @odyssey/voice-agent  (+ an STT plugin)
+   npm install @livekit/agents@latest -w @kawabunga/voice-agent   # adds the framework, pins the real version
+   # A3/A4: npm install @livekit/agents-plugin-silero@latest @livekit/agents-plugin-livekit@latest -w @kawabunga/voice-agent  (+ an STT plugin)
    ```
    Then `npx tsc --noEmit -p services/voice-agent` to confirm `src/agent.ts`'s imports match the
    installed SDK — the worker/session API is version-sensitive (see the note in `src/agent.ts`).
@@ -54,5 +54,5 @@ Dockerfile mirrors voice-host: build context = repo root, Dockerfile path
 `services/voice-agent/Dockerfile`, `npm ci` + bge pre-bake, healthcheck `/healthz`. Set the
 `LIVEKIT_*` env in Railway; leave `EMBEDDING_PROVIDER` unset (warm in-process bge).
 
-> Branch: `feat/voice-agent` (off `origin/main`). Built in the `/tmp/odyssey-voice-agent`
+> Branch: `feat/voice-agent` (off `origin/main`). Built in the `/tmp/kawabunga-voice-agent`
 > worktree to keep the main checkout's WIP untouched.

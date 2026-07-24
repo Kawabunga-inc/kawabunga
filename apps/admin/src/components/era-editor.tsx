@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { EraConfig } from "@odyssey/db";
+import type { EraConfig } from "@kawabunga/db";
 
 const T = {
   fg: "var(--foreground)",

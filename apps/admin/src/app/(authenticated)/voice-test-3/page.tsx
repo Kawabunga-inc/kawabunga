@@ -81,7 +81,7 @@ function resolveRecorderMimeType() {
 export default function VoiceTest3Page() {
   const [checks, setChecks] = useState<ProbeResult[]>([]);
   const [configJson, setConfigJson] = useState<string>("");
-  const [ttsText, setTtsText] = useState("Testing Odyssey TTS from Voice Test 3.");
+  const [ttsText, setTtsText] = useState("Testing Kawabunga TTS from Voice Test 3.");
   const [transcript, setTranscript] = useState("");
   const [replyText, setReplyText] = useState("");
   const [replyModel, setReplyModel] = useState("");

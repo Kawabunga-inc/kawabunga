@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminAgentStore } from "@odyssey/db";
+import { getAdminAgentStore } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";

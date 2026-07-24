@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { CharacterVoiceWavefield } from "@/components/character-voice-wavefield";
 
 export const dynamic = "force-dynamic";

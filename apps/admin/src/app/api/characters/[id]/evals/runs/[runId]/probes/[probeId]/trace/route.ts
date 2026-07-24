@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCharacterStore, getEvalStore } from "@odyssey/db";
-import { buildSystemPromptParts } from "@odyssey/engine";
-import { buildJudgeUserPrompt, JUDGE_SYSTEM_PROMPT } from "@odyssey/evals";
+import { getCharacterStore, getEvalStore } from "@kawabunga/db";
+import { buildSystemPromptParts } from "@kawabunga/engine";
+import { buildJudgeUserPrompt, JUDGE_SYSTEM_PROMPT } from "@kawabunga/evals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,9 +59,9 @@ export async function GET(
   // captureCharacterSnapshot — no defensive parsing needed in practice.
   const snap = run.characterSnapshot as {
     characterTitle: string;
-    identity: import("@odyssey/db").CharacterIdentity | null;
-    voiceStyle: import("@odyssey/db").CharacterVoiceStyle | null;
-    directive: import("@odyssey/db").CharacterDirective | null;
+    identity: import("@kawabunga/db").CharacterIdentity | null;
+    voiceStyle: import("@kawabunga/db").CharacterVoiceStyle | null;
+    directive: import("@kawabunga/db").CharacterDirective | null;
   };
 
   // perTurn is "" because we don't have the curator output stored. The

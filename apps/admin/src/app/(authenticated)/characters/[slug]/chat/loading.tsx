@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Skeleton } from "@odyssey/ui";
+import { Skeleton } from "@kawabunga/ui";
 import { useHeaderContent } from "@/components/header-context";
 
 // Matches the live character-chat layout:

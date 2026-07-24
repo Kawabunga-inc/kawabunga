@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSceneSessionStore } from "@odyssey/db";
+import { getSceneSessionStore } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";

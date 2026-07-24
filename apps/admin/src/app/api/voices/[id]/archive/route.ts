@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getVoiceStore } from "@odyssey/db";
+import { getVoiceStore } from "@kawabunga/db";
 import { invalidateVoicesList } from "@/lib/voices-cache";
 
 export const runtime = "nodejs";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCharacterStore, getEvalStore, type CharacterBrainModel } from "@odyssey/db";
-import { captureCharacterSnapshot } from "@odyssey/evals";
+import { getCharacterStore, getEvalStore, type CharacterBrainModel } from "@kawabunga/db";
+import { captureCharacterSnapshot } from "@kawabunga/evals";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export async function GET(
     } else {
       // Pull brainModel out of the captured snapshot — `characterSnapshot`
       // is stored as JSONB and shaped like `CharacterSnapshot` from
-      // @odyssey/evals. Defensive narrowing here so a malformed row
+      // @kawabunga/evals. Defensive narrowing here so a malformed row
       // doesn't 500 the whole response.
       const snap = run.characterSnapshot as { brainModel?: CharacterBrainModel | null } | null;
       grouped.set(run.configHash, {

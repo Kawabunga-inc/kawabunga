@@ -1,5 +1,5 @@
 /**
- * Exercise @odyssey/wiki-curator against the Abraham wiki.
+ * Exercise @kawabunga/wiki-curator against the Abraham wiki.
  *
  * Usage:
  *   npx tsx scripts/smoke-test-curator.ts
@@ -11,8 +11,8 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getCharacterStore } from "@odyssey/db";
-import { curate } from "@odyssey/wiki-curator";
+import { getCharacterStore } from "@kawabunga/db";
+import { curate } from "@kawabunga/wiki-curator";
 
 const ABRAHAM_SLUG = "abraham";
 const SHOW_CHUNK = process.argv.includes("--show-chunk");

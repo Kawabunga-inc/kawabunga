@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 
 /**
  * One-off cleanup: null out the retired `directive.scope.engage` list on

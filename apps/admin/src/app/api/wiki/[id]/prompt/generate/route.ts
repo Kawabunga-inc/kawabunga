@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getWikisStore } from "@odyssey/db";
+import { getWikisStore } from "@kawabunga/db";
 import {
   DEFAULT_MODEL,
   generateIngestionPrompt,
   isKnownModel,
   loadWikiContext,
-} from "@odyssey/wiki-ingest";
+} from "@kawabunga/wiki-ingest";
 import { auth } from "@/lib/auth";
 
 const MAX_BRIEF_LENGTH = 8_000;

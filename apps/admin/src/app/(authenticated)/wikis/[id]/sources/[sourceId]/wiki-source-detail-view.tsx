@@ -11,8 +11,8 @@ import type {
   WikiSourceCitationRecord,
   WikiSourceRecord,
   WikiSourceRefRecord,
-} from "@odyssey/db";
-import { deriveSourceTypeFromKind } from "@odyssey/db";
+} from "@kawabunga/db";
+import { deriveSourceTypeFromKind } from "@kawabunga/db";
 import { RunEffectDiffDrawer } from "@/components/run-effect-diff-drawer";
 import {
   PurgeConfirmModal,

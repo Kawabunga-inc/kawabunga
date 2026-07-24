@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/voice-host",
+  "name": "@kawabunga/voice-host",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
-    "@odyssey/engine": "*",
-    "@odyssey/voice-pipeline": "*",
+    "@kawabunga/engine": "*",
+    "@kawabunga/voice-pipeline": "*",
     "fastify": "^5.1.0",
     "jose": "^6.2.2"
   }

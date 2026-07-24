@@ -304,27 +304,27 @@ export type HarnessCharacter = {
    * (compiled prompt falls back to the hardcoded "You are {title}…"
    * anchor). The L01 editor handles both cases.
    */
-  identity: import("@odyssey/db").CharacterIdentity | null;
+  identity: import("@kawabunga/db").CharacterIdentity | null;
   /**
    * L03 Voice & Style — `null` when the character has no L03 authored
    * (no `<voice>` block emitted; runtime voice path stays legacy). The
    * L03 editor handles both cases.
    */
-  voiceStyle: import("@odyssey/db").CharacterVoiceStyle | null;
+  voiceStyle: import("@kawabunga/db").CharacterVoiceStyle | null;
   /**
    * L04 Brain / Model — `null` when the character has no L04 authored
    * (chat route uses hardcoded defaults: claude-sonnet-4-5 / max_tokens
    * 1024 / cache on / Anthropic defaults for temp + top_p).
    */
-  brainModel: import("@odyssey/db").CharacterBrainModel | null;
+  brainModel: import("@kawabunga/db").CharacterBrainModel | null;
   /**
    * L02 Directive — `null` when the character predates L02 (legacy
    * single-paragraph system prompt). The L02 editor handles both cases.
    */
-  directive: import("@odyssey/db").CharacterDirective | null;
+  directive: import("@kawabunga/db").CharacterDirective | null;
   /**
    * sm-sound Sound design — `null` when no soundscape is bound (character
    * sandbox stays silent). The sm-sound editor handles both cases.
    */
-  soundDesign: import("@odyssey/db").CharacterSoundDesign | null;
+  soundDesign: import("@kawabunga/db").CharacterSoundDesign | null;
 };

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getWikiStore, getWikisStore } from "@odyssey/db";
-import type { WikiIngestionLogRecord } from "@odyssey/db";
+import { getWikiStore, getWikisStore } from "@kawabunga/db";
+import type { WikiIngestionLogRecord } from "@kawabunga/db";
 
 export const dynamic = "force-dynamic";
 

@@ -16,7 +16,7 @@
  * out (see pipeline.ts).
  */
 
-import type { Era, WikiPageRecord } from "@odyssey/db";
+import type { Era, WikiPageRecord } from "@kawabunga/db";
 import type { PlanOp } from "./types";
 
 /* ── Layer 1: engine instructions ──────────────────────────────── */

@@ -5,8 +5,8 @@ import {
   getWikiStore,
   getWikisStore,
   type CharacterVoiceStyle,
-} from "@odyssey/db";
-import { call, extractToolUse } from "@odyssey/wiki-ingest";
+} from "@kawabunga/db";
+import { call, extractToolUse } from "@kawabunga/wiki-ingest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

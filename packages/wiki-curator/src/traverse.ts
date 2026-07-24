@@ -8,7 +8,7 @@
  * outrank pages that simply mention something.
  */
 
-import type { EdgeKind, WikiEdgeRecord, WikiPageRecord } from "@odyssey/db";
+import type { EdgeKind, WikiEdgeRecord, WikiPageRecord } from "@kawabunga/db";
 import type { EdgeFollowed } from "./types";
 
 export const EDGE_WEIGHT: Record<EdgeKind, number> = {

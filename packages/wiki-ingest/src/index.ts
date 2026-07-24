@@ -1,5 +1,5 @@
 /**
- * @odyssey/wiki-ingest — public API.
+ * @kawabunga/wiki-ingest — public API.
  *
  * The main entrypoint is `runIngestion(input)`, an async generator yielding
  * `IngestionEvent`s. Consume with `for await (const ev of runIngestion(…))`,

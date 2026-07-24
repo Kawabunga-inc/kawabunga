@@ -2,7 +2,7 @@ import type {
   SourceMetadataFilterField,
   SourceMetadataFilters,
   WikiSourceRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 export const SOURCE_METADATA_FILTER_FIELDS = [
   "character_focus",

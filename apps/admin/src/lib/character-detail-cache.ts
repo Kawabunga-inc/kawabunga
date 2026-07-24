@@ -5,7 +5,7 @@ import {
   getWikiStore,
   getWikisStore,
   type CharacterRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import type {
   ConfigBinding,
   ConfigWikiOption,

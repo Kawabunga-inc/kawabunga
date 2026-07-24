@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCharacterStore, getEvalStore, type CharacterBrainModel } from "@odyssey/db";
-import { captureCharacterSnapshot } from "@odyssey/evals";
+import { getCharacterStore, getEvalStore, type CharacterBrainModel } from "@kawabunga/db";
+import { captureCharacterSnapshot } from "@kawabunga/evals";
 import { MODEL_REGISTRY } from "@/lib/model-registry";
 
 export const runtime = "nodejs";

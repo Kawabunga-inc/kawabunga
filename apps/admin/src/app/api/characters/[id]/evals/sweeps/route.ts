@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCharacterStore, getEvalStore } from "@odyssey/db";
-import { launchEvalSweepInBackground, type SweepSpec } from "@odyssey/evals";
+import { getCharacterStore, getEvalStore } from "@kawabunga/db";
+import { launchEvalSweepInBackground, type SweepSpec } from "@kawabunga/evals";
 import { loadLatestSuite } from "@/lib/eval-suites";
 
 export const runtime = "nodejs";

@@ -1,4 +1,4 @@
-import { getSceneSessionStore } from "@odyssey/db";
+import { getSceneSessionStore } from "@kawabunga/db";
 import { SessionsTable, type SessionRow } from "@/components/sessions-table";
 
 export const dynamic = "force-dynamic";

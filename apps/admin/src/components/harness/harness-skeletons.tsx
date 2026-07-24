@@ -1,4 +1,4 @@
-import { Skeleton, SkeletonCard, SkeletonText } from "@odyssey/ui";
+import { Skeleton, SkeletonCard, SkeletonText } from "@kawabunga/ui";
 import type { ReactNode } from "react";
 
 export function HarnessShellSkeleton() {

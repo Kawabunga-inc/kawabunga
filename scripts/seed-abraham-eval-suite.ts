@@ -16,7 +16,7 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getCharacterStore, getEvalStore } from "@odyssey/db";
+import { getCharacterStore, getEvalStore } from "@kawabunga/db";
 import { abrahamSuite } from "../evals/abraham/suite";
 
 async function main() {

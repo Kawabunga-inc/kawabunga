@@ -11,7 +11,7 @@
  * turn (the /sessions route reads it from the DB). The judge model is configurable
  * via JUDGE_MODEL (default claude-haiku-4-5).
  */
-import { getChatProviderForModel } from "@odyssey/engine";
+import { getChatProviderForModel } from "@kawabunga/engine";
 
 export const DEFAULT_JUDGE_MODEL = process.env.JUDGE_MODEL ?? "claude-haiku-4-5";
 

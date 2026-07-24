@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getEvalStore, type SaveEvalRunInput } from "@odyssey/db";
+import { getEvalStore, type SaveEvalRunInput } from "@kawabunga/db";
 import type { EvalRun, ProbeResult, ScoreDimension } from "./types";
 import type { ConfigRanking, SweepResult } from "./sweep";
 

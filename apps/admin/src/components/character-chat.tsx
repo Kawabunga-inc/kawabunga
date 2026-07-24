@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CharacterBrainModel, EraConfig, WikiEdgeRecord, WikiPageRecord } from "@odyssey/db";
+import type { CharacterBrainModel, EraConfig, WikiEdgeRecord, WikiPageRecord } from "@kawabunga/db";
 import { ChatGraph } from "@/components/chat-graph";
 import { useHeaderContent } from "@/components/header-context";
 import { Menu, type MenuItem } from "@/components/menu";

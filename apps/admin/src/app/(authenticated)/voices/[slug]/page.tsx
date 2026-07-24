@@ -6,7 +6,7 @@ import {
   type VoiceStatus,
   type VoicePreviewRecord,
   type VoiceExtractionAttemptRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   createEmbeddingSignedUrl,
   createSourceSignedUrl,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCharacterStore, getEvalStore } from "@odyssey/db";
-import { launchEvalRunInBackground } from "@odyssey/evals";
+import { getCharacterStore, getEvalStore } from "@kawabunga/db";
+import { launchEvalRunInBackground } from "@kawabunga/evals";
 import { loadLatestSuite } from "@/lib/eval-suites";
 
 export const runtime = "nodejs";

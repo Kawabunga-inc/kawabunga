@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { ODYSSEY_ICON_PATH } from "@/components/odyssey-logo-paths";
+import { KAWABUNGA_ICON_PATHS } from "@/components/kawabunga-logo-paths";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
@@ -18,8 +18,10 @@ export default function AppleIcon() {
           borderRadius: 36,
         }}
       >
-        <svg width="148" height="72" viewBox="0 0 846 412" fill="none">
-          <path d={ODYSSEY_ICON_PATH} fill="#8fd1cb" />
+        <svg width="144" height="108" viewBox="0 -105.402 315.009 236.299" fill="none">
+          {KAWABUNGA_ICON_PATHS.map((path) => (
+            <path key={path} d={path} fill="#8fd1cb" />
+          ))}
         </svg>
       </div>
     ),

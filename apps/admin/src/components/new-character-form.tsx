@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
-import type { EraConfig } from "@odyssey/db";
+import type { EraConfig } from "@kawabunga/db";
 import { useHeaderContent } from "@/components/header-context";
 import { createCharacter } from "@/app/(authenticated)/characters/actions";
 import { EraEditor } from "@/components/era-editor";

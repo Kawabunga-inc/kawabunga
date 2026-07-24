@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getFeatureStore, getTicketStore } from "@odyssey/db";
+import { getFeatureStore, getTicketStore } from "@kawabunga/db";
 
 const VERSION_ID = "960d73da-e68d-40ee-8e2a-da24028a517f";
 const BINNY = "1bdbaaf9-7850-46cc-896e-65945c023b06";
@@ -100,7 +100,7 @@ async function main() {
     {
       title: "Abraham's Tent world definition",
       description:
-        "The full world configuration for the first Odyssey world. Characters (Abraham, Sarah, Isaac, the three angels), their entry conditions, the scene graph (tent interior, entrance, oaks), narrative arcs (hospitality → covenant → revelation), state dimensions and their thresholds, triggerable events (angel arrival, Sarah's laugh, binding allusion). Everything the narrator needs to run Abraham's Tent as a living simulation.",
+        "The full world configuration for the first Kawabunga world. Characters (Abraham, Sarah, Isaac, the three angels), their entry conditions, the scene graph (tent interior, entrance, oaks), narrative arcs (hospitality → covenant → revelation), state dimensions and their thresholds, triggerable events (angel arrival, Sarah's laugh, binding allusion). Everything the narrator needs to run Abraham's Tent as a living simulation.",
       status: "backlog" as const,
       domain: "world",
       priority: "P1",

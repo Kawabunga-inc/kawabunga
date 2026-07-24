@@ -10,7 +10,7 @@ import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
 import { sql } from "drizzle-orm";
-import { getDb } from "@odyssey/db";
+import { getDb } from "@kawabunga/db";
 
 type CountRow = { count: number | string | bigint };
 

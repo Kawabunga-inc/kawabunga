@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCharacterStore, type CharacterBrainModel } from "@odyssey/db";
+import { getCharacterStore, type CharacterBrainModel } from "@kawabunga/db";
 import { MODEL_REGISTRY } from "@/lib/model-registry";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";

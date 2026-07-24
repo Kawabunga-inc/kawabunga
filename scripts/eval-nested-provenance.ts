@@ -23,7 +23,7 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { neon } from "@neondatabase/serverless";
-import { getWikiStore, getWikisStore, citationIdentityKey } from "@odyssey/db";
+import { getWikiStore, getWikisStore, citationIdentityKey } from "@kawabunga/db";
 import {
   survey,
   resolveExcludeRanges,
@@ -31,8 +31,8 @@ import {
   resolveModel,
   type SurveyResult,
   type IngestionEvent,
-} from "@odyssey/wiki-ingest";
-import { planChunked } from "/Users/binnyplotkin/Documents/odyssey/packages/wiki-ingest/src/pipeline";
+} from "@kawabunga/wiki-ingest";
+import { planChunked } from "../packages/wiki-ingest/src/pipeline";
 
 const FIXTURES = join(
   process.cwd(),

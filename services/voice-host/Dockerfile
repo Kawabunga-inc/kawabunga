@@ -8,7 +8,7 @@
 # hoisted root node_modules.
 #
 # No build step: the service runs via tsx (matching `worker:wiki-ingest`), and
-# the @odyssey/* packages export raw TS.
+# the @kawabunga/* packages export raw TS.
 FROM node:22-slim
 
 # bge (transformers.js) caches models under $HOME; pin HOME so the build-time
@@ -42,7 +42,7 @@ RUN npm ci
 # sends the token as a Bearer header when present. Scoped to this RUN, not ENV, so
 # it isn't baked into the runtime image.
 ARG HF_TOKEN
-RUN HF_TOKEN=$HF_TOKEN npm run -w @odyssey/voice-host prewarm
+RUN HF_TOKEN=$HF_TOKEN npm run -w @kawabunga/voice-host prewarm
 
 EXPOSE 8080
 # Leave EMBEDDING_PROVIDER unset → the pipeline uses warm in-process bge.

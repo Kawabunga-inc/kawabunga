@@ -6,7 +6,7 @@ import {
   getWikisStore,
   type CharacterRecord,
   type WikiRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 /**
  * Resolve a wiki + the character used to back its editor views during the

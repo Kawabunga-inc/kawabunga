@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`@odyssey/orchestration client > keeps the Abraham's Tent orchestrator prompt stable > abrahams-tent-orchestrator-prompt 1`] = `
+exports[`@kawabunga/orchestration client > keeps the Abraham's Tent orchestrator prompt stable > abrahams-tent-orchestrator-prompt 1`] = `
 [
   {
     "content": "You are the DIRECTOR of a voice-driven scene. You decide what happens next -

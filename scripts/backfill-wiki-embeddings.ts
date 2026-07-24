@@ -29,8 +29,8 @@ import {
   wikiPagesTable,
   getCharacterStore,
   wikiEmbeddingSource,
-} from "@odyssey/db";
-import { embedText, EMBEDDING_MODEL } from "@odyssey/engine";
+} from "@kawabunga/db";
+import { embedText, EMBEDDING_MODEL } from "@kawabunga/engine";
 
 const APPLY = process.argv.includes("--apply");
 const REFRESH = process.argv.includes("--refresh");

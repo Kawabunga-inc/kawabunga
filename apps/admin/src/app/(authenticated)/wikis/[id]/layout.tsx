@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getWikisStore } from "@odyssey/db";
+import { getWikisStore } from "@kawabunga/db";
 import { WikiChrome } from "./wiki-chrome";
 
 export const dynamic = "force-dynamic";

@@ -1,4 +1,4 @@
-import { Skeleton, SkeletonText } from "@odyssey/ui";
+import { Skeleton, SkeletonText } from "@kawabunga/ui";
 
 export default function DocDetailLoading() {
   return (

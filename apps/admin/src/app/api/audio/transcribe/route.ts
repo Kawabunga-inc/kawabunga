@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSpeechToTextAdapter } from "@odyssey/engine";
+import { createSpeechToTextAdapter } from "@kawabunga/engine";
 
 export async function POST(request: NextRequest) {
   const startedAt = performance.now();

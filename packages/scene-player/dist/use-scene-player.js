@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { buildSpeakerTurnRequest, createInitialSceneState, resolveSceneDecision, } from "@odyssey/orchestration/client";
+import { buildSpeakerTurnRequest, createInitialSceneState, resolveSceneDecision, } from "@kawabunga/orchestration/client";
 import { SceneAudioBus } from "./scene-audio-bus";
 const RECENT_TURNS_LIMIT = 8;
 export function useScenePlayer(opts) {

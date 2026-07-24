@@ -2,17 +2,17 @@ import {
   getCharacterStore,
   type CharacterRecord,
   type TimeIndex,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   curate,
   type CuratorTrace,
   type Scene,
-} from "@odyssey/wiki-curator";
+} from "@kawabunga/wiki-curator";
 import {
   buildVoicePromptPlan,
   OrchestrationContextError,
   type VoicePromptPlan,
-} from "@odyssey/orchestration/server";
+} from "@kawabunga/orchestration/server";
 import type { TraceContract } from "@/lib/voice-trace";
 
 export type CharacterContextMode =

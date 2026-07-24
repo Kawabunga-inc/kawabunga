@@ -13,7 +13,7 @@ import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq, sql } from "drizzle-orm";
-import { usersTable } from "@odyssey/db";
+import { usersTable } from "@kawabunga/db";
 
 async function main() {
   const url = process.env.DATABASE_URL;

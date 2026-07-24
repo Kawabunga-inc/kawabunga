@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CharacterIdentity, IdentityTrait } from "@odyssey/db";
+import type { CharacterIdentity, IdentityTrait } from "@kawabunga/db";
 import { compileIdentityXml } from "@/lib/character-prompt-builders";
 import type { HarnessCharacter } from "../harness-types";
 import { AdvisoryStack, type Advisory } from "../shared/advisory";

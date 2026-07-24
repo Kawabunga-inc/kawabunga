@@ -22,7 +22,7 @@ import {
   type WikiStore,
   type WikiPageRecord,
   wikiEmbeddingSource,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { loadWikiContext } from "./context";
 import { DEFAULT_MODEL, resolveModel, type ModelId } from "./models";
 import { plan, PlanTruncatedError } from "./planner";

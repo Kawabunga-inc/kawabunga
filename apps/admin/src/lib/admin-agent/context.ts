@@ -5,7 +5,7 @@ import {
   getFeatureStore,
   getTicketStore,
   getVersionStore,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import type { AdminAgentRouteContext, AdminAgentUser } from "./types";
 import { getProjectRoot } from "./codebase";
 import { getConfiguredRepositoryNames } from "./github";
@@ -46,7 +46,7 @@ export async function buildAdminAgentSystemContext(input: {
   ]);
 
   return [
-    "You are Odyssey's admin operations agent inside the authenticated admin app.",
+    "You are Kawabunga's admin operations agent inside the authenticated admin app.",
     "You help admins inspect the database, understand project architecture, and prepare operational changes.",
     "You must not claim a write/delete/bulk operation has executed unless an approved operation result says it did.",
     "Never request or reveal secrets, environment variables, raw credentials, password hashes, or unrestricted SQL.",

@@ -1,7 +1,7 @@
 import type {
   AdminAgentOperationRecord,
   AdminAgentRiskLevel,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import type { z } from "zod";
 
 export type AdminAgentRouteContext = {

@@ -5,13 +5,13 @@ import type {
   EraConfig,
   SceneEdgeRecord,
   SceneNodeRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   getAudioAssetStore,
   getCharacterStore,
   getSceneGraphStore,
   getSceneStore,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { SceneEditor } from "@/components/scene-editor";
 
 export const dynamic = "force-dynamic";

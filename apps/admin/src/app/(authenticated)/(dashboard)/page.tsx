@@ -6,7 +6,7 @@ import {
   getFeatureStore,
   getTicketStore,
   getChangelogStore,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import DashboardClient from "./dashboard-client";
 
 export const dynamic = "force-dynamic";

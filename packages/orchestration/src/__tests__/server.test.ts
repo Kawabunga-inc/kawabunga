@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildVoicePromptPlan } from "../server";
-import type { CurateResult } from "@odyssey/wiki-curator";
+import type { CurateResult } from "@kawabunga/wiki-curator";
 
 const curated: CurateResult = {
   promptChunk: "Ada remembers the machine room.",
@@ -52,7 +52,7 @@ const curated: CurateResult = {
   elapsedMs: 7,
 };
 
-describe("@odyssey/orchestration server", () => {
+describe("@kawabunga/orchestration server", () => {
   it("builds a voice prompt plan with mocked stores", async () => {
     const plan = await buildVoicePromptPlan(
       {

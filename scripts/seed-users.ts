@@ -1,4 +1,4 @@
-import { registerUser } from "@odyssey/auth";
+import { registerUser } from "@kawabunga/auth";
 
 const users = [
   { name: "Binny Plotkin", email: "binnyplotkin@gmail.com", password: "adventure" },

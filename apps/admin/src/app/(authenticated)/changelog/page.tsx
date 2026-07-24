@@ -1,4 +1,4 @@
-import { getChangelogStore, getPlatformVersionStore } from "@odyssey/db";
+import { getChangelogStore, getPlatformVersionStore } from "@kawabunga/db";
 import ChangelogClient from "./changelog-client";
 
 export const dynamic = "force-dynamic";

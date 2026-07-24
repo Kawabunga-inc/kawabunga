@@ -83,7 +83,7 @@ const FILTER_PILLS: { key: FilterKey; label: string }[] = [
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
-const REPO_URL = "https://github.com/binnyplotkin/odyssey";
+const REPO_URL = "https://github.com/Kawabunga-inc/kawabunga";
 
 function authorLabel(author: string): string {
   if (author === "B") return "Binny";

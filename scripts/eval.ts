@@ -1,5 +1,5 @@
 /**
- * CLI for @odyssey/evals.
+ * CLI for @kawabunga/evals.
  *
  * Usage:
  *   npx tsx scripts/eval.ts abraham                              # full suite
@@ -29,7 +29,7 @@ import {
   writeSweepResult,
   writeSweepResultToDb,
   type SweepSpec,
-} from "@odyssey/evals";
+} from "@kawabunga/evals";
 import { abrahamSuite } from "../evals/abraham/suite";
 
 type SuiteRegistry = Record<string, typeof abrahamSuite>;
@@ -282,7 +282,7 @@ function parseSweepJson(raw: string): SweepSpec {
 
 function printHelp() {
   console.log(`
-@odyssey/evals — character regression + behavior suite
+@kawabunga/evals — character regression + behavior suite
 
 Usage:
   npx tsx scripts/eval.ts <character> [flags]

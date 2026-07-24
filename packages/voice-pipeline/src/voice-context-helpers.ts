@@ -13,7 +13,7 @@
  *   session at turn start.
  */
 
-import { getDb, sceneSessionEventsTable } from "@odyssey/db";
+import { getDb, sceneSessionEventsTable } from "@kawabunga/db";
 import { and, desc, eq } from "drizzle-orm";
 
 const VOICE_SUMMARY_EVENT_TYPE = "voice.summary";
@@ -152,7 +152,7 @@ export function summarizeTurnInBackground(args: {
       if (!summary) return;
       // Lazy-import the store to avoid pulling drizzle into the request hot
       // path; this background task can afford the cost.
-      const { getSceneSessionStore } = await import("@odyssey/db");
+      const { getSceneSessionStore } = await import("@kawabunga/db");
       await getSceneSessionStore().appendEvent({
         sessionId,
         turnId: turnId ?? null,

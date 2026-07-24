@@ -3,7 +3,7 @@ import {
   getWikisStore,
   type KnowledgeGraphData,
   type WikiRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { WikisList } from "./wikis-list";
 
 export const dynamic = "force-dynamic";

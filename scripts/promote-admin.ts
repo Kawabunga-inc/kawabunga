@@ -8,7 +8,7 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { eq } from "drizzle-orm";
-import { usersTable } from "@odyssey/db";
+import { usersTable } from "@kawabunga/db";
 
 async function main() {
   const rawEmail = process.argv[2];

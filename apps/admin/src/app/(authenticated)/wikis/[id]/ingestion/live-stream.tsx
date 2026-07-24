@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties } from "react";
-import type { IngestionEvent, PlanOp } from "@odyssey/wiki-ingest";
+import type { IngestionEvent, PlanOp } from "@kawabunga/wiki-ingest";
 
 /**
  * LiveStream — compact context panel during the running phase.

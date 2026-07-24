@@ -5,7 +5,7 @@ import {
   getWikisStore,
   getSceneSessionStore,
   type CharacterVoiceStyle,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   createStreamingTtsAdapterForVoice,
   DEFAULT_VOICE_MODEL,
@@ -18,11 +18,11 @@ import {
   type ProviderId,
   type StreamingTtsProvider,
   type VoiceForRouting,
-} from "@odyssey/engine";
-import { curate, type Scene as CuratorScene, type SemanticSeed } from "@odyssey/wiki-curator";
+} from "@kawabunga/engine";
+import { curate, type Scene as CuratorScene, type SemanticSeed } from "@kawabunga/wiki-curator";
 import { TraceEnvelope } from "./voice-trace";
 import { VOICE_STREAM_SSE_EVENT_NAMES } from "./voice-stream-events";
-import { buildVoicePromptPlan } from "@odyssey/orchestration/server";
+import { buildVoicePromptPlan } from "@kawabunga/orchestration/server";
 import {
   shouldSkipRetrieval,
   getRecentTurnSummaries,

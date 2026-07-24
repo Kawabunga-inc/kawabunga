@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { type ModelOption } from "@/lib/model-registry";
-import type { OrchestratorDecision, SceneState } from "@odyssey/types";
+import type { OrchestratorDecision, SceneState } from "@kawabunga/types";
 import { useHeaderContent } from "@/components/header-context";
 import { Pathname } from "@/components/pathname";
 import {

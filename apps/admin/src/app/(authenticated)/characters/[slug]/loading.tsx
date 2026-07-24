@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type CSSProperties } from "react";
-import { Skeleton } from "@odyssey/ui";
+import { Skeleton } from "@kawabunga/ui";
 import { useHeaderContent } from "@/components/header-context";
 
 // Mirrors the live CharacterConfig workbench:

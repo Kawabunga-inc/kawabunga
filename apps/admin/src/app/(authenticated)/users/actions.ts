@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
-import { getDb, usersTable, authSessionsTable } from "@odyssey/db";
-import { hashPassword } from "@odyssey/auth/password";
+import { getDb, usersTable, authSessionsTable } from "@kawabunga/db";
+import { hashPassword } from "@kawabunga/auth/password";
 import { auth } from "@/lib/auth";
 
 type ActionResult<T = undefined> =

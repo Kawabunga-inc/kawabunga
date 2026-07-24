@@ -7,7 +7,7 @@ import {
   type CharacterDirective,
   type CharacterIdentity,
   type CharacterVoiceStyle,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { DEFAULT_CHAT_MODEL } from "@/lib/model-registry";
 import { defaultCharacterBedSlug } from "@/lib/scene-orchestration";
 import { CharacterSandbox } from "@/components/character-sandbox";

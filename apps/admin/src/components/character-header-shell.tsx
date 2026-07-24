@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { CharacterHeader } from "@/components/character-header";
 
 const UUID_RE =
