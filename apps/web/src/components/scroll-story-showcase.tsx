@@ -264,7 +264,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
             poster="/landing-hero-lg.jpg"
             aria-hidden="true"
           >
-            <source src="/kawabunga-scroll-story.mp4" type="video/mp4" />
+            <source src="/kawabunga-scroll-story-hd.mp4" type="video/mp4" />
           </video>
           <Image
             ref={heroStillRef}
