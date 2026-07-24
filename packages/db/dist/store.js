@@ -3,7 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "./client";
 import { retryRead } from "./retry";
 import { sessionsTable, turnsTable } from "./schema";
-import { sessionRecordSchema, turnRecordSchema, } from "@odyssey/types";
+import { sessionRecordSchema, turnRecordSchema, } from "@kawabunga/types";
 /**
  * Normalize simulation state from pre-rename DB records
  * (politicalStability→stability, factionInfluence→groupInfluence, etc.)

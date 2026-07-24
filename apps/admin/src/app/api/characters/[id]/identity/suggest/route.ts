@@ -5,7 +5,7 @@ import {
   type CharacterIdentity,
   type VoiceIdentityFrontmatter,
   type WikiPageRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

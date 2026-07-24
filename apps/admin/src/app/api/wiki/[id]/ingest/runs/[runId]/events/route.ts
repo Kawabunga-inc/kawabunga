@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getWikiStore } from "@odyssey/db";
+import { getWikiStore } from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

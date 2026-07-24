@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/voice-pipeline",
+  "name": "@kawabunga/voice-pipeline",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,11 +14,11 @@
     }
   },
   "dependencies": {
-    "@odyssey/db": "*",
-    "@odyssey/engine": "*",
-    "@odyssey/orchestration": "*",
-    "@odyssey/types": "*",
-    "@odyssey/wiki-curator": "*",
+    "@kawabunga/db": "*",
+    "@kawabunga/engine": "*",
+    "@kawabunga/orchestration": "*",
+    "@kawabunga/types": "*",
+    "@kawabunga/wiki-curator": "*",
     "@supabase/supabase-js": "^2.106.0",
     "drizzle-orm": "^0.45.1"
   }

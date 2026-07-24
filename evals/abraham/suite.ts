@@ -16,7 +16,7 @@
  * Bump `version` when probes are added/removed/materially edited.
  */
 
-import type { ProbeSuite } from "@odyssey/evals";
+import type { ProbeSuite } from "@kawabunga/evals";
 
 export const abrahamSuite: ProbeSuite = {
   id: "abraham",

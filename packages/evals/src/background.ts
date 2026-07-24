@@ -15,7 +15,7 @@
  * caller can wire `waitUntil(promise)` if they need to.
  */
 
-import { getCharacterStore, getEvalStore, type CharacterBrainModel } from "@odyssey/db";
+import { getCharacterStore, getEvalStore, type CharacterBrainModel } from "@kawabunga/db";
 import { runEvalSuite } from "./runner";
 import { runEvalSweep } from "./sweep";
 import { captureCharacterSnapshot } from "./snapshot";

@@ -17,7 +17,7 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { runEvalSuite, writeEvalRun } from "@odyssey/evals";
+import { runEvalSuite, writeEvalRun } from "@kawabunga/evals";
 import { abrahamSuite } from "../evals/abraham/suite";
 
 type Trial = {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpenAIClient } from "@odyssey/engine";
+import { getOpenAIClient } from "@kawabunga/engine";
 
 const DEFAULT_SYSTEM_PROMPT =
   "You are a concise voice assistant. Respond naturally in 1-3 sentences unless the user asks for more detail.";

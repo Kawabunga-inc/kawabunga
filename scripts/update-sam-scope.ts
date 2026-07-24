@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getTicketStore } from "@odyssey/db";
+import { getTicketStore } from "@kawabunga/db";
 
 const SAM = "8730c64b-20ef-4ecd-8e0e-36bbb5b47746";
 

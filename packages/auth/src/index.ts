@@ -5,7 +5,7 @@ import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
 import { eq } from "drizzle-orm";
-import { usersTable, accountsTable, authSessionsTable, verificationTokensTable } from "@odyssey/db";
+import { usersTable, accountsTable, authSessionsTable, verificationTokensTable } from "@kawabunga/db";
 import { hashPassword, verifyPassword } from "./password";
 import { authConfig } from "./config";
 

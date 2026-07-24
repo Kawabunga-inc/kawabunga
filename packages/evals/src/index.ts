@@ -1,5 +1,5 @@
 /**
- * @odyssey/evals — character regression + optimization harness.
+ * @kawabunga/evals — character regression + optimization harness.
  *
  * Public surface:
  *   - Types: Probe, ProbeSuite, EvalRun, ProbeResult, CharacterSnapshot

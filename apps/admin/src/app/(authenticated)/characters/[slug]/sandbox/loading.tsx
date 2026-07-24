@@ -1,4 +1,4 @@
-import { Skeleton } from "@odyssey/ui";
+import { Skeleton } from "@kawabunga/ui";
 
 export default function SandboxLoading() {
   return (

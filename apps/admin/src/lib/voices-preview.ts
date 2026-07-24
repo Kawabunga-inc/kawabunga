@@ -1,4 +1,4 @@
-import { getVoiceStore, type VoiceRecord } from "@odyssey/db";
+import { getVoiceStore, type VoiceRecord } from "@kawabunga/db";
 import {
   createEmbeddingSignedUrl,
   uploadPreview,

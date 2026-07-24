@@ -1,4 +1,4 @@
-import { getTicketStore } from "@odyssey/db";
+import { getTicketStore } from "@kawabunga/db";
 
 const typeStyles: Record<string, { bg: string; border: string; icon: string; color: string }> = {
   "done": {

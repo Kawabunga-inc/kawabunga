@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
-import { MODELS, estimateCost, type ModelId } from "@odyssey/wiki-ingest";
+import { MODELS, estimateCost, type ModelId } from "@kawabunga/wiki-ingest";
 
 /**
  * Run preview section — Step 04 of the wiki ingestion flow.

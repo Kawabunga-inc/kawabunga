@@ -5,7 +5,7 @@ import {
   getSceneSessionStore,
   type CharacterRecord,
   type VoiceRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   DEFAULT_CHAT_MODEL,
   DEFAULT_VOICE_MODEL,
@@ -20,7 +20,7 @@ import {
   type ProviderId,
   type StreamingTtsProvider,
   type VoiceForRouting,
-} from "@odyssey/engine";
+} from "@kawabunga/engine";
 import { createEmbeddingSignedUrl } from "@/lib/voices-storage";
 import { VOICE_PIPELINE_CONFIG } from "@/lib/voice-pipeline-config";
 

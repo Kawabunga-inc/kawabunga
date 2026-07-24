@@ -25,7 +25,7 @@ import type {
   SourceFacets,
   SourceType,
   WikiStore,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { call, extractToolUse } from "./client";
 import type { ModelId } from "./models";
 

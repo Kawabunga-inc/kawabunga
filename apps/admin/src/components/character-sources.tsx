@@ -9,7 +9,7 @@ import type {
   WikiPageType,
   WikiSourceRecord,
   WikiSourceRefRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   deleteSource,
   previewPurgeSource,

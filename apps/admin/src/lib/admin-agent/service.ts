@@ -4,8 +4,8 @@ import {
   type AdminAgentMessageRecord,
   type AdminAgentOperationRecord,
   type AdminAgentStore,
-} from "@odyssey/db";
-import { getChatProviderForModel } from "@odyssey/engine";
+} from "@kawabunga/db";
+import { getChatProviderForModel } from "@kawabunga/engine";
 import { buildAdminAgentSystemContext } from "./context";
 import {
   dryRunMutationTool,

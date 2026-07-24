@@ -2,7 +2,7 @@
  * Browser-safe prompt compiler shim.
  *
  * Client harness editors need the pure XML/system-prompt helpers, but the
- * @odyssey/engine barrel also exports server-only audio adapters that import
+ * @kawabunga/engine barrel also exports server-only audio adapters that import
  * Node modules. Import the pure modules directly so Turbopack does not pull
  * the server graph into client chunks.
  */

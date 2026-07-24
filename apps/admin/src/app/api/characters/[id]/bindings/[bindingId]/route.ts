@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getWikisStore } from "@odyssey/db";
+import { getWikisStore } from "@kawabunga/db";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 
 export const runtime = "nodejs";

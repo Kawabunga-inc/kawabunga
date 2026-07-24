@@ -1,4 +1,4 @@
-import type { OrchestratorDecision, Scene, SceneState } from "@odyssey/types";
+import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
 export type TracePayload = Record<string, unknown>;
 export type TraceContract = Record<string, unknown>;
 /**

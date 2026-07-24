@@ -1,5 +1,5 @@
 import { revalidateTag, unstable_cache } from "next/cache";
-import { getCharacterStore, getWikiStore, getWikisStore } from "@odyssey/db";
+import { getCharacterStore, getWikiStore, getWikisStore } from "@kawabunga/db";
 import type { CharacterSummary } from "@/app/(authenticated)/characters/page";
 
 /** Cache tag every character-mutating path invalidates via

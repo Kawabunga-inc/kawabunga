@@ -16,7 +16,7 @@ export type SttProvider = "openai" | "kyutai";
 export type TtsProvider = "openai" | "elevenlabs";
 
 // Live-harness providers — adapters that can stream audio per-chunk for the
-// /voice-stream route. Mirrors VoiceProvider in @odyssey/db (kept as a
+// /voice-stream route. Mirrors VoiceProvider in @kawabunga/db (kept as a
 // string-literal union here so this package stays db-independent).
 export type StreamingTtsProvider =
   | "pocket_tts"

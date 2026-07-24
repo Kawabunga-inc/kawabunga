@@ -16,8 +16,8 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getCharacterStore, getWikiStore, getWikisStore } from "@odyssey/db";
-import { runIngestion, resolveModel } from "@odyssey/wiki-ingest";
+import { getCharacterStore, getWikiStore, getWikisStore } from "@kawabunga/db";
+import { runIngestion, resolveModel } from "@kawabunga/wiki-ingest";
 
 /* ── CLI flags ─────────────────────────────────────────────────── */
 

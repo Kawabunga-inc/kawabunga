@@ -8,7 +8,7 @@
  */
 
 import "dotenv/config";
-import { getCharacterStore, type CharacterIdentity } from "@odyssey/db";
+import { getCharacterStore, type CharacterIdentity } from "@kawabunga/db";
 
 const IDENTITY: CharacterIdentity = {
   essence:

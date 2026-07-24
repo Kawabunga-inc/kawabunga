@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAudioRuntimeConfig } from "@odyssey/engine";
+import { getAudioRuntimeConfig } from "@kawabunga/engine";
 
 export const dynamic = "force-dynamic";
 

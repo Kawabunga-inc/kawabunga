@@ -6,7 +6,7 @@ import {
   type Scene,
   type SceneCharacter,
   type SceneState,
-} from "@odyssey/types";
+} from "@kawabunga/types";
 
 export type SceneTurnForPlanning = {
   speakerSlug: string;

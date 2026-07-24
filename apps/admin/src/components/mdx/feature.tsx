@@ -1,4 +1,4 @@
-import { getFeatureStore, getTicketStore } from "@odyssey/db";
+import { getFeatureStore, getTicketStore } from "@kawabunga/db";
 
 const statusStyles: Record<string, { bg: string; text: string; dot: string }> = {
   "planned": { bg: "rgba(255,255,255,0.06)", text: "var(--text-tertiary)", dot: "var(--text-tertiary)" },

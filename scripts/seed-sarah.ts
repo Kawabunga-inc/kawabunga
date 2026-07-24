@@ -11,7 +11,7 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 
 const SLUG = "sarah";
 

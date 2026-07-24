@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/db",
+  "name": "@kawabunga/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     }
   },
   "dependencies": {
-    "@odyssey/types": "*",
-    "@odyssey/utils": "*",
+    "@kawabunga/types": "*",
+    "@kawabunga/utils": "*",
     "@neondatabase/serverless": "^1.0.2",
     "drizzle-orm": "^0.45.1",
     "zod": "^4.3.6"

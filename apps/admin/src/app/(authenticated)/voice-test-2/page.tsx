@@ -18,7 +18,7 @@ import {
 
 /* ─── brand palette ─── */
 const PALETTES = {
-  odyssey: ["#0d9488", "#06b6d4", "#8b5cf6", "#ec4899", "#f59e0b"],
+  kawabunga: ["#0d9488", "#06b6d4", "#8b5cf6", "#ec4899", "#f59e0b"],
   warm: ["#ef4444", "#f97316", "#eab308", "#f59e0b", "#dc2626"],
   cool: ["#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6", "#0ea5e9"],
   neon: ["#22d3ee", "#a3e635", "#facc15", "#fb923c", "#f472b6"],
@@ -789,7 +789,7 @@ const MODES: { key: VisualizerMode; label: string; icon: string }[] = [
 export default function VoiceTest2Page() {
   const audio = useAudioAnalyser();
   const [mode, setMode] = useState<VisualizerMode>("sphere");
-  const [paletteKey, setPaletteKey] = useState<PaletteKey>("odyssey");
+  const [paletteKey, setPaletteKey] = useState<PaletteKey>("kawabunga");
   const [autoOrbit, setAutoOrbit] = useState(true);
   const palette = PALETTES[paletteKey];
 

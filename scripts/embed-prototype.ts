@@ -21,9 +21,9 @@ import {
   getWikiStore,
   wikiEmbeddingSource,
   type WikiPageRecord,
-} from "@odyssey/db";
-import { embedText, embedTexts } from "@odyssey/engine";
-import { SUITES } from "@odyssey/sonar";
+} from "@kawabunga/db";
+import { embedText, embedTexts } from "@kawabunga/engine";
+import { SUITES } from "@kawabunga/sonar";
 import { pipeline } from "@huggingface/transformers";
 
 const K = 5;

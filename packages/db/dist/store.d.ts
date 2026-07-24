@@ -1,4 +1,4 @@
-import { SessionRecord, TurnRecord } from "@odyssey/types";
+import { SessionRecord, TurnRecord } from "@kawabunga/types";
 export interface PersistenceStore {
     createSession(session: SessionRecord): Promise<void>;
     getSession(sessionId: string): Promise<SessionRecord | null>;

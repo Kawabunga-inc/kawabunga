@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCharacterStore, type CharacterDirective } from "@odyssey/db";
+import { getCharacterStore, type CharacterDirective } from "@kawabunga/db";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 
 export const runtime = "nodejs";

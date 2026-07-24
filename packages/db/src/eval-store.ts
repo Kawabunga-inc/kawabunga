@@ -21,7 +21,7 @@ function bumpSemver(version: string, kind: "major" | "minor" | "patch" = "minor"
 }
 
 /**
- * Persistence layer for @odyssey/evals. See docs/eval-schema.mdx for the
+ * Persistence layer for @kawabunga/evals. See docs/eval-schema.mdx for the
  * design write-up; the gist:
  *
  *   eval_suites          versioned probe definitions, scoped to a character

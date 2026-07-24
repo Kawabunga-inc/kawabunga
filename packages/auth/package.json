@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/auth",
+  "name": "@kawabunga/auth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,7 +18,7 @@
     }
   },
   "dependencies": {
-    "@odyssey/db": "*",
+    "@kawabunga/db": "*",
     "@auth/drizzle-adapter": "^1.11.1",
     "@neondatabase/serverless": "^1.0.2",
     "bcryptjs": "^2.4.3",

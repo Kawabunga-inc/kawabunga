@@ -15,7 +15,7 @@ import {
   accountsTable,
   authSessionsTable,
   sceneSessionsTable,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 async function main() {
   const id = process.argv[2];

@@ -3,7 +3,7 @@ import {
   buildSceneDecisionRequest,
   createInitialSceneState,
   getScene,
-} from "@odyssey/orchestration/client";
+} from "@kawabunga/orchestration/client";
 import { resolveOrchestratorExecutor } from "./orchestrator-executor";
 
 function decisionRequest() {

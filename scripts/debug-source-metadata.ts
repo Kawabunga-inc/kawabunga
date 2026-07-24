@@ -16,8 +16,8 @@ import {
   deriveKindFromSourceType,
   readClassifyMetadata,
   type SourceType,
-} from "@odyssey/db";
-import { extractMarkerApparatus } from "@odyssey/wiki-ingest";
+} from "@kawabunga/db";
+import { extractMarkerApparatus } from "@kawabunga/wiki-ingest";
 
 const file = process.argv[2];
 if (!file) {

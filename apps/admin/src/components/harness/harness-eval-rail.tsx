@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { EvalRunRecord } from "@odyssey/db";
+import type { EvalRunRecord } from "@kawabunga/db";
 import type { HarnessCharacter } from "./harness-types";
 import { ActivityListSkeleton, LaunchSummarySkeleton } from "./harness-skeletons";
 

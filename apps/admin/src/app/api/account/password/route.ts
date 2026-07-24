@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getDb, usersTable } from "@odyssey/db";
-import { hashPassword, verifyPassword } from "@odyssey/auth/password";
+import { getDb, usersTable } from "@kawabunga/db";
+import { hashPassword, verifyPassword } from "@kawabunga/auth/password";
 import { auth } from "@/lib/auth";
 
 export async function PUT(req: NextRequest) {

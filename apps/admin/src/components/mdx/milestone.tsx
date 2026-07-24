@@ -1,4 +1,4 @@
-import { getTicketStore } from "@odyssey/db";
+import { getTicketStore } from "@kawabunga/db";
 
 const phaseColors: Record<string, string> = {
   done: "#34d399",

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getWikiStore, getWikisStore } from "@odyssey/db";
+import { getWikiStore, getWikisStore } from "@kawabunga/db";
 import { parseSourceMetadataFilters } from "@/lib/source-metadata-filters";
 
 export const runtime = "nodejs";

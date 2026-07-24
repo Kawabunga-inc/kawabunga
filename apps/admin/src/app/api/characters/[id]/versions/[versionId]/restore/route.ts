@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { getCharacterVersionStore } from "@odyssey/db";
+import { getCharacterVersionStore } from "@kawabunga/db";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 

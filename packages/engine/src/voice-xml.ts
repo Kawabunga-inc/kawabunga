@@ -1,4 +1,4 @@
-import type { CharacterVoiceStyle } from "@odyssey/db";
+import type { CharacterVoiceStyle } from "@kawabunga/db";
 
 /**
  * Compile a CharacterVoiceStyle into the `<voice>` block that lives in
@@ -8,7 +8,7 @@ import type { CharacterVoiceStyle } from "@odyssey/db";
  *   - OpenAI Personalities API + GPT-5.1 Prompting Guide — personality
  *     is multi-dimensional; emit each axis as its own sub-tag so the
  *     model can attend to them independently.
- *   - Synthesized in `odyssey labs - harness` Paper file, artboard 72V-1
+ *   - Synthesized in `kawabunga labs - harness` Paper file, artboard 72V-1
  *     "L03 Voice & Style".
  *
  * Returns the empty string when no axis has content — caller falls

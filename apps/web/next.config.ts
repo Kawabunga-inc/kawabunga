@@ -2,12 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: [
-    "@odyssey/types",
-    "@odyssey/utils",
-    "@odyssey/db",
-    "@odyssey/auth",
-    "@odyssey/engine",
-    "@odyssey/ui",
+    "@kawabunga/types",
+    "@kawabunga/utils",
+    "@kawabunga/db",
+    "@kawabunga/auth",
+    "@kawabunga/engine",
+    "@kawabunga/ui",
   ],
   images: {
     remotePatterns: [

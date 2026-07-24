@@ -13,7 +13,7 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 
 async function main() {
   const store = getCharacterStore();

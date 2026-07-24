@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCharacterStore, type CharacterVoiceStyle } from "@odyssey/db";
+import { getCharacterStore, type CharacterVoiceStyle } from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

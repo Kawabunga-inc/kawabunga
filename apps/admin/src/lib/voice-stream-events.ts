@@ -1,3 +1,3 @@
-// Moved to @odyssey/voice-pipeline so the warm voice-host can share it.
+// Moved to @kawabunga/voice-pipeline so the warm voice-host can share it.
 // Re-export shim keeps existing `@/lib/voice-stream-events` importers working.
-export * from "@odyssey/voice-pipeline/voice-stream-events";
+export * from "@kawabunga/voice-pipeline/voice-stream-events";

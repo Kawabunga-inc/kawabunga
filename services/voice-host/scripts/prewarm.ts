@@ -1,4 +1,4 @@
-import { embedTextLocal, warmLocalEmbedder } from "@odyssey/engine";
+import { embedTextLocal, warmLocalEmbedder } from "@kawabunga/engine";
 
 // Build-time gate, run from the Dockerfile. Two jobs:
 //  1. Download the bge model into the image cache so boot never pays the

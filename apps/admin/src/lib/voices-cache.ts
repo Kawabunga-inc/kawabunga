@@ -1,5 +1,5 @@
 import { revalidateTag, unstable_cache } from "next/cache";
-import { getVoiceStore } from "@odyssey/db";
+import { getVoiceStore } from "@kawabunga/db";
 import type { VoiceSummary } from "@/app/(authenticated)/voices/page";
 
 /** Cache tag every voice-mutating route invalidates via

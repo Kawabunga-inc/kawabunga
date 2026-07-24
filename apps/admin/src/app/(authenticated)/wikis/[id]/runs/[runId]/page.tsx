@@ -4,8 +4,8 @@ import type {
   WikiIngestionLogRecord,
   WikiPageRecord,
   WikiSourceRecord,
-} from "@odyssey/db";
-import { getWikiStore, getWikisStore } from "@odyssey/db";
+} from "@kawabunga/db";
+import { getWikiStore, getWikisStore } from "@kawabunga/db";
 
 export const dynamic = "force-dynamic";
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getAdminAgentStore, getTicketStore } from "@odyssey/db";
+import { getAdminAgentStore, getTicketStore } from "@kawabunga/db";
 import { approveAdminAgentOperation, cancelAdminAgentOperation } from "./service";
 import {
   dryRunMutationTool,
@@ -127,7 +127,7 @@ describe("admin agent mutation tools", () => {
     const preview = await dryRunMutationTool(
       "create_codex_code_task",
       {
-        repository: "binnyplotkin/odyssey",
+        repository: "Kawabunga-inc/kawabunga",
         title: "Add admin metric",
         task: "Add an audited admin metric panel with tests.",
         constraints: ["Use the existing admin design system."],
@@ -139,7 +139,7 @@ describe("admin agent mutation tools", () => {
 
     expect(preview.riskLevel).toBe("high");
     expect(preview.affectedRecords).toEqual([
-      { table: "github_issues", id: "binnyplotkin/odyssey:new", label: "Add admin metric" },
+      { table: "github_issues", id: "Kawabunga-inc/kawabunga:new", label: "Add admin metric" },
     ]);
     expect(JSON.stringify(preview.previewDiff)).toContain("@codex");
   });
@@ -166,7 +166,7 @@ describe("admin agent mutation tools", () => {
     const preview = await dryRunMutationTool(
       "merge_github_pull_request",
       {
-        repository: "binnyplotkin/odyssey",
+        repository: "Kawabunga-inc/kawabunga",
         pullNumber: 42,
         mergeMethod: "squash",
         expectedHeadSha: "abcdef1",
@@ -177,7 +177,7 @@ describe("admin agent mutation tools", () => {
     expect(preview.riskLevel).toBe("destructive");
     expect(preview.previewDiff).toMatchObject({
       externalSideEffect: "github_pull_request_merge",
-      repository: "binnyplotkin/odyssey",
+      repository: "Kawabunga-inc/kawabunga",
       pullNumber: 42,
       executionChecks: { cleanChecksRequired: true, allowNoChecks: false },
     });
@@ -412,7 +412,7 @@ describe("admin agent mutation tools", () => {
       adminUserId: "admin-test",
     });
     const args = {
-      repository: "binnyplotkin/odyssey",
+      repository: "Kawabunga-inc/kawabunga",
       title: "Mock Codex task",
       task: "Implement the mocked Codex task with tests.",
       labels: ["codex"],
@@ -423,14 +423,14 @@ describe("admin agent mutation tools", () => {
           number: 123,
           title: "Mock Codex task",
           state: "open",
-          html_url: "https://github.com/binnyplotkin/odyssey/issues/123",
+          html_url: "https://github.com/Kawabunga-inc/kawabunga/issues/123",
           labels: [{ name: "codex" }],
         });
       }
       if (String(url).endsWith("/issues/123/comments") && init?.method === "POST") {
         return Response.json({
           id: 456,
-          html_url: "https://github.com/binnyplotkin/odyssey/issues/123#issuecomment-456",
+          html_url: "https://github.com/Kawabunga-inc/kawabunga/issues/123#issuecomment-456",
         });
       }
       return Response.json({ message: "not found" }, { status: 404 });
@@ -452,9 +452,9 @@ describe("admin agent mutation tools", () => {
     const result = await executeMutationTool("create_codex_code_task", args, operation, context(conversation.id));
 
     expect(result.resultSummary).toMatchObject({
-      repository: "binnyplotkin/odyssey",
+      repository: "Kawabunga-inc/kawabunga",
       issueNumber: 123,
-      codexCommentUrl: "https://github.com/binnyplotkin/odyssey/issues/123#issuecomment-456",
+      codexCommentUrl: "https://github.com/Kawabunga-inc/kawabunga/issues/123#issuecomment-456",
     });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
@@ -682,8 +682,8 @@ describe("admin agent codebase read tools", () => {
 
 function configureGitHubEnv() {
   process.env.ADMIN_AGENT_GITHUB_TOKEN = "test-token";
-  process.env.ADMIN_AGENT_GITHUB_REPOSITORIES = "binnyplotkin/odyssey";
-  process.env.ADMIN_AGENT_GITHUB_DEFAULT_REPOSITORY = "binnyplotkin/odyssey";
+  process.env.ADMIN_AGENT_GITHUB_REPOSITORIES = "Kawabunga-inc/kawabunga";
+  process.env.ADMIN_AGENT_GITHUB_DEFAULT_REPOSITORY = "Kawabunga-inc/kawabunga";
 }
 
 function restoreEnv(key: string, value: string | undefined) {

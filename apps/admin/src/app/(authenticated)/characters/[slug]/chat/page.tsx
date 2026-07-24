@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCharacterStore, getWikiStore } from "@odyssey/db";
+import { getCharacterStore, getWikiStore } from "@kawabunga/db";
 import { CharacterChat } from "@/components/character-chat";
 
 export const dynamic = "force-dynamic";

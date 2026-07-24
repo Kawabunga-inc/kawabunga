@@ -4,18 +4,18 @@ import type {
   CharacterRecord,
   CharacterVoiceStyle,
   TimeIndex,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   buildSystemPromptParts,
   buildVoiceSystemPromptParts,
-} from "@odyssey/engine";
+} from "@kawabunga/engine";
 import type {
   CurateRequest,
   CurateResult,
   CuratorTrace,
   Scene as CuratorScene,
   SelectedPage,
-} from "@odyssey/wiki-curator";
+} from "@kawabunga/wiki-curator";
 
 export type VoicePromptPlanMode =
   | "chat-turn"

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { VoiceProvider } from "@odyssey/db";
+import type { VoiceProvider } from "@kawabunga/db";
 
 /* ── Tokens ─────────────────────────────────────────────────── */
 

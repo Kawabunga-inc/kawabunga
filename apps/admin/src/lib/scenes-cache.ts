@@ -1,5 +1,5 @@
 import { revalidateTag, unstable_cache } from "next/cache";
-import { getSceneStore, getSceneGraphStore } from "@odyssey/db";
+import { getSceneStore, getSceneGraphStore } from "@kawabunga/db";
 import type { SceneSummary } from "@/app/(authenticated)/scenes/page";
 
 /** Cache tag every scene-mutating path invalidates via `invalidateScenesList`. */

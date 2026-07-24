@@ -3,7 +3,7 @@
  *
  * These are the wire format between the planner, the writer, and the
  * pipeline's event stream. They are NOT the wiki page types — those live in
- * @odyssey/db/wiki-types. An ingestion "operation" is an *intent* to produce
+ * @kawabunga/db/wiki-types. An ingestion "operation" is an *intent* to produce
  * or update a page; the wiki page itself is what the store ends up holding.
  */
 
@@ -14,7 +14,7 @@ import type {
   TimeIndex,
   WikiPageRecord,
   WikiPageType,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 /* ── The op plan (planner output) ──────────────────────────────── */
 

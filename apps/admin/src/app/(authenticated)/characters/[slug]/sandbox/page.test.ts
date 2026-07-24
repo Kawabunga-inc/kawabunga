@@ -23,7 +23,7 @@ vi.mock("@/lib/model-registry", () => ({
   DEFAULT_CHAT_MODEL: "test-chat-model",
 }));
 
-vi.mock("@odyssey/db", () => ({
+vi.mock("@kawabunga/db", () => ({
   getCharacterStore: () => ({
     getById: dbMocks.getById,
     getBySlug: dbMocks.getBySlug,

@@ -1,26 +1,26 @@
 {
-  "name": "Odyssey",
-  "short_name": "Odyssey",
+  "name": "Kawabunga",
+  "short_name": "Kawabunga",
   "description": "Voice-first historical simulation engine.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#dce7ea",
-  "theme_color": "#dce7ea",
+  "background_color": "#0c0e14",
+  "theme_color": "#0c0e14",
   "icons": [
     {
-      "src": "/android-chrome-192x192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/android-chrome-512x512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/android-chrome-512x512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

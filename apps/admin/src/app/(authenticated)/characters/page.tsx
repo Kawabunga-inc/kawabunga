@@ -2,7 +2,7 @@ import type {
   CharacterBrainModel,
   CharacterIdentity,
   CharacterVoiceStyle,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { CharactersGrid } from "@/components/characters-grid";
 import { listCharacterSummaries } from "@/lib/characters-cache";
 

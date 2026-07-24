@@ -11,7 +11,7 @@
  */
 
 import "dotenv/config";
-import { getCharacterStore, getWikiStore } from "@odyssey/db";
+import { getCharacterStore, getWikiStore } from "@kawabunga/db";
 
 const LEAVE = process.argv.includes("--leave");
 const SLUG = "smoke-test-character";

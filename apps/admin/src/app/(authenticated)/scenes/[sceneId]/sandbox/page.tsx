@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSceneStore } from "@odyssey/db";
+import { getSceneStore } from "@kawabunga/db";
 import { SceneSandbox } from "@/components/scene-sandbox";
 import { SceneVoiceSandbox } from "@/components/scene-voice-sandbox";
 import { adminTokens } from "@/components/admin-ui";

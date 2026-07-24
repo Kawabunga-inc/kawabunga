@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getVoiceStore, type VoiceProvider } from "@odyssey/db";
+import { getVoiceStore, type VoiceProvider } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 import {
   extForMime,

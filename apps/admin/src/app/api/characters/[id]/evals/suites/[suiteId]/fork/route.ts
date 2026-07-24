@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCharacterStore, getEvalStore, type ForkDraftInput } from "@odyssey/db";
+import { getCharacterStore, getEvalStore, type ForkDraftInput } from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

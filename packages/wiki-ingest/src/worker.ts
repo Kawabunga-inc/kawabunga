@@ -1,8 +1,8 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getWikiStore } from "@odyssey/db";
-import { embedText, embedTexts, EMBEDDING_MODEL } from "@odyssey/engine";
+import { getWikiStore } from "@kawabunga/db";
+import { embedText, embedTexts, EMBEDDING_MODEL } from "@kawabunga/engine";
 import { runIngestion } from "./pipeline";
 import type { PlanOp } from "./types";
 

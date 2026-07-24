@@ -9,7 +9,7 @@ import type {
   WikiPageRecord,
   WikiPageType,
   WikiPageVersionRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 /* ── Tokens ────────────────────────────────────────────────────── */
 

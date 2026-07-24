@@ -1,4 +1,4 @@
-import { Skeleton, SkeletonText } from "@odyssey/ui";
+import { Skeleton, SkeletonText } from "@kawabunga/ui";
 import type { CSSProperties } from "react";
 
 const GROUND = "#050505";

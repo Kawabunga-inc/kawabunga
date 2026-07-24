@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useScenePlayer } from "@odyssey/scene-player";
+import { useScenePlayer } from "@kawabunga/scene-player";
 import { useSceneMicCapture } from "@/lib/scene-mic";
-import { getScene } from "@odyssey/orchestration/client";
+import { getScene } from "@kawabunga/orchestration/client";
 
 const ABRAHAMS_TENT = requireScene("abrahams-tent");
 

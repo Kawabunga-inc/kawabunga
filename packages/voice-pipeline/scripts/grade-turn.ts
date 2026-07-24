@@ -9,7 +9,7 @@
  * JUDGE_MODEL overrides the judge (default claude-haiku-4-5).
  * GRADE_RESPONSE="..." grades an injected response against the real retrieved context.
  */
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { replayAndGrade } from "./lib/grounding";
 
 const CHARACTER = process.argv[2] ?? "abraham";

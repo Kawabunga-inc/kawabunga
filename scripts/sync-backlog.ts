@@ -154,7 +154,7 @@ async function proposeUpdates(
     }
   })();
 
-  const prompt = `You are a backlog-sync agent for Odyssey (a voice-first AI simulation engine).
+  const prompt = `You are a backlog-sync agent for Kawabunga (a voice-first AI simulation engine).
 
 ${eventFraming}
 

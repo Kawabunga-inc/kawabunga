@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSceneSessionStore } from "@odyssey/db";
+import { getSceneSessionStore } from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,4 +1,4 @@
-import { ORCHESTRATOR_JSON_SCHEMA, orchestratorDecisionSchema, sceneStateSchema, } from "@odyssey/types";
+import { ORCHESTRATOR_JSON_SCHEMA, orchestratorDecisionSchema, sceneStateSchema, } from "@kawabunga/types";
 const RECENT_TURNS_LIMIT = 6;
 const SCENE_MEMORY_LIMIT = 12;
 const SCENE_MEMORY_ENTRY_MAX_CHARS = 280;

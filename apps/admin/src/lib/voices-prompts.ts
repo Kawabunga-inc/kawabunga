@@ -15,7 +15,7 @@
  *
  * Lives in its own module (rather than alongside the synth code in
  * `voices-preview.ts`) so client components can import it without
- * dragging the server-only `@odyssey/db` + storage deps into the
+ * dragging the server-only `@kawabunga/db` + storage deps into the
  * client bundle. */
 export const DEFAULT_AUDITION_PROMPT =
   "The thunder rolled across the valley — quietly at first, then closer, until the windows shook.";

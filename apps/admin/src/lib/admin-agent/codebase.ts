@@ -279,7 +279,7 @@ async function isProjectRoot(dir: string) {
       fs.stat(path.join(dir, "apps")),
       fs.stat(path.join(dir, "packages")),
     ]);
-    return packageJson.includes('"name": "odyssey"') && apps.isDirectory() && packages.isDirectory();
+    return packageJson.includes('"name": "kawabunga"') && apps.isDirectory() && packages.isDirectory();
   } catch {
     return false;
   }

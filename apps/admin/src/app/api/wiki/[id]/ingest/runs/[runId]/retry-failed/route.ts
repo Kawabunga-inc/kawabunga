@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
-import { getWikiStore } from "@odyssey/db";
-import type { WikiIngestionLogRecord } from "@odyssey/db";
-import type { IngestionEvent, PlanOp } from "@odyssey/wiki-ingest";
+import { getWikiStore } from "@kawabunga/db";
+import type { WikiIngestionLogRecord } from "@kawabunga/db";
+import type { IngestionEvent, PlanOp } from "@kawabunga/wiki-ingest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

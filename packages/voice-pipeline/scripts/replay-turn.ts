@@ -14,8 +14,8 @@
  * Flags the capture GAPS (raw retrieval scores, exact messages array) so we know
  * what Phase 1 still needs to record.
  */
-import { getCharacterStore, getSceneSessionStore } from "@odyssey/db";
-import { runVoiceStream } from "@odyssey/voice-pipeline";
+import { getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
+import { runVoiceStream } from "@kawabunga/voice-pipeline";
 
 const CHARACTER = process.argv[2] ?? "abraham";
 const MESSAGE = process.argv[3] ?? "Tell me about the hardest thing you've ever been asked to do.";

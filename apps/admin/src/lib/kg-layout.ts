@@ -23,7 +23,7 @@
 // here; they're a cache populated by ingestion but not load-bearing
 // for the visual layout.
 
-import type { EdgeKind, WikiPageType } from "@odyssey/db";
+import type { EdgeKind, WikiPageType } from "@kawabunga/db";
 
 export type LayoutInput = {
   id: string;

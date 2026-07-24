@@ -13,7 +13,7 @@ import type {
   WikiEdgeRecord,
   WikiPageRecord,
   WikiPageType,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 const T = {
   fg: "var(--foreground)",

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCharacterStore, getVoiceStore } from "@odyssey/db";
+import { getCharacterStore, getVoiceStore } from "@kawabunga/db";
 import { invalidateVoicesList } from "@/lib/voices-cache";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";

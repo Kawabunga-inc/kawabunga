@@ -1,5 +1,5 @@
 /**
- * @odyssey/wiki-curator — public API.
+ * @kawabunga/wiki-curator — public API.
  *
  * The main entrypoint is `curate(request)`. Given a character + optional
  * query / scene / current-moment, it returns a prompt chunk ready to inject
@@ -12,7 +12,7 @@ import {
   getWikiStore,
   getWikisStore,
   type WikiPageRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import type {
   CurateRequest,
   CurateResult,

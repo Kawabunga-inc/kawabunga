@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCharacterStore, getWikisStore } from "@odyssey/db";
+import { getCharacterStore, getWikisStore } from "@kawabunga/db";
 import { WikiDetail, type WikiDetailProps } from "./wiki-detail";
 
 export const dynamic = "force-dynamic";

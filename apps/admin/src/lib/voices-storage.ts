@@ -42,9 +42,9 @@ export async function createSourceSignedUrl(
   return data.signedUrl;
 }
 
-// Moved to @odyssey/voice-pipeline so the warm voice-host can sign Pocket
+// Moved to @kawabunga/voice-pipeline so the warm voice-host can sign Pocket
 // voice-embedding URLs on its own; re-exported here for the /voices importers.
-export { createEmbeddingSignedUrl } from "@odyssey/voice-pipeline/voice-embedding-url";
+export { createEmbeddingSignedUrl } from "@kawabunga/voice-pipeline/voice-embedding-url";
 
 export async function downloadSourceBytes(path: string): Promise<Buffer> {
   const { data, error } = await getSupabaseStorageClient()

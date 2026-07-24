@@ -1,4 +1,4 @@
-import { embedTextLocal, warmLocalEmbedder } from "@odyssey/engine";
+import { embedTextLocal, warmLocalEmbedder } from "@kawabunga/engine";
 
 // Build-time gate, run from the Dockerfile (mirrors services/voice-host/scripts/prewarm.ts).
 // Two jobs:

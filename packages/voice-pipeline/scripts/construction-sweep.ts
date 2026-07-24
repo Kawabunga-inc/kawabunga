@@ -13,8 +13,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { getCharacterStore } from "@odyssey/db";
-import type { ConstructionVariantFn } from "@odyssey/voice-pipeline";
+import { getCharacterStore } from "@kawabunga/db";
+import type { ConstructionVariantFn } from "@kawabunga/voice-pipeline";
 import { mapPool, replayAndEval, type EvalResult } from "./lib/grounding";
 
 const CHARACTER = process.argv[2] ?? "abraham";

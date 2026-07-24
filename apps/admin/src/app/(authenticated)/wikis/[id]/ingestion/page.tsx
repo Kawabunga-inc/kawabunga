@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCharacterStore, getWikiStore, getWikisStore } from "@odyssey/db";
+import { getCharacterStore, getWikiStore, getWikisStore } from "@kawabunga/db";
 import { WikiIngestionView } from "./wiki-ingestion-view";
 
 export const dynamic = "force-dynamic";

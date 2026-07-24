@@ -4,9 +4,9 @@ import {
   getVoiceStore,
   soundDesignToSceneSounds,
   type CharacterRecord,
-} from "@odyssey/db";
-import { type Scene } from "@odyssey/types";
-import { getScene } from "@odyssey/orchestration/client";
+} from "@kawabunga/db";
+import { type Scene } from "@kawabunga/types";
+import { getScene } from "@kawabunga/orchestration/client";
 
 export const CHARACTER_SANDBOX_SCENE_PREFIX = "character-sandbox:";
 

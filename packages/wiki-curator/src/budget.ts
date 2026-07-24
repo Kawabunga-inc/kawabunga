@@ -15,7 +15,7 @@
  *   4. Reserve a small overhead (~80 tokens) for section headers + separators.
  */
 
-import type { WikiPageRecord } from "@odyssey/db";
+import type { WikiPageRecord } from "@kawabunga/db";
 import type { PageRendering, SelectedPage } from "./types";
 import { estimateTokens } from "./tokens";
 

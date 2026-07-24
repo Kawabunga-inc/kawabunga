@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/wiki-ingest",
+  "name": "@kawabunga/wiki-ingest",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,8 +13,8 @@
     }
   },
   "dependencies": {
-    "@odyssey/db": "*",
-    "@odyssey/engine": "*",
+    "@kawabunga/db": "*",
+    "@kawabunga/engine": "*",
     "@anthropic-ai/sdk": "^0.40.0"
   }
 }

@@ -8,7 +8,7 @@
  * named, the query mentions them), substring matching does surprisingly well.
  */
 
-import type { WikiPageRecord } from "@odyssey/db";
+import type { WikiPageRecord } from "@kawabunga/db";
 import type { Scene, SeedTrace, SemanticSeed } from "./types";
 
 export type SeedOutput = {

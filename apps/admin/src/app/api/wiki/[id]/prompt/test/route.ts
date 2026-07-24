@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { call, DEFAULT_MODEL } from "@odyssey/wiki-ingest";
+import { call, DEFAULT_MODEL } from "@kawabunga/wiki-ingest";
 import { auth } from "@/lib/auth";
 
 const MAX_PROMPT_LENGTH = 32_000;

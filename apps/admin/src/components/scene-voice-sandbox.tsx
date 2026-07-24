@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import type { Scene } from "@odyssey/types";
+import type { Scene } from "@kawabunga/types";
 import {
   LiveKitVoiceSession,
   type LiveKitVoiceState,

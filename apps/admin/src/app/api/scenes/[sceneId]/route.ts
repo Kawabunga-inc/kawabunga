@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSceneGraphStore, getSceneStore } from "@odyssey/db";
+import { getSceneGraphStore, getSceneStore } from "@kawabunga/db";
 
 export const dynamic = "force-dynamic";
 

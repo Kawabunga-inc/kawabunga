@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AccessToken } from "livekit-server-sdk";
-import { getSceneStore } from "@odyssey/db";
+import { getSceneStore } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 
 // Mints a short-lived LiveKit room-join token — the WebRTC twin of

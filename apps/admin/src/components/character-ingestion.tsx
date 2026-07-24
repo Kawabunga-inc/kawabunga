@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
-import type { IngestionEvent, ModelId } from "@odyssey/wiki-ingest";
+import type { IngestionEvent, ModelId } from "@kawabunga/wiki-ingest";
 import {
   classifySource,
   previewPurgeIngestionRun,

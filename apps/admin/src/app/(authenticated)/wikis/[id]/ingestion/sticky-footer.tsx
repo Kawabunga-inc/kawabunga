@@ -1,7 +1,7 @@
 "use client";
 
 import { type CSSProperties, type ReactNode } from "react";
-import { type ModelId } from "@odyssey/wiki-ingest";
+import { type ModelId } from "@kawabunga/wiki-ingest";
 
 /**
  * Sticky footer — anchors the ingestion page, carries ingestion pipeline,

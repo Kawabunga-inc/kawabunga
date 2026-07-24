@@ -11,8 +11,8 @@ import type {
   WikiSourceRefRecord,
   SourceMetadataFilterField,
   SourceMetadataFilters,
-} from "@odyssey/db";
-import { deriveSourceTypeFromKind } from "@odyssey/db";
+} from "@kawabunga/db";
+import { deriveSourceTypeFromKind } from "@kawabunga/db";
 import {
   SOURCE_METADATA_FILTER_FIELDS,
   SOURCE_METADATA_FILTER_LABELS,

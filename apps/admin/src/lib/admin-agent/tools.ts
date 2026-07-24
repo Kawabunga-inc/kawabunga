@@ -16,7 +16,7 @@ import {
   characterKnowledgeBindingsTable,
   usersTable,
   type AdminAgentOperationRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import type {
   AdminAgentContext,
   AdminAgentDryRunResult,
@@ -745,7 +745,7 @@ const readTools: AdminAgentReadTool[] = [
     kind: "read",
     name: "list_project_files",
     description:
-      "List readable source/documentation files in the deployed Odyssey repo root. Secrets, env files, dependencies, build outputs, and binary assets are excluded.",
+      "List readable source/documentation files in the deployed Kawabunga repo root. Secrets, env files, dependencies, build outputs, and binary assets are excluded.",
     inputSchema: listProjectFilesSchema,
     async run(rawArgs) {
       const args = validate(listProjectFilesSchema, rawArgs);
@@ -760,7 +760,7 @@ const readTools: AdminAgentReadTool[] = [
     kind: "read",
     name: "search_code",
     description:
-      "Search readable source/documentation files in the Odyssey repo for a literal string. Use this before answering codebase or architecture questions.",
+      "Search readable source/documentation files in the Kawabunga repo for a literal string. Use this before answering codebase or architecture questions.",
     inputSchema: searchCodeSchema,
     async run(rawArgs) {
       const args = validate(searchCodeSchema, rawArgs);
@@ -4422,7 +4422,7 @@ function buildCodexIssueBody(args: z.infer<typeof createCodexCodeTaskSchema>) {
     "- Create or update a pull request rather than changing deployed code directly.",
     "- Keep the change scoped to this task and run the relevant tests before handing off.",
     "",
-    "_Created from the Odyssey admin AI agent._",
+    "_Created from the Kawabunga admin AI agent._",
   ]
     .filter((line) => line !== "")
     .join("\n");

@@ -10,8 +10,8 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import type { VoiceProvider } from "@odyssey/db";
-import { ConfirmModal } from "@odyssey/ui";
+import type { VoiceProvider } from "@kawabunga/db";
+import { ConfirmModal } from "@kawabunga/ui";
 import { useHeaderContent } from "@/components/header-context";
 import { Pathname } from "@/components/pathname";
 import { resolveAvatarGradient } from "@/lib/avatar-gradients";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 
@@ -91,18 +92,16 @@ export function AdminLoginForm({ variant = "floating" }: AdminLoginFormProps) {
           marginBottom: isSidePanel ? "1rem" : "0.5rem",
         }}
       >
-        <span
-          aria-hidden="true"
+        <Image
+          src="/kawabunga_wordmark.svg"
+          alt="Kawabunga"
+          width={178}
+          height={24}
+          priority
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 72,
-            height: 40,
-            background: "#dffff5",
-            mask: "url('/odyssey_icon.svg') center / contain no-repeat",
-            WebkitMask: "url('/odyssey_icon.svg') center / contain no-repeat",
-            filter: "drop-shadow(0 0 24px rgba(85, 236, 191, 0.28))",
+            width: isSidePanel ? 178 : 156,
+            height: "auto",
+            filter: "drop-shadow(0 0 24px rgba(85, 236, 191, 0.2))",
           }}
         />
       </div>
@@ -116,7 +115,7 @@ export function AdminLoginForm({ variant = "floating" }: AdminLoginFormProps) {
             setEmail(e.target.value);
             setError(null);
           }}
-          placeholder="x@odysseylabs.io"
+          placeholder="you@example.com"
           autoFocus
           required
           style={{

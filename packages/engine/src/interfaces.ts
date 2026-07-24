@@ -31,7 +31,7 @@ export type StreamingTtsChunk =
 
 /**
  * Provider-agnostic voice descriptor passed to a streaming adapter. Built
- * from a `voices` row in @odyssey/db: the adapter for the voice's provider
+ * from a `voices` row in @kawabunga/db: the adapter for the voice's provider
  * pulls what it needs (slug + embeddingUrl for Pocket; providerConfig.voiceId
  * + modelId etc. for ElevenLabs) and ignores the rest.
  */
@@ -40,11 +40,11 @@ export interface VoiceContext {
   slug: string;
   /** Pocket-only: signed URL to the .safetensors embedding in Supabase. */
   embeddingUrl?: string | null;
-  /** Provider-specific settings (typed by VoiceProviderConfig in @odyssey/db). */
+  /** Provider-specific settings (typed by VoiceProviderConfig in @kawabunga/db). */
   providerConfig?: Record<string, unknown>;
   /**
    * Per-binding override of `providerConfig` runtime knobs (typed by
-   * VoiceSettingsOverride in @odyssey/db). Provider-discriminated; the
+   * VoiceSettingsOverride in @kawabunga/db). Provider-discriminated; the
    * adapter merges via the appropriate resolver. Null/undefined = use
    * providerConfig unchanged. Used to let one voice "template" power
    * multiple characters with different expressiveness (e.g. same

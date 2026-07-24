@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CharacterVoiceStyle } from "@odyssey/db";
+import type { CharacterVoiceStyle } from "@kawabunga/db";
 import { compileVoiceXml } from "@/lib/character-prompt-builders";
 import type { HarnessCharacter } from "../harness-types";
 import { AdvisoryStack, type Advisory } from "../shared/advisory";

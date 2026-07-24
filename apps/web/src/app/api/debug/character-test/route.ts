@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpenAIClient } from "@odyssey/engine";
+import { getOpenAIClient } from "@kawabunga/engine";
 
 export async function POST(request: NextRequest) {
   try {

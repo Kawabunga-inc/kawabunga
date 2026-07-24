@@ -1,10 +1,10 @@
 /**
  * Replay layer for the eval CLIs: runs a turn through the real runVoiceStream
  * (debug → full retrieval + captured context) and hands it to the package judges
- * (@odyssey/voice-pipeline `eval`). The judges themselves live in the package so
+ * (@kawabunga/voice-pipeline `eval`). The judges themselves live in the package so
  * the /sessions route can grade PERSISTED turns without replaying.
  */
-import { getCharacterStore, getSceneSessionStore } from "@odyssey/db";
+import { getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
 import {
   gradeGrounding,
   gradeTurn,
@@ -13,7 +13,7 @@ import {
   type GroundingVerdict,
   type JudgeMeta,
   type TurnGrade,
-} from "@odyssey/voice-pipeline";
+} from "@kawabunga/voice-pipeline";
 
 // Re-export the judge surface so the CLIs import everything from one module.
 export {
@@ -21,7 +21,7 @@ export {
   gradeGrounding,
   gradeQuality,
   gradeTurn,
-} from "@odyssey/voice-pipeline";
+} from "@kawabunga/voice-pipeline";
 export type {
   ClaimKind,
   GroundingClaim,
@@ -30,7 +30,7 @@ export type {
   QualityDimension,
   QualityVerdict,
   TurnGrade,
-} from "@odyssey/voice-pipeline";
+} from "@kawabunga/voice-pipeline";
 
 /** Replay one turn through the real pipeline and return the response + the context
  *  the character actually saw. */

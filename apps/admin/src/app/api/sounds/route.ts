@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAudioAssetStore, type AudioAssetSource } from "@odyssey/db";
+import { getAudioAssetStore, type AudioAssetSource } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 import { isValidVoiceSlug, slugifyVoiceName } from "@/lib/voice-slug";
 import {

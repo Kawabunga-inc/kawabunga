@@ -1,7 +1,7 @@
 "use client";
 
 import { KnowledgeGraphIcon } from "@/components/knowledge-graph-icon";
-import type { KnowledgeGraphData } from "@odyssey/db";
+import type { KnowledgeGraphData } from "@kawabunga/db";
 
 const FG = "#F1F5F9";
 const TEXT_MUTED = "#FFFFFF8C";

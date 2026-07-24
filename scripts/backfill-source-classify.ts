@@ -17,8 +17,8 @@
 
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
-import { buildStoredSourceMetadata } from "@odyssey/db";
-import type { WikiSourceKind } from "@odyssey/db";
+import { buildStoredSourceMetadata } from "@kawabunga/db";
+import type { WikiSourceKind } from "@kawabunga/db";
 
 const APPLY = process.argv.includes("--apply");
 

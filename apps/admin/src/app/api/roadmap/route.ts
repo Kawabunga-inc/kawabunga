@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getVersionStore, getFeatureStore, getTicketStore } from "@odyssey/db";
+import { getVersionStore, getFeatureStore, getTicketStore } from "@kawabunga/db";
 
 export const dynamic = "force-dynamic";
 

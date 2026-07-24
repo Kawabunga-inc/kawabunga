@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OpenAISpeechToTextAdapter } from "@odyssey/engine";
+import { OpenAISpeechToTextAdapter } from "@kawabunga/engine";
 
 export async function POST(request: NextRequest) {
   try {

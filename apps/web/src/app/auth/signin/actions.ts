@@ -1,6 +1,6 @@
 "use server";
 
-import { registerUser } from "@odyssey/auth";
+import { registerUser } from "@kawabunga/auth";
 
 export async function register(input: { name: string; email: string; password: string }) {
   try {

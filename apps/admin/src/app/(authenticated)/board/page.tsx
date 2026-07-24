@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getTicketStore, getFeatureStore, getDb, usersTable } from "@odyssey/db";
+import { getTicketStore, getFeatureStore, getDb, usersTable } from "@kawabunga/db";
 import type { Ticket } from "@/data/board";
 import BoardClient from "./board-client";
 

@@ -1,16 +1,16 @@
 import cors from "@fastify/cors";
-import { warmLocalEmbedder } from "@odyssey/engine";
+import { warmLocalEmbedder } from "@kawabunga/engine";
 import {
   runVoiceStream,
   VoiceStreamHttpError,
   type VoiceStreamBody,
   type VoiceStreamEvent,
-} from "@odyssey/voice-pipeline";
+} from "@kawabunga/voice-pipeline";
 import Fastify from "fastify";
 import { jwtVerify } from "jose";
 
 // Warm, long-running twin of the Vercel voice-stream route. Both call the same
-// `@odyssey/voice-pipeline` `runVoiceStream` generator, so the SSE wire contract
+// `@kawabunga/voice-pipeline` `runVoiceStream` generator, so the SSE wire contract
 // is byte-identical — the only difference is this process stays hot: bge runs
 // in-process (~60ms) instead of a cold OpenAI embed, and the context/ack caches
 // survive across turns. See the warm-host migration plan.

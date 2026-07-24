@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getVersionStore, getFeatureStore, getTicketStore } from "@odyssey/db";
+import { getVersionStore, getFeatureStore, getTicketStore } from "@kawabunga/db";
 
 async function seed() {
   const versions = getVersionStore();

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVoiceStore } from "@odyssey/db";
+import { getVoiceStore } from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

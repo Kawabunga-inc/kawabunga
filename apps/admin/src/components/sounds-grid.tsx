@@ -19,13 +19,13 @@ import {
   updateSoundMeta,
 } from "@/app/(authenticated)/sounds/actions";
 import type { SoundSummary } from "@/app/(authenticated)/sounds/page";
-import type { AudioAssetStatus } from "@odyssey/db";
+import type { AudioAssetStatus } from "@kawabunga/db";
 import {
   ConfirmModal,
   ContextMenu,
   ContextMenuTriggerButton,
   type ContextMenuItem,
-} from "@odyssey/ui";
+} from "@kawabunga/ui";
 
 /* ── Theme tokens ─────────────────────────────────────────────── */
 

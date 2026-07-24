@@ -1,10 +1,10 @@
-import type { TimeIndex } from "@odyssey/db";
+import type { TimeIndex } from "@kawabunga/db";
 import {
   curate,
   type CurateResult,
   type Scene,
   type SemanticSeed,
-} from "@odyssey/wiki-curator";
+} from "@kawabunga/wiki-curator";
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
 const MAX_ENTRIES = 200;

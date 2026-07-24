@@ -82,7 +82,7 @@ export type MatterSurfaceTone = "dark" | "light";
  * just touched something."
  */
 
-import type { IngestionEvent } from "@odyssey/wiki-ingest";
+import type { IngestionEvent } from "@kawabunga/wiki-ingest";
 
 export type MatterIngestionInput =
   | { phase: "idle" }
