@@ -11,7 +11,7 @@ const footerLinks = [
 
 export function RootFooter() {
   return (
-    <footer className="relative flex min-h-[75svh] w-full flex-col justify-between overflow-hidden bg-[#0a0a0a] px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-20 lg:py-14">
+    <footer className="fixed inset-x-0 bottom-0 z-0 flex h-[75svh] w-full flex-col justify-between overflow-hidden bg-[#0a0a0a] px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-20 lg:py-14">
       <FooterWavefield />
       <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-[#0a0a0a]/45 via-[#0a0a0a]/10 to-[#0a0a0a]/65" />
 

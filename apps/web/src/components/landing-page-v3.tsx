@@ -473,11 +473,12 @@ export function LandingPageV3() {
   }, []);
 
   return (
-    <main
-      className="flex w-full flex-col bg-white text-[#07110f]"
-      style={{ fontFamily: "var(--font-body)" }}
-    >
-      <ScrollStoryShowcase embedded />
+    <>
+      <main
+        className="relative z-10 flex w-full flex-col bg-white text-[#07110f]"
+        style={{ fontFamily: "var(--font-body)" }}
+      >
+        <ScrollStoryShowcase embedded />
 
       {/* ── What is Kawabunga ── */}
       <section
@@ -693,7 +694,13 @@ export function LandingPageV3() {
         </Reveal>
       </section>
 
+      </main>
+      <div
+        data-footer-reveal-sentinel
+        aria-hidden="true"
+        className="h-[75svh] w-full"
+      />
       <RootFooter />
-    </main>
+    </>
   );
 }

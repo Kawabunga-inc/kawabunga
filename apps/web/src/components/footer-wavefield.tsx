@@ -46,12 +46,16 @@ export function FooterWavefield() {
   useEffect(() => {
     const element = rootRef.current;
     if (!element) return;
+    const revealSentinel = document.querySelector<HTMLElement>(
+      "[data-footer-reveal-sentinel]",
+    );
+    const observationTarget = revealSentinel ?? element;
 
     const observer = new IntersectionObserver(
       ([entry]) => setVisible(Boolean(entry?.isIntersecting)),
       { rootMargin: "320px 0px" },
     );
-    observer.observe(element);
+    observer.observe(observationTarget);
     return () => observer.disconnect();
   }, []);
 
