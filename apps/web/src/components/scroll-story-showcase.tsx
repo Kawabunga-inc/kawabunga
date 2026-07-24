@@ -36,6 +36,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
   const [reducedMotion, setReducedMotion] = useState(false);
   const scrollContainerRef = useRef<HTMLElement>(null);
   const rootRef = useRef<HTMLElement>(null);
+  const stickyViewportRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const heroStillRef = useRef<HTMLImageElement>(null);
   const heroCopyRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,9 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
     let targetProgress = 0;
     let renderedProgress = 0;
     let videoDuration = 5.083;
+    let videoReady = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    let desiredVideoTime = 0;
+    let seekInFlight = false;
     let cardsTriggered = false;
     let cardAnimations: Animation[] = [];
 
@@ -137,6 +141,24 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
 
     resetCards();
 
+    const seekVideo = () => {
+      if (!videoReady || seekInFlight || video.seeking || video.seekable.length === 0) {
+        return;
+      }
+
+      const seekableStart = video.seekable.start(0);
+      const seekableEnd = video.seekable.end(video.seekable.length - 1);
+      const nextTime = Math.min(
+        seekableEnd,
+        Math.max(seekableStart, desiredVideoTime),
+      );
+
+      if (Math.abs(video.currentTime - nextTime) <= 0.035) return;
+
+      seekInFlight = true;
+      video.currentTime = nextTime;
+    };
+
     const render = () => {
       renderedProgress += (targetProgress - renderedProgress) * 0.14;
       const progress = renderedProgress;
@@ -145,18 +167,17 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
       const videoProgress = smoothstep(0.04, 0.72, progress);
       const washIn = smoothstep(0.69, 0.82, progress);
 
-      if (video.readyState >= 1) {
-        const nextTime = Math.min(videoDuration - 0.025, videoProgress * videoDuration);
-        if (Math.abs(video.currentTime - nextTime) > 0.018) {
-          video.currentTime = nextTime;
-        }
-      }
+      desiredVideoTime = Math.min(
+        videoDuration - 0.025,
+        videoProgress * videoDuration,
+      );
+      seekVideo();
 
       video.style.transform = `scale(${1 + videoProgress * 0.045})`;
 
       if (heroStillRef.current) {
         heroStillRef.current.style.opacity =
-          `${1 - smoothstep(0.004, 0.045, progress)}`;
+          `${videoReady ? 1 - smoothstep(0.004, 0.045, progress) : 1}`;
       }
       if (heroCopyRef.current) {
         heroCopyRef.current.style.opacity = `${1 - heroOut}`;
@@ -186,9 +207,11 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
     };
 
     const measure = () => {
-      const viewportHeight = embedded
-        ? window.innerHeight
-        : scrollContainer?.clientHeight ?? window.innerHeight;
+      const viewportHeight =
+        stickyViewportRef.current?.offsetHeight ??
+        (embedded
+          ? window.innerHeight
+          : scrollContainer?.clientHeight ?? window.innerHeight);
       const distance = Math.max(1, root.offsetHeight - viewportHeight);
       targetProgress = embedded
         ? clamp(-root.getBoundingClientRect().top / distance)
@@ -201,7 +224,38 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
       measure();
     };
 
+    const handleLoadedData = () => {
+      videoReady = true;
+      seekVideo();
+      measure();
+    };
+
+    const handleSeeked = () => {
+      seekInFlight = false;
+      seekVideo();
+      if (!frame) frame = requestAnimationFrame(render);
+    };
+
+    const primeVideo = () => {
+      void video
+        .play()
+        .then(() => {
+          video.pause();
+          seekVideo();
+        })
+        .catch(() => {
+          // The poster remains visible when a mobile browser declines playback.
+        });
+    };
+
     video.addEventListener("loadedmetadata", handleMetadata);
+    video.addEventListener("loadeddata", handleLoadedData);
+    video.addEventListener("seeked", handleSeeked);
+    video.addEventListener("progress", measure);
+    window.addEventListener("touchstart", primeVideo, {
+      passive: true,
+      once: true,
+    });
     if (embedded) {
       window.addEventListener("scroll", measure, { passive: true });
     } else {
@@ -214,6 +268,10 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
       cancelAnimationFrame(frame);
       cardAnimations.forEach((animation) => animation.cancel());
       video.removeEventListener("loadedmetadata", handleMetadata);
+      video.removeEventListener("loadeddata", handleLoadedData);
+      video.removeEventListener("seeked", handleSeeked);
+      video.removeEventListener("progress", measure);
+      window.removeEventListener("touchstart", primeVideo);
       if (embedded) {
         window.removeEventListener("scroll", measure);
       } else {
@@ -259,7 +317,10 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
       data-scroll-story
       className="relative h-[480svh] w-full flex-none bg-white"
     >
-        <div className="sticky top-0 h-[100svh] overflow-hidden bg-[#07110f]">
+        <div
+          ref={stickyViewportRef}
+          className="sticky top-0 h-[100svh] overflow-hidden bg-[#07110f]"
+        >
           <video
             ref={videoRef}
             className="absolute inset-0 h-full w-full object-cover will-change-transform"
@@ -269,6 +330,11 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
             poster="/landing-hero-lg.jpg"
             aria-hidden="true"
           >
+            <source
+              src="/kawabunga-scroll-story-mobile.mp4"
+              type="video/mp4"
+              media="(max-width: 767px)"
+            />
             <source src="/kawabunga-scroll-story-hd.mp4" type="video/mp4" />
           </video>
           <Image
@@ -392,7 +458,7 @@ function StoryCards({ headingRef, cardRefs, layered = false }: StoryCardsProps) 
   return (
     <section
       className={`w-full bg-white px-6 text-[#081b19] sm:px-10 lg:px-20 ${
-        layered ? "py-14 sm:py-16 md:py-24" : "py-24 sm:py-32"
+        layered ? "py-5 sm:py-10 md:py-24" : "py-24 sm:py-32"
       }`}
     >
       <div className="mx-auto max-w-[1440px]">
@@ -407,7 +473,9 @@ function StoryCards({ headingRef, cardRefs, layered = false }: StoryCardsProps) 
             One engine, infinite realities
           </p>
           <h2
-            className="mt-4 max-w-3xl text-3xl font-medium leading-[1.02] tracking-[-0.045em] sm:text-5xl lg:text-6xl"
+            className={`max-w-3xl font-medium leading-[1.02] tracking-[-0.045em] sm:mt-4 sm:text-5xl lg:text-6xl ${
+              layered ? "mt-2 text-2xl" : "mt-4 text-3xl"
+            }`}
             style={{ fontFamily: "var(--font-heading)" }}
           >
             Worlds built to move with you.
@@ -417,7 +485,7 @@ function StoryCards({ headingRef, cardRefs, layered = false }: StoryCardsProps) 
         <div
           className={`grid md:grid-cols-3 ${
             layered
-              ? "mt-8 gap-2 sm:mt-9 md:mt-14 md:gap-3 lg:gap-5"
+              ? "mt-4 gap-1.5 sm:mt-8 sm:gap-2 md:mt-14 md:gap-3 lg:gap-5"
               : "mt-10 gap-3 sm:mt-14 lg:gap-5"
           }`}
         >
@@ -429,7 +497,7 @@ function StoryCards({ headingRef, cardRefs, layered = false }: StoryCardsProps) 
               }}
               className={`group flex flex-col justify-between rounded-[24px] border border-[#0b3732]/10 bg-[#f1f7f5] transition-colors duration-300 hover:bg-[#e4f2ef] lg:p-8 ${
                 layered
-                  ? "min-h-[145px] p-5 opacity-0 will-change-transform sm:min-h-[155px] md:min-h-[290px] md:p-7"
+                  ? "min-h-[104px] p-3 opacity-0 will-change-transform sm:min-h-[145px] sm:p-5 md:min-h-[290px] md:p-7"
                   : "min-h-[250px] p-6 sm:min-h-[290px] sm:p-7"
               }`}
             >
@@ -459,7 +527,7 @@ function StoryCards({ headingRef, cardRefs, layered = false }: StoryCardsProps) 
                 <p
                   className={`max-w-sm text-sm text-[#163c37]/60 ${
                     layered
-                      ? "mt-2 line-clamp-2 leading-5 md:mt-4 md:line-clamp-none md:leading-6"
+                      ? "mt-1 line-clamp-1 text-xs leading-4 sm:mt-2 sm:line-clamp-2 sm:text-sm sm:leading-5 md:mt-4 md:line-clamp-none md:leading-6"
                       : "mt-4 leading-6"
                   }`}
                 >
