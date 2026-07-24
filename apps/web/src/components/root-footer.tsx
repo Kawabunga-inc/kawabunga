@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { FooterWavefield } from "./footer-wavefield";
 
 const footerLinks = [
   { label: "Overview", href: "/#what-is-kawabunga" },
@@ -10,8 +11,11 @@ const footerLinks = [
 
 export function RootFooter() {
   return (
-    <footer className="flex min-h-[75svh] w-full flex-col justify-between bg-[#0a0a0a] px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-20 lg:py-14">
-      <div className="flex items-center justify-between border-b border-white/10 pb-8">
+    <footer className="relative flex min-h-[75svh] w-full flex-col justify-between overflow-hidden bg-[#0a0a0a] px-6 py-10 text-white sm:px-10 sm:py-12 lg:px-20 lg:py-14">
+      <FooterWavefield />
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-[#0a0a0a]/60 via-[#0a0a0a]/25 to-[#0a0a0a]/80" />
+
+      <div className="relative z-10 flex items-center justify-between border-b border-white/10 pb-8">
         <Link href="/" aria-label="Kawabunga home">
           <Image
             src="/kawabunga_wordmark.svg"
@@ -29,7 +33,7 @@ export function RootFooter() {
         </p>
       </div>
 
-      <div className="flex flex-1 items-center py-14 sm:py-20">
+      <div className="relative z-10 flex flex-1 items-center py-14 sm:py-20">
         <div className="max-w-5xl">
           <p
             className="text-[10px] uppercase tracking-[0.22em] text-[#8fd1cb]"
@@ -52,7 +56,7 @@ export function RootFooter() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-7 border-t border-white/10 pt-8 sm:flex-row sm:items-end sm:justify-between">
+      <div className="relative z-10 flex flex-col gap-7 border-t border-white/10 pt-8 sm:flex-row sm:items-end sm:justify-between">
         <nav
           aria-label="Footer navigation"
           className="flex flex-wrap gap-x-6 gap-y-3 sm:gap-x-8"

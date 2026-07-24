@@ -24,6 +24,13 @@ export type {
 export { ConfirmModal } from "./components/confirm-modal";
 export type { ConfirmModalProps } from "./components/confirm-modal";
 
+export {
+  ThreeDWaveformPage,
+  WavefieldStage,
+  createEmptyAudioData,
+} from "./components/wavefield-stage";
+export type { AudioData } from "./components/wavefield-stage";
+
 export const forest = {
   950: "#000500",
   900: "#0F2006",
