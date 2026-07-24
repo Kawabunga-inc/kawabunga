@@ -164,7 +164,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
           `translate3d(0, ${heroOut * -64}px, 0) scale(${1 - heroOut * 0.035})`;
       }
       if (heroShadeRef.current) {
-        heroShadeRef.current.style.opacity = `${1 - smoothstep(0.12, 0.56, progress)}`;
+        heroShadeRef.current.style.opacity = `${1 - smoothstep(0.015, 0.14, progress)}`;
       }
       if (scrollCueRef.current) {
         scrollCueRef.current.style.opacity = `${1 - smoothstep(0.02, 0.13, progress)}`;
@@ -235,7 +235,8 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
             className="object-cover"
             sizes="100vw"
           />
-          <div className="absolute inset-0 hidden bg-gradient-to-t from-black/80 via-black/15 to-black/35" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-black/35" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-transparent to-transparent" />
           <HeroCopy />
         </section>
         <StoryCards />
@@ -282,9 +283,11 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
 
           <div
             ref={heroShadeRef}
-            className="absolute inset-0 hidden bg-gradient-to-t from-black/80 via-black/10 to-black/40"
-          />
-          <div className="absolute inset-0 hidden bg-gradient-to-r from-black/35 via-transparent to-transparent" />
+            className="absolute inset-0"
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-transparent to-transparent" />
+          </div>
           <div
             ref={whiteWashRef}
             className="pointer-events-none absolute inset-0 bg-white opacity-0"
