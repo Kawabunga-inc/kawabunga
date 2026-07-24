@@ -265,21 +265,21 @@ function ImageCarousel({
         {slides.map((slide, i) => (
           <div
             key={slide.title}
-            className="relative flex aspect-square w-full flex-shrink-0 snap-center overflow-hidden rounded-2xl border border-white/6 bg-white/[0.04] sm:aspect-[16/10]"
+            className="relative flex aspect-square w-full flex-shrink-0 snap-center overflow-hidden rounded-2xl border border-[#0b3732]/10 bg-[#f1f7f5] sm:aspect-[16/10]"
           >
             {/* Image placeholder — becomes the card's background once real art is dropped in. */}
-            <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-white/[0.02]">
+            <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-[#e8f1ef]">
               <span
-                className="text-[10px] uppercase tracking-[0.2em] text-white/15"
+                className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/20"
                 style={{ fontFamily: mono }}
               >
                 Image
               </span>
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/45 to-transparent" />
 
             <span
-              className="absolute left-5 top-5 rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-white/70 backdrop-blur-sm"
+              className="absolute left-5 top-5 rounded-full border border-[#0b3732]/15 bg-white/70 px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#07110f]/65 backdrop-blur-sm"
               style={{ fontFamily: mono }}
             >
               {String(i + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
@@ -289,7 +289,7 @@ function ImageCarousel({
               <h3 className="text-2xl font-semibold sm:text-3xl" style={{ fontFamily: heading }}>
                 {slide.title}
               </h3>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-[#07110f]/65 sm:text-base">
                 {slide.body}
               </p>
             </div>
@@ -305,7 +305,7 @@ function ImageCarousel({
             onClick={() => scrollToSlide(i)}
             aria-label={`Go to ${slide.title}`}
             className={`h-1.5 rounded-full transition-all ${
-              i === active ? "w-6 bg-[#8fd1cb]" : "w-1.5 bg-white/20 hover:bg-white/35"
+              i === active ? "w-6 bg-[#14877e]" : "w-1.5 bg-[#07110f]/15 hover:bg-[#07110f]/30"
             }`}
           />
         ))}
@@ -322,7 +322,7 @@ function ExperienceConnector() {
         height="40"
         viewBox="0 0 40 40"
         fill="none"
-        className="rotate-90 text-[#8fd1cb]/45 lg:rotate-0"
+        className="rotate-90 text-[#14877e]/45 lg:rotate-0"
       >
         <line x1="3" y1="20" x2="34" y2="20" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 5" />
         <path d="M29 14l7 6-7 6" stroke="currentColor" strokeWidth="1.5" />
@@ -350,12 +350,12 @@ function ExperienceCanvas({
       <Reveal>
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <p
-            className="text-[11px] uppercase tracking-[0.2em] text-[#8fd1cb]"
+            className="text-[11px] uppercase tracking-[0.2em] text-[#0f756d]"
             style={{ fontFamily: mono }}
           >
             Choose the kind of world
           </p>
-          <p className="max-w-sm text-sm leading-relaxed text-white/35 sm:text-right">
+          <p className="max-w-sm text-sm leading-relaxed text-[#07110f]/55 sm:text-right">
             Learn inside it. Create it from scratch. Or enter it purely for the experience.
           </p>
         </div>
@@ -365,27 +365,27 @@ function ExperienceCanvas({
         {categories.map((category, i) => (
           <Fragment key={category.label}>
             <Reveal delay={i * 110} variant="scale" className="h-full">
-              <article className="flex min-h-[380px] flex-col overflow-hidden rounded-3xl border border-white/8 bg-white/[0.035] lg:aspect-square lg:min-h-0">
-                <div className="cinematic-surface min-h-24 flex-1 bg-white/[0.012]" aria-hidden="true" />
-                <div className="border-t border-white/8 p-5 sm:p-6">
+              <article className="flex min-h-[380px] flex-col overflow-hidden rounded-3xl border border-[#0b3732]/10 bg-[#f1f7f5] lg:aspect-square lg:min-h-0">
+                <div className="cinematic-surface min-h-24 flex-1 bg-[#e8f1ef]" aria-hidden="true" />
+                <div className="border-t border-[#0b3732]/10 p-5 sm:p-6">
                   <span
-                    className="text-[10px] uppercase tracking-[0.2em] text-white/30"
+                    className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/35"
                     style={{ fontFamily: mono }}
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <h3
-                    className="mt-2 text-xl font-semibold text-[#8fd1cb] sm:text-2xl"
+                    className="mt-2 text-xl font-semibold text-[#0f756d] sm:text-2xl"
                     style={{ fontFamily: heading }}
                   >
                     {category.label}
                   </h3>
-                  <p className="mt-2 text-[13px] leading-relaxed text-white/50 sm:text-sm">{category.body}</p>
+                  <p className="mt-2 text-[13px] leading-relaxed text-[#07110f]/60 sm:text-sm">{category.body}</p>
                   <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5">
                     {category.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="text-[9px] uppercase tracking-[0.09em] text-white/28"
+                        className="text-[9px] uppercase tracking-[0.09em] text-[#07110f]/38"
                         style={{ fontFamily: mono }}
                       >
                         {tag}
@@ -404,13 +404,13 @@ function ExperienceCanvas({
         ))}
       </div>
 
-      <div className="mt-24 border-t border-white/8 pt-10 sm:mt-32 sm:pt-12">
+      <div className="mt-24 border-t border-[#0b3732]/10 pt-10 sm:mt-32 sm:pt-12">
         <Reveal>
           <div className="mb-14 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <h3 className="text-2xl font-semibold sm:text-3xl" style={{ fontFamily: heading }}>
               What makes it feel alive
             </h3>
-            <p className="max-w-sm text-sm leading-relaxed text-white/35 sm:text-right">
+            <p className="max-w-sm text-sm leading-relaxed text-[#07110f]/55 sm:text-right">
               Five connected capabilities, each with room to become its own visual story.
             </p>
           </div>
@@ -430,7 +430,7 @@ function ExperienceCanvas({
                 >
                   <div>
                     <p
-                      className="text-[10px] uppercase tracking-[0.2em] text-[#8fd1cb]"
+                      className="text-[10px] uppercase tracking-[0.2em] text-[#0f756d]"
                       style={{ fontFamily: mono }}
                     >
                       {String(i + 1).padStart(2, "0")} — {feature.context}
@@ -441,7 +441,7 @@ function ExperienceCanvas({
                     >
                       {feature.title}
                     </h4>
-                    <p className="mt-4 max-w-md text-sm leading-relaxed text-white/48 sm:text-base sm:leading-7">
+                    <p className="mt-4 max-w-md text-sm leading-relaxed text-[#07110f]/60 sm:text-base sm:leading-7">
                       {feature.body}
                     </p>
                   </div>
@@ -450,7 +450,7 @@ function ExperienceCanvas({
                 <Reveal
                   delay={100}
                   variant="scale"
-                  className={`aspect-[16/10] rounded-3xl border border-white/8 bg-white/[0.025] lg:row-start-1 lg:col-span-7 ${
+                  className={`aspect-[16/10] rounded-3xl border border-[#0b3732]/10 bg-[#f1f7f5] lg:row-start-1 lg:col-span-7 ${
                     canvasOnRight ? "lg:col-start-6" : "lg:col-start-1"
                   }`}
                 >
@@ -473,7 +473,7 @@ export function LandingPageV3() {
 
   return (
     <main
-      className="flex w-full flex-col bg-[#0a0a0a] text-white"
+      className="flex w-full flex-col bg-white text-[#07110f]"
       style={{ fontFamily: "var(--font-body)" }}
     >
       <ScrollStoryShowcase embedded />
@@ -481,13 +481,13 @@ export function LandingPageV3() {
       {/* ── What is Kawabunga ── */}
       <section
         id="what-is-kawabunga"
-        className="relative bg-[#0a0a0a] px-6 py-24 before:pointer-events-none before:absolute before:inset-x-0 before:-top-40 before:h-40 before:bg-gradient-to-b before:from-transparent before:to-[#0a0a0a] sm:px-10 sm:py-28 lg:px-20 lg:py-32"
+        className="relative bg-white px-6 py-24 before:pointer-events-none before:absolute before:inset-x-0 before:-top-40 before:h-40 before:bg-gradient-to-b before:from-transparent before:to-white sm:px-10 sm:py-28 lg:px-20 lg:py-32"
       >
         <div className="relative z-10 grid gap-14 lg:grid-cols-12 lg:items-start lg:gap-8">
           <Reveal className="lg:col-span-5">
             <div>
               <p
-                className="text-[10px] uppercase tracking-[0.2em] text-[#8fd1cb]"
+                className="text-[10px] uppercase tracking-[0.2em] text-[#0f756d]"
                 style={{ fontFamily: mono }}
               >
                 A new kind of medium
@@ -498,26 +498,26 @@ export function LandingPageV3() {
               >
                 What is Kawabunga
               </h2>
-              <p className="mt-5 max-w-lg text-lg leading-relaxed text-white/80 sm:text-xl">
-                Not a chatbot. <span className="text-[#8fd1cb]">A world that becomes whatever you need it to be.</span>
+              <p className="mt-5 max-w-lg text-lg leading-relaxed text-[#07110f]/80 sm:text-xl">
+                Not a chatbot. <span className="text-[#0f756d]">A world that becomes whatever you need it to be.</span>
               </p>
-              <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/45 lg:text-base lg:leading-7">
+              <p className="mt-4 max-w-lg text-sm leading-relaxed text-[#07110f]/55 lg:text-base lg:leading-7">
                 Living audio worlds where voices, characters, and stories respond to you in real time.
               </p>
             </div>
           </Reveal>
 
-          <div className="border-y border-white/8 lg:col-span-6 lg:col-start-7">
+          <div className="border-y border-[#0b3732]/10 lg:col-span-6 lg:col-start-7">
             {KAWABUNGA_PRINCIPLES.map((principle, i) => (
               <Reveal
                 key={principle.title}
                 delay={i * 100}
                 variant="right"
-                className="border-b border-white/8 last:border-b-0"
+                className="border-b border-[#0b3732]/10 last:border-b-0"
               >
                 <div className="grid grid-cols-[32px_minmax(0,1fr)] gap-4 py-6 sm:grid-cols-[40px_minmax(0,1fr)] sm:gap-6 sm:py-7">
                   <span
-                    className="pt-1 text-[10px] tracking-[0.18em] text-white/25"
+                    className="pt-1 text-[10px] tracking-[0.18em] text-[#07110f]/35"
                     style={{ fontFamily: mono }}
                   >
                     {String(i + 1).padStart(2, "0")}
@@ -526,7 +526,7 @@ export function LandingPageV3() {
                     <h3 className="text-xl font-semibold sm:text-2xl" style={{ fontFamily: heading }}>
                       {principle.title}
                     </h3>
-                    <p className="mt-2 max-w-md text-sm leading-relaxed text-white/45 sm:text-base">
+                    <p className="mt-2 max-w-md text-sm leading-relaxed text-[#07110f]/55 sm:text-base">
                       {principle.body}
                     </p>
                   </div>
@@ -547,10 +547,10 @@ export function LandingPageV3() {
             >
               The Kawabunga Experience
             </h2>
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#8fd1cb] lg:text-base lg:leading-7">
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#0f756d] lg:text-base lg:leading-7">
               Everything that makes a world feel alive.
             </p>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/50 lg:text-base lg:leading-7">
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#07110f]/60 lg:text-base lg:leading-7">
               Browse what&rsquo;s possible.
             </p>
           </Reveal>
@@ -570,31 +570,31 @@ export function LandingPageV3() {
           >
             How It Works
           </h2>
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#8fd1cb] lg:text-base lg:leading-7">
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#0f756d] lg:text-base lg:leading-7">
             Three systems, working together in real time.
           </p>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/45 lg:text-base lg:leading-7">
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#07110f]/55 lg:text-base lg:leading-7">
             Source material becomes a character&rsquo;s mind. Relevant knowledge surfaces for each turn, and an invisible director turns it into a responsive scene.
           </p>
         </Reveal>
 
         {/* Character Brain — the signature graphic, given the most room. */}
         <Reveal className="mt-14" variant="scale">
-          <div className="relative flex aspect-square w-full overflow-hidden rounded-2xl border border-white/6 bg-white/[0.04] sm:aspect-[21/9]">
-            <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-white/[0.02]">
+          <div className="relative flex aspect-square w-full overflow-hidden rounded-2xl border border-[#0b3732]/10 bg-[#f1f7f5] sm:aspect-[21/9]">
+            <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-[#e8f1ef]">
               <span
-                className="text-[10px] uppercase tracking-[0.2em] text-white/15"
+                className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/20"
                 style={{ fontFamily: mono }}
               >
                 Diagram
               </span>
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/45 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
               <h3 className="text-2xl font-semibold sm:text-3xl" style={{ fontFamily: heading }}>
                 Character Brain
               </h3>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-[#07110f]/65 sm:text-base">
                 Sources become structured knowledge, and structured knowledge becomes a character with a distinct identity, perspective, and understanding of its world.
               </p>
             </div>
@@ -604,21 +604,21 @@ export function LandingPageV3() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2 sm:gap-6">
           {HOW_IT_WORKS.map((item, i) => (
             <Reveal key={item.title} delay={i * 120} variant="scale">
-              <div className="relative flex aspect-square w-full overflow-hidden rounded-2xl border border-white/6 bg-white/[0.04] sm:aspect-video">
-                <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-white/[0.02]">
+              <div className="relative flex aspect-square w-full overflow-hidden rounded-2xl border border-[#0b3732]/10 bg-[#f1f7f5] sm:aspect-video">
+                <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-[#e8f1ef]">
                   <span
-                    className="text-[10px] uppercase tracking-[0.2em] text-white/15"
+                    className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/20"
                     style={{ fontFamily: mono }}
                   >
                     Diagram
                   </span>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-white via-white/45 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
                   <h3 className="text-xl font-semibold sm:text-2xl" style={{ fontFamily: heading }}>
                     {item.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-white/70 sm:text-base">
+                  <p className="mt-2 text-sm leading-relaxed text-[#07110f]/65 sm:text-base">
                     {item.body}
                   </p>
                 </div>
@@ -635,7 +635,7 @@ export function LandingPageV3() {
             <div className="mb-8 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p
-                  className="text-[10px] uppercase tracking-[0.2em] text-[#8fd1cb]"
+                  className="text-[10px] uppercase tracking-[0.2em] text-[#0f756d]"
                   style={{ fontFamily: mono }}
                 >
                   Inside the engine
@@ -644,7 +644,7 @@ export function LandingPageV3() {
                   Technology that disappears into the experience
                 </h3>
               </div>
-              <p className="max-w-md text-sm leading-relaxed text-white/40 lg:text-right">
+              <p className="max-w-md text-sm leading-relaxed text-[#07110f]/55 lg:text-right">
                 Each layer handles one part of the work, so the person inside the world only has to speak, listen, and choose what happens next.
               </p>
             </div>
@@ -656,7 +656,7 @@ export function LandingPageV3() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="relative overflow-hidden border-t border-white/6 px-6 py-20 text-center sm:px-10 sm:py-28 lg:px-20">
+      <section className="relative overflow-hidden border-t border-[#0b3732]/10 px-6 py-20 text-center sm:px-10 sm:py-28 lg:px-20">
         <ParallaxLayer className="absolute -inset-y-12 inset-x-0" speed={0.04} maxOffset={24}>
           <MeshGradient />
         </ParallaxLayer>
@@ -668,21 +668,21 @@ export function LandingPageV3() {
             >
               Welcome to Kawabunga
             </h2>
-            <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-white/50 sm:text-base">
+            <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-[#07110f]/60 sm:text-base">
               Choose a world, step inside, and discover what happens when every
               choice matters.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
                 href="/about"
-                className="inline-flex items-center justify-center rounded-full bg-[#8fd1cb] px-8 py-3.5 text-sm font-semibold text-[#0a0a0a] transition-all hover:scale-[1.03] hover:brightness-110"
+                className="inline-flex items-center justify-center rounded-full bg-[#14877e] px-8 py-3.5 text-sm font-semibold text-white transition-all hover:scale-[1.03] hover:brightness-95"
                 style={{ fontFamily: mono }}
               >
                 Explore Worlds
               </Link>
               <Link
                 href="/about"
-                className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/8 px-8 py-3.5 text-sm text-white/80 transition-all hover:scale-[1.03] hover:border-white/30 hover:bg-white/15"
+                className="inline-flex items-center justify-center rounded-full border border-[#0b3732]/15 bg-white/70 px-8 py-3.5 text-sm text-[#07110f]/80 transition-all hover:scale-[1.03] hover:border-[#0b3732]/30 hover:bg-white"
                 style={{ fontFamily: mono }}
               >
                 Read the About
@@ -693,11 +693,11 @@ export function LandingPageV3() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-white/6 px-6 py-8 sm:px-10 lg:px-20">
+      <footer className="border-t border-[#0b3732]/10 px-6 py-8 sm:px-10 lg:px-20">
         <Reveal variant="fade">
           <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
             <span
-              className="text-sm font-semibold text-white/35"
+              className="text-sm font-semibold text-[#07110f]/55"
               style={{ fontFamily: heading }}
             >
               Kawabunga
@@ -712,13 +712,13 @@ export function LandingPageV3() {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className="text-xs text-white/30 transition-colors hover:text-white/60"
+                  className="text-xs text-[#07110f]/45 transition-colors hover:text-[#07110f]/75"
                 >
                   {item.label}
                 </Link>
               ))}
             </div>
-            <span className="text-[11px] text-white/20">
+            <span className="text-[11px] text-[#07110f]/35">
               Built with conviction, not permission.
             </span>
           </div>
