@@ -1282,9 +1282,11 @@ function OceanField({
 function Scene({
   audioData,
   idleMotion = "ambient",
+  cameraTarget = [0, -0.62, -24],
 }: {
   audioData: AudioData;
   idleMotion?: IdleMotionMode;
+  cameraTarget?: [number, number, number];
 }) {
   return (
     <>
@@ -1297,7 +1299,7 @@ function Scene({
         enableRotate={false}
         enablePan={false}
         enableZoom={false}
-        target={[0, -0.62, -24]}
+        target={cameraTarget}
       />
       <OceanField audioData={audioData} idleMotion={idleMotion} />
     </>
@@ -1309,6 +1311,7 @@ export function WavefieldStage({
   idleMotion = "ambient",
   backgroundColor = "var(--background)",
   cameraPosition = [0, 2.2, 3.22],
+  cameraTarget = [0, -0.62, -24],
   cameraFov = 42,
   renderQuality = "balanced",
 }: {
@@ -1316,6 +1319,7 @@ export function WavefieldStage({
   idleMotion?: IdleMotionMode;
   backgroundColor?: string;
   cameraPosition?: [number, number, number];
+  cameraTarget?: [number, number, number];
   cameraFov?: number;
   renderQuality?: "balanced" | "high";
 }) {
@@ -1343,7 +1347,11 @@ export function WavefieldStage({
           powerPreference: "high-performance",
         }}
       >
-        <Scene audioData={audioData} idleMotion={idleMotion} />
+        <Scene
+          audioData={audioData}
+          idleMotion={idleMotion}
+          cameraTarget={cameraTarget}
+        />
       </Canvas>
     </div>
   );
