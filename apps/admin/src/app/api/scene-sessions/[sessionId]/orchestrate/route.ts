@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSceneSessionStore } from "@odyssey/db";
-import { type OrchestratorDecision, type SceneState } from "@odyssey/types";
+import { getSceneSessionStore } from "@kawabunga/db";
+import { type OrchestratorDecision, type SceneState } from "@kawabunga/types";
 import {
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
@@ -12,7 +12,7 @@ import {
   resolveSceneDecision,
   type SceneDecisionResolution,
   updateSceneMemory,
-} from "@odyssey/orchestration/client";
+} from "@kawabunga/orchestration/client";
 import { resolveOrchestratorExecutor } from "@/lib/orchestrator-executor";
 import { resolveScene } from "@/lib/scene-orchestration";
 import { TraceEnvelope } from "@/lib/voice-trace";

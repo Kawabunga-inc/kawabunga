@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CharacterRecord } from "@odyssey/db";
+import type { CharacterRecord } from "@kawabunga/db";
 import type { CharacterSnapshot } from "./types";
 
 /**

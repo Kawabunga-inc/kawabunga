@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CharacterBrainModel } from "@odyssey/db";
+import type { CharacterBrainModel } from "@kawabunga/db";
 import type { HarnessCharacter } from "../harness-types";
 import { MODEL_REGISTRY, DEFAULT_CHAT_MODEL, modelsFor } from "@/lib/model-registry";
 import { formatRelative } from "../shared/format-relative";

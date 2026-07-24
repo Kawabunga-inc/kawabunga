@@ -1,4 +1,4 @@
-import type { Scene } from "@odyssey/types";
+import type { Scene } from "@kawabunga/types";
 
 // Static scene registry. For this phase, scenes are authored in code.
 // The orchestration package owns scene meaning and turn planning; later

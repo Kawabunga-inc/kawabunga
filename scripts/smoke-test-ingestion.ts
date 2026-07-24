@@ -1,5 +1,5 @@
 /**
- * End-to-end smoke test for @odyssey/wiki-ingest.
+ * End-to-end smoke test for @kawabunga/wiki-ingest.
  *
  * - Creates a throwaway character with a simple domain prompt.
  * - Attaches a small fictional source (~200 words) so the run is cheap.
@@ -22,8 +22,8 @@ import {
   getCharacterStore,
   getWikiStore,
   getWikisStore,
-} from "@odyssey/db";
-import { runIngestion, resolveModel } from "@odyssey/wiki-ingest";
+} from "@kawabunga/db";
+import { runIngestion, resolveModel } from "@kawabunga/wiki-ingest";
 
 const LEAVE = process.argv.includes("--leave");
 const MODEL_FLAG_IDX = process.argv.indexOf("--model");

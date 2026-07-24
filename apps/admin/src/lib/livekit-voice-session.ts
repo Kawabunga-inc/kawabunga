@@ -4,7 +4,7 @@ import type {
   RemoteTrack,
   Room,
 } from "livekit-client";
-import { type SceneAudioMetrics, createAudioContext } from "@odyssey/scene-player";
+import { type SceneAudioMetrics, createAudioContext } from "@kawabunga/scene-player";
 
 // livekit-client touches browser globals, so it must never load during SSR of the
 // (server-rendered) "use client" sandbox — even with the flag off. We type-only

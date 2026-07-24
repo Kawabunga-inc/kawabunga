@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { AudioAssetRecord } from "@odyssey/db";
+import type { AudioAssetRecord } from "@kawabunga/db";
 import {
   downloadSoundProcessedBytes,
   downloadSoundSourceBytes,

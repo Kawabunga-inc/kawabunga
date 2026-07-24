@@ -38,7 +38,7 @@ import {
   wikiEdgesTable,
   wikiSourcesTable,
   wikiIngestionLogTable,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 const APPLY = process.argv.includes("--apply");
 

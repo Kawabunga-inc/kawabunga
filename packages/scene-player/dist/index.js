@@ -1,4 +1,4 @@
-// @odyssey/scene-player — reusable live scene player.
+// @kawabunga/scene-player — reusable live scene player.
 //
 // The multi-character orchestration loop (useScenePlayer), the audio
 // primitives (SceneAudioBus for multi-track scene playback, PcmPlayer for

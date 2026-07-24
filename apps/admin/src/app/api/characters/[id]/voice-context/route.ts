@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
-import { getCharacterStore, getSceneSessionStore } from "@odyssey/db";
+import { getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
 import {
   buildVoicePromptPlan,
   OrchestrationContextError,
-} from "@odyssey/orchestration/server";
+} from "@kawabunga/orchestration/server";
 import {
   sandboxVoiceContextCacheKeyForDebug,
   startSandboxVoiceContextCacheWarm,
 } from "@/lib/sandbox-voice-context-cache";
-import { curate } from "@odyssey/wiki-curator";
+import { curate } from "@kawabunga/wiki-curator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

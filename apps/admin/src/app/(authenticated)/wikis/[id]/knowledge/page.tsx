@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getWikiStore, getWikisStore, type WikiPageRecord } from "@odyssey/db";
+import { getWikiStore, getWikisStore, type WikiPageRecord } from "@kawabunga/db";
 import {
   computeKnowledgeLayout,
   type LayoutEdge,

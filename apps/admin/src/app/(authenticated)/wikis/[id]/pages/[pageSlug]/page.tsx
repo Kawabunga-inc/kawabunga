@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getWikiStore, getWikisStore } from "@odyssey/db";
+import { getWikiStore, getWikisStore } from "@kawabunga/db";
 import { WikiPageView } from "@/components/wiki-page-view";
 
 export const dynamic = "force-dynamic";

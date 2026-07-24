@@ -1,5 +1,5 @@
 /**
- * Odyssey Sonar CLI — emit a ping, time the echo.
+ * Kawabunga Sonar CLI — emit a ping, time the echo.
  *
  * Voice-to-voice benchmarks: every turn starts from spoken audio (a
  * synthesized user utterance) streamed into STT, runs through the real
@@ -51,7 +51,7 @@ import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import {
   AGENCY_SCORES_PATH,
   CONTEXT_ACTIVATION_SCORES_PATH,
@@ -83,8 +83,8 @@ import {
   type SonarTurnRecord,
   type SonarUtterance,
   type TraceContract,
-} from "@odyssey/sonar";
-import { curate } from "@odyssey/wiki-curator";
+} from "@kawabunga/sonar";
+import { curate } from "@kawabunga/wiki-curator";
 
 const REPO_ROOT = process.cwd();
 const args = process.argv.slice(2);
@@ -100,7 +100,7 @@ async function main() {
   if (command === "score-context") return scoreContextCommand();
   if (command === "suites") return suitesCommand();
   console.log(
-    `Odyssey Sonar v${SONAR_VERSION} — world simulation benchmarks\n\n` +
+    `Kawabunga Sonar v${SONAR_VERSION} — world simulation benchmarks\n\n` +
       `Commands:\n` +
       `  run --suite <name>        run a benchmark suite (audio in → audio out)\n` +
       `  context-run               run context activation directly through the curator\n` +

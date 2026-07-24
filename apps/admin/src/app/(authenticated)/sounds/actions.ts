@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getAudioAssetStore } from "@odyssey/db";
+import { getAudioAssetStore } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 import { removeSoundObjects } from "@/lib/sounds-storage";
 

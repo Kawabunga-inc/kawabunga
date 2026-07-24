@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Odyssey Design System — Base Layer
+ * Kawabunga Design System — Base Layer
  *
  * This file defines the token contract (variable names + Tailwind mapping)
  * and shared utilities. Each app imports this, then a theme file that sets
@@ -170,7 +170,7 @@ textarea {
 /* ── Scrollbar ────────────────────────────────────────────── */
 
 /* Brand mint (#8FD1CB) hardcoded so the scrollbar matches the brand mark
- * in both themes — same rationale as the Odyssey icon in admin-shell:
+ * in both themes — same rationale as the Kawabunga icon in admin-shell:
  * scrollbar identity stays consistent rather than tracking --accent
  * which darkens in light mode for CTA contrast.
  * Square corners (no border-radius) — reads as a precise utility surface,

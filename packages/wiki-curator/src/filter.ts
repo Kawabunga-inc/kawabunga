@@ -12,7 +12,7 @@
  * without a timeIndex are otherwise kept — they're not event-bound.
  */
 
-import type { EraConfig, TimeIndex, WikiPageRecord } from "@odyssey/db";
+import type { EraConfig, TimeIndex, WikiPageRecord } from "@kawabunga/db";
 
 export function filterByTimeline(
   pages: WikiPageRecord[],

@@ -1,5 +1,5 @@
-@import "@odyssey/ui/styles/base.css";
-@import "@odyssey/ui/styles/themes/ocean.css";
+@import "@kawabunga/ui/styles/base.css";
+@import "@kawabunga/ui/styles/themes/ocean.css";
 
 /*
  * The shared base stylesheet sets `overflow: hidden` on html/body for the

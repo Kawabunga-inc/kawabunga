@@ -1,4 +1,4 @@
-import { ORCHESTRATOR_JSON_SCHEMA, type OrchestratorDecision, type Scene, type SceneState } from "@odyssey/types";
+import { ORCHESTRATOR_JSON_SCHEMA, type OrchestratorDecision, type Scene, type SceneState } from "@kawabunga/types";
 export type SceneTurnForPlanning = {
     speakerSlug: string;
     speakerName?: string;

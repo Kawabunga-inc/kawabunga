@@ -17,9 +17,9 @@ import {
   type UpdateCharacterInput,
   type VoiceSettingsOverride,
   type WikiPageType,
-} from "@odyssey/db";
-import { embedText, EMBEDDING_MODEL } from "@odyssey/engine";
-import { call, extractToolUse } from "@odyssey/wiki-ingest";
+} from "@kawabunga/db";
+import { embedText, EMBEDDING_MODEL } from "@kawabunga/engine";
+import { call, extractToolUse } from "@kawabunga/wiki-ingest";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 

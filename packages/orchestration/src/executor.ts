@@ -1,5 +1,5 @@
 import type { SceneDecisionRequest } from "./client";
-import type { OrchestratorDecision } from "@odyssey/types";
+import type { OrchestratorDecision } from "@kawabunga/types";
 
 // Orchestrator executor — resolves an OpenAI-compatible chat-completions client
 // (Cerebras or Groq) that turns a SceneDecisionRequest into an OrchestratorDecision

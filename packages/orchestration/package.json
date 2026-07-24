@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/orchestration",
+  "name": "@kawabunga/orchestration",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -21,10 +21,10 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@odyssey/db": "*",
-    "@odyssey/engine": "*",
-    "@odyssey/types": "*",
-    "@odyssey/wiki-curator": "*"
+    "@kawabunga/db": "*",
+    "@kawabunga/engine": "*",
+    "@kawabunga/types": "*",
+    "@kawabunga/wiki-curator": "*"
   },
   "devDependencies": {
     "typescript": "^5"

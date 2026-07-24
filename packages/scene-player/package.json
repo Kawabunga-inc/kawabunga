@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/scene-player",
+  "name": "@kawabunga/scene-player",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,8 +13,8 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@odyssey/orchestration": "*",
-    "@odyssey/types": "*"
+    "@kawabunga/orchestration": "*",
+    "@kawabunga/types": "*"
   },
   "peerDependencies": {
     "react": "^19.0.0"

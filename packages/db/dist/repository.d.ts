@@ -1,4 +1,4 @@
-import { WorldDefinition, WorldRecord } from "@odyssey/types";
+import { WorldDefinition, WorldRecord } from "@kawabunga/types";
 export type WorldSource = "static" | "dynamic";
 export type WorldDetail = {
     source: WorldSource;

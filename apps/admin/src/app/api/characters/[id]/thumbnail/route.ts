@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { isAvatarGradientKey } from "@/lib/avatar-gradients";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
-import { getDb, usersTable, authSessionsTable } from "@odyssey/db";
-import { hashPassword } from "@odyssey/auth/password";
+import { getDb, usersTable, authSessionsTable } from "@kawabunga/db";
+import { hashPassword } from "@kawabunga/auth/password";
 
 type ResetPayload = {
   email?: string;

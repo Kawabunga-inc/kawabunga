@@ -25,7 +25,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-app = FastAPI(title="odyssey-audio-rt")
+app = FastAPI(title="kawabunga-audio-rt")
 
 VOICES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voices")
 # Cache dir for .safetensors files downloaded from Supabase signed URLs.

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getAudioAssetStore, getSceneStore, getSceneGraphStore } from "@odyssey/db";
+import { getAudioAssetStore, getSceneStore, getSceneGraphStore } from "@kawabunga/db";
 import { invalidateScenesList } from "@/lib/scenes-cache";
 
 type ActionResult<T = undefined> =

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EraConfig, WikiPageRecord } from "@odyssey/db";
+import type { EraConfig, WikiPageRecord } from "@kawabunga/db";
 import { filterByTimeline } from "./filter";
 
 const eras: EraConfig[] = [

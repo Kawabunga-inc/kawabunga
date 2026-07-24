@@ -32,11 +32,11 @@ import {
   TrackSource,
   type Room,
 } from "@livekit/rtc-node";
-import { getAudioAssetStore } from "@odyssey/db";
+import { getAudioAssetStore } from "@kawabunga/db";
 import {
   SOUND_PROCESSED_BUCKET,
   getSupabaseStorageClient,
-} from "@odyssey/voice-pipeline/supabase-storage";
+} from "@kawabunga/voice-pipeline/supabase-storage";
 
 const SAMPLE_RATE = 48_000; // canonical ingest rate (sound-processed bucket)
 const FRAME_MS = 50;

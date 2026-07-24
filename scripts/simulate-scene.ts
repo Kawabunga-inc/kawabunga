@@ -35,10 +35,10 @@ dotenv.config({ override: true });
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { getCharacterStore, getSceneSessionStore } from "@odyssey/db";
-import { getChatProviderForModel } from "@odyssey/engine";
-import { runVoiceStream } from "@odyssey/voice-pipeline";
-import type { SceneSessionSnapshot } from "@odyssey/orchestration";
+import { getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
+import { getChatProviderForModel } from "@kawabunga/engine";
+import { runVoiceStream } from "@kawabunga/voice-pipeline";
+import type { SceneSessionSnapshot } from "@kawabunga/orchestration";
 import { SceneDriver, type SceneSpeakInput } from "../services/voice-agent/src/scene-driver";
 
 /* ── Flags ────────────────────────────────────────────────────── */

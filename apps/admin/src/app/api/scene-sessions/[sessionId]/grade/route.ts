@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSceneSessionStore } from "@odyssey/db";
-import { gradeTurn } from "@odyssey/voice-pipeline";
+import { getSceneSessionStore } from "@kawabunga/db";
+import { gradeTurn } from "@kawabunga/voice-pipeline";
 import { auth } from "@/lib/auth";
 
 // Grade a PERSISTED turn in place — no replay. Reads the response + the exact

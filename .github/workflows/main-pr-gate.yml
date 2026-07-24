@@ -1,0 +1,40 @@
+name: Main PR Gate
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  require-dev-source:
+    name: Require dev source branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          EXPECTED_REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if [ "$BASE_REF" != "main" ]; then
+            echo "This check only gates PRs targeting main."
+            exit 0
+          fi
+
+          if [ "$HEAD_REPO" != "$EXPECTED_REPO" ]; then
+            echo "Only the dev branch in $EXPECTED_REPO may open PRs into main."
+            echo "Current source repository: $HEAD_REPO"
+            exit 1
+          fi
+
+          if [ "$HEAD_REF" != "dev" ]; then
+            echo "Only the dev branch may open PRs into main."
+            echo "Current source branch: $HEAD_REF"
+            exit 1
+          fi
+
+          echo "Source branch is dev."

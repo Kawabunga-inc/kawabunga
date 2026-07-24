@@ -1,4 +1,4 @@
-import { getWikisStore, getWikiStore } from "@odyssey/db";
+import { getWikisStore, getWikiStore } from "@kawabunga/db";
 import { resolveWikiWithPrimaryCharacter } from "@/lib/wiki-route";
 import { IconTestView } from "./icon-test-view";
 

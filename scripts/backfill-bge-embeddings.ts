@@ -20,8 +20,8 @@ import {
   getDb,
   wikiEmbeddingSource,
   type WikiPageRecord,
-} from "@odyssey/db";
-import { embedTextLocal, LOCAL_EMBEDDING_MODEL } from "@odyssey/engine";
+} from "@kawabunga/db";
+import { embedTextLocal, LOCAL_EMBEDDING_MODEL } from "@kawabunga/engine";
 import { sql } from "drizzle-orm";
 
 const readFlag = (name: string): string | null => {

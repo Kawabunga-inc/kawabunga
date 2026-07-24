@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { getDb, usersTable } from "@odyssey/db";
+import { getDb, usersTable } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 
 export async function PUT(req: NextRequest) {

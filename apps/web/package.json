@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/web",
+  "name": "@kawabunga/web",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -9,12 +9,12 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@odyssey/auth": "*",
-    "@odyssey/db": "*",
-    "@odyssey/engine": "*",
-    "@odyssey/types": "*",
-    "@odyssey/ui": "*",
-    "@odyssey/utils": "*",
+    "@kawabunga/auth": "*",
+    "@kawabunga/db": "*",
+    "@kawabunga/engine": "*",
+    "@kawabunga/types": "*",
+    "@kawabunga/ui": "*",
+    "@kawabunga/utils": "*",
     "@paper-design/shaders-react": "^0.0.72",
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.30",

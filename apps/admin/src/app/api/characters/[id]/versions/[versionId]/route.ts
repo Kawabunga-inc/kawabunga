@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCharacterVersionStore } from "@odyssey/db";
+import { getCharacterVersionStore } from "@kawabunga/db";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 
 export const runtime = "nodejs";

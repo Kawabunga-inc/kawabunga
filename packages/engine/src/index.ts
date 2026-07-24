@@ -50,7 +50,7 @@ export type {
 } from "./interfaces";
 
 // L01–L04 prompt builders (moved here from apps/admin/src/lib so
-// both the admin app and the @odyssey/evals package consume one source).
+// both the admin app and the @kawabunga/evals package consume one source).
 export {
   buildSystemPrompt,
   buildSystemPromptParts,

@@ -7,7 +7,7 @@
  * downstream models will see).
  */
 
-import { getCharacterStore, getWikisStore, type WikiRecord } from "@odyssey/db";
+import { getCharacterStore, getWikisStore, type WikiRecord } from "@kawabunga/db";
 import { renderWikiContext } from "./prompts";
 
 const BINDING_PRIORITY_ORDER: Record<string, number> = {

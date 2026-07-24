@@ -4,9 +4,9 @@ import {
   getWikiStore,
   getWikisStore,
   type WikiSourceKind,
-} from "@odyssey/db";
-import { runIngestion, isKnownModel } from "@odyssey/wiki-ingest";
-import { embedText, embedTexts, EMBEDDING_MODEL } from "@odyssey/engine";
+} from "@kawabunga/db";
+import { runIngestion, isKnownModel } from "@kawabunga/wiki-ingest";
+import { embedText, embedTexts, EMBEDDING_MODEL } from "@kawabunga/engine";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 

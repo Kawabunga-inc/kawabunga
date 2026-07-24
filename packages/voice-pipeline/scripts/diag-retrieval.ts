@@ -11,8 +11,8 @@
  *   EMBEDDING_PROVIDER=openai npx tsx --env-file=.env \
  *     packages/voice-pipeline/scripts/diag-retrieval.ts <characterSlug> "<query>"
  */
-import { getCharacterStore, getWikiStore, getWikisStore } from "@odyssey/db";
-import { embedText, embedTextLocal } from "@odyssey/engine";
+import { getCharacterStore, getWikiStore, getWikisStore } from "@kawabunga/db";
+import { embedText, embedTextLocal } from "@kawabunga/engine";
 
 const CHARACTER = process.argv[2] ?? "abraham";
 const QUERY = process.argv[3] ?? "Sarah laughed when she heard. Were you afraid to believe the promise?";

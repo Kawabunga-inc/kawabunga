@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCharacterStore, type CharacterDirective } from "@odyssey/db";
+import { getCharacterStore, type CharacterDirective } from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

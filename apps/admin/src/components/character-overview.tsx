@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { EraConfig } from "@odyssey/db";
+import type { EraConfig } from "@kawabunga/db";
 import {
   deleteCharacter,
   rebuildCharacterEdges,

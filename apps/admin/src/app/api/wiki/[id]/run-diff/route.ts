@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getWikiStore, getWikisStore } from "@odyssey/db";
+import { getWikiStore, getWikisStore } from "@kawabunga/db";
 
 export const dynamic = "force-dynamic";
 

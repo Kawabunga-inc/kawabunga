@@ -1,5 +1,5 @@
-@import "@odyssey/ui/styles/base.css";
-@import "@odyssey/ui/styles/themes/neutral.css";
+@import "@kawabunga/ui/styles/base.css";
+@import "@kawabunga/ui/styles/themes/neutral.css";
 
 /* Admin shell glass language. Structural surfaces stay neutral so the
    workspace remains calm; mint is reserved for state, focus, and motion. */

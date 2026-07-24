@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { CharacterIdentity } from "@odyssey/db";
+import type { CharacterIdentity } from "@kawabunga/db";
 import { resolveAvatarGradient } from "@/lib/avatar-gradients";
 
 /**

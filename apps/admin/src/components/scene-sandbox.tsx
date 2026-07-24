@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import type { Scene } from "@odyssey/types";
+import type { Scene } from "@kawabunga/types";
 import {
   useScenePlayer,
   type SceneTurn,
   type ScenePhase,
   type SceneRunnerTrace,
-} from "@odyssey/scene-player";
+} from "@kawabunga/scene-player";
 import { captureMic } from "@/lib/sandbox-streams";
 import { useSceneMicCapture } from "@/lib/scene-mic";
 import {

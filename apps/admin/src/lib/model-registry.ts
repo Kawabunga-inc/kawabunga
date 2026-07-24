@@ -1,5 +1,5 @@
 /**
- * Re-export shim. The real registry lives in `@odyssey/engine` so the
+ * Re-export shim. The real registry lives in `@kawabunga/engine` so the
  * evals package + chat route + voice route + L04 editor all consume one
  * source of truth (pre-v2 the file was duplicated here and pricing was
  * hardcoded a third time in packages/evals/src/runner.ts).

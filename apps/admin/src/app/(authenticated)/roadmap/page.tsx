@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getVersionStore, getFeatureStore, getTicketStore, getDb, usersTable } from "@odyssey/db";
+import { getVersionStore, getFeatureStore, getTicketStore, getDb, usersTable } from "@kawabunga/db";
 import type { RoadmapVersion } from "@/lib/roadmap";
 import RoadmapClient from "./roadmap-client";
 

@@ -9,7 +9,7 @@ import type {
   SceneSessionDetailRecord,
   SceneSessionEventRecord,
   SceneSessionTurnRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { useHeaderContent } from "@/components/header-context";
 
 type Props = {

@@ -1,4 +1,4 @@
-import { Skeleton } from "@odyssey/ui";
+import { Skeleton } from "@kawabunga/ui";
 
 const COLUMN: React.CSSProperties = {
   flex: 1,

@@ -6,8 +6,8 @@ import {
   type WikiIngestionLogRecord,
   type WikiSourceKind,
   type WikiSourceRecord,
-} from "@odyssey/db";
-import { isKnownModel, type IngestionEvent, type PlanOp } from "@odyssey/wiki-ingest";
+} from "@kawabunga/db";
+import { isKnownModel, type IngestionEvent, type PlanOp } from "@kawabunga/wiki-ingest";
 import { parseSourceFrontmatter } from "@/lib/source-frontmatter";
 
 export const runtime = "nodejs";

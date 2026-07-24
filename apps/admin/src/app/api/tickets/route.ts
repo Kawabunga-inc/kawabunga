@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTicketStore } from "@odyssey/db";
+import { getTicketStore } from "@kawabunga/db";
 
 export const dynamic = "force-dynamic";
 

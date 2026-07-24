@@ -79,7 +79,7 @@ const sceneWithIntent: Scene = {
   ],
 };
 
-describe("@odyssey/orchestration client", () => {
+describe("@kawabunga/orchestration client", () => {
   it("creates initial scene state", () => {
     expect(createInitialSceneState(scene)).toEqual({
       sceneId: "test-scene",

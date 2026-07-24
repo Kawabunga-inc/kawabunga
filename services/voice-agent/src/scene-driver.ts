@@ -4,8 +4,8 @@ import {
   normalizeSoundDesign,
   soundDesignToSceneSounds,
   type CharacterRecord,
-} from "@odyssey/db";
-import { getChatProviderForModel } from "@odyssey/engine";
+} from "@kawabunga/db";
+import { getChatProviderForModel } from "@kawabunga/engine";
 import {
   buildDirectiveChunk,
   buildDramaturgMessages,
@@ -24,9 +24,9 @@ import {
   updateSceneMemory,
   type SceneSessionSnapshot,
   type SceneTurnForPlanning,
-} from "@odyssey/orchestration";
-import type { OrchestratorDecision, Scene, SceneState, SfxCue } from "@odyssey/types";
-import { isRefusalBoilerplate } from "@odyssey/voice-pipeline";
+} from "@kawabunga/orchestration";
+import type { OrchestratorDecision, Scene, SceneState, SfxCue } from "@kawabunga/types";
+import { isRefusalBoilerplate } from "@kawabunga/voice-pipeline";
 
 const RECENT_TURNS_LIMIT = 6;
 /** Don't speculate off a stray opener ("uh", "so") — wait for some real intent. */

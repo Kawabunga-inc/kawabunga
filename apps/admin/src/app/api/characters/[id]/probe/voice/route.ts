@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCharacterStore, getVoiceStore } from "@odyssey/db";
+import { getCharacterStore, getVoiceStore } from "@kawabunga/db";
 import { createEmbeddingSignedUrl } from "@/lib/voices-storage";
 
 export const runtime = "nodejs";

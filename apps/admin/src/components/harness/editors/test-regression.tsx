@@ -7,7 +7,7 @@ import type {
   EvalRunWithProbes,
   EvalSweepRecord,
   PassRatePoint,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import type { HarnessCharacter } from "../harness-types";
 import {
   PromptSkeleton,

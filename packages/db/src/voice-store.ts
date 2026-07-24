@@ -12,7 +12,7 @@ export type VoiceStatus = "uploaded" | "processing" | "ready" | "failed";
 export type VoiceAttemptStatus = "processing" | "succeeded" | "failed";
 
 // Provider discriminator. Adding a new value requires (a) an adapter in
-// @odyssey/engine/audio.ts and (b) a case in createStreamingTtsAdapterForVoice.
+// @kawabunga/engine/audio.ts and (b) a case in createStreamingTtsAdapterForVoice.
 export type VoiceProvider = "pocket_tts" | "elevenlabs" | "openai" | "cartesia";
 
 // Provider-specific settings carried in voices.provider_config (jsonb). The

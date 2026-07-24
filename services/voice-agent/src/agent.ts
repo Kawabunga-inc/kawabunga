@@ -1,5 +1,5 @@
 /**
- * Odyssey voice-agent — A2 (runVoiceStream behind a LiveKit AgentSession).
+ * Kawabunga voice-agent — A2 (runVoiceStream behind a LiveKit AgentSession).
  *
  * The LiveKit twin of `services/voice-host`. voice-host is a Fastify SSE server
  * the browser POSTs to; this is a long-running `@livekit/agents` WORKER that
@@ -28,7 +28,7 @@
  */
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
-import { warmLocalEmbedder } from "@odyssey/engine";
+import { warmLocalEmbedder } from "@kawabunga/engine";
 import {
   type JobContext,
   WorkerOptions,
@@ -46,8 +46,8 @@ import {
   TrackSource,
 } from "@livekit/rtc-node";
 import { BackgroundVoiceCancellation } from "@livekit/noise-cancellation-node";
-import { type CharacterRecord, getCharacterStore, getSceneSessionStore } from "@odyssey/db";
-import { runVoiceStream } from "@odyssey/voice-pipeline";
+import { type CharacterRecord, getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
+import { runVoiceStream } from "@kawabunga/voice-pipeline";
 import { SceneDriver } from "./scene-driver";
 import { WorldAudioChannel } from "./world-audio";
 

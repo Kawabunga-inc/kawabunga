@@ -21,7 +21,7 @@
  *   ...
  */
 
-import { flattenWikilinks, type WikiPageRecord } from "@odyssey/db";
+import { flattenWikilinks, type WikiPageRecord } from "@kawabunga/db";
 import type { SelectedPage } from "./types";
 
 export function renderPromptChunk(

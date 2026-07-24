@@ -1,5 +1,5 @@
 {
-  "name": "odyssey",
+  "name": "kawabunga",
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@10.9.4",
@@ -11,8 +11,8 @@
   ],
   "scripts": {
     "dev": "node scripts/run-turbo-stream.mjs dev",
-    "dev:web": "node scripts/run-turbo-stream.mjs dev --filter=@odyssey/web",
-    "dev:admin": "node scripts/run-turbo-stream.mjs dev --filter=@odyssey/admin",
+    "dev:web": "node scripts/run-turbo-stream.mjs dev --filter=@kawabunga/web",
+    "dev:admin": "node scripts/run-turbo-stream.mjs dev --filter=@kawabunga/admin",
     "worker:wiki-ingest": "tsx packages/wiki-ingest/src/worker.ts",
     "host:voice": "tsx services/voice-host/src/server.ts",
     "agent:voice": "tsx services/voice-agent/src/agent.ts",

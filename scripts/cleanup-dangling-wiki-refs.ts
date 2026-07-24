@@ -20,7 +20,7 @@ import {
   type Contradiction,
   type Frontmatter,
   type WikiPageType,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { parseWikilinks } from "../packages/db/src/wiki-links";
 
 const APPLY = process.argv.includes("--apply");

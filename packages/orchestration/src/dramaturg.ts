@@ -14,7 +14,7 @@
  * it unit-tests without a network; the SceneDriver owns the ChatProvider
  * call, cadence, and state write.
  */
-import type { Scene, SceneState } from "@odyssey/types";
+import type { Scene, SceneState } from "@kawabunga/types";
 import { buildArcBlock, type SceneTurnForPlanning } from "./client";
 
 const NOTE_MAX_CHARS = 300;

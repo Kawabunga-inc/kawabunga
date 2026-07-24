@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCharacterStore, getEvalStore, type CharacterIdentity } from "@odyssey/db";
+import { getCharacterStore, getEvalStore, type CharacterIdentity } from "@kawabunga/db";
 import { hashShape } from "@/lib/harness-shape-hash";
 
 export const runtime = "nodejs";

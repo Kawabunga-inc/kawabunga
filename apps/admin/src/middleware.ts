@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import { authConfig } from "@odyssey/auth/config";
+import { authConfig } from "@kawabunga/auth/config";
 
 const { auth } = NextAuth({
   ...authConfig,

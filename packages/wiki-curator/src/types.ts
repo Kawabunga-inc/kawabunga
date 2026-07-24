@@ -11,7 +11,7 @@ import type {
   EdgeKind,
   TimeIndex,
   WikiPageRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 
 /* ── Inputs ────────────────────────────────────────────────────── */
 
@@ -113,7 +113,7 @@ export type SeedTrace = {
 /**
  * Semantic seed input. Caller computes the query embedding and runs the
  * vector search against wiki_pages.embedding (kept out of this package so
- * @odyssey/wiki-curator stays free of OpenAI / pgvector dependencies),
+ * @kawabunga/wiki-curator stays free of OpenAI / pgvector dependencies),
  * then passes the resulting page hits in as seeds.
  */
 export type SemanticSeed = {

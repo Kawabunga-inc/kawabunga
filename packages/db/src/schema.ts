@@ -390,7 +390,7 @@ export const voicesTable = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     // Discriminator for the live-harness routing. New providers add a
-    // value here + an adapter in @odyssey/engine/audio.ts. Bound voices
+    // value here + an adapter in @kawabunga/engine/audio.ts. Bound voices
     // route by THIS field; the env-driven TTS_PROVIDER is only consulted
     // for anonymous /api/audio/speak calls with no voice attached.
     provider: text("provider").notNull().default("pocket_tts"),
@@ -1068,7 +1068,7 @@ export const wikiIngestionEventsTable = pgTable(
 
 // ── Eval harness ────────────────────────────────────────────────────
 //
-// Persists everything the @odyssey/evals package produces: probe suites,
+// Persists everything the @kawabunga/evals package produces: probe suites,
 // individual runs against a character, parameter sweeps, and per-probe
 // drill-down with judge scores + rationales.
 //
@@ -1096,7 +1096,7 @@ export const evalSuitesTable = pgTable(
     /** Semver string. Same slug at multiple versions is fine; the unique index
      * is on (character, slug, version). */
     version: text("version").notNull(),
-    /** Full probe definitions (Probe[] shape from @odyssey/evals). Jsonb so
+    /** Full probe definitions (Probe[] shape from @kawabunga/evals). Jsonb so
      * the runner can deserialize without a separate probes table — trade-off
      * is we can't query "which suite uses probe X". Acceptable for v1. */
     probes: jsonb("probes").notNull().default([]),

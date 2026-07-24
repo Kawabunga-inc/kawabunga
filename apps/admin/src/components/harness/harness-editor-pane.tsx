@@ -6,7 +6,7 @@ import {
   compileIdentityXml,
   compileVoiceXml,
 } from "@/lib/character-prompt-builders";
-import { estimateTokens } from "@odyssey/wiki-curator";
+import { estimateTokens } from "@kawabunga/wiki-curator";
 import type { HarnessCharacter, LayerDef } from "./harness-types";
 import { L01Identity } from "./editors/l01-identity";
 import { L02Directive } from "./editors/l02-directive";

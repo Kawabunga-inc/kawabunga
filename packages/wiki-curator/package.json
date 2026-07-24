@@ -1,5 +1,5 @@
 {
-  "name": "@odyssey/wiki-curator",
+  "name": "@kawabunga/wiki-curator",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,6 +10,6 @@
     }
   },
   "dependencies": {
-    "@odyssey/db": "*"
+    "@kawabunga/db": "*"
   }
 }

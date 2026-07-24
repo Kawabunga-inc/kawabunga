@@ -11,7 +11,7 @@ import type {
   WikiPageType,
   WikiSourceRecord,
   WikiSourceRefRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { WikiGraph } from "@/components/wiki-graph";
 import { WikiPageEditor } from "@/components/wiki-page-editor";
 

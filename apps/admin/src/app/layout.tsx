@@ -26,21 +26,21 @@ const jetBrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Odyssey Admin",
-    template: "%s — Odyssey Admin",
+    default: "Kawabunga Admin",
+    template: "%s — Kawabunga Admin",
   },
-  description: "Realtime orchestration layer for Odyssey simulation systems.",
+  description: "Realtime orchestration layer for Kawabunga simulation systems.",
   robots: { index: false, follow: false },
   openGraph: {
-    title: "Odyssey Admin",
-    description: "Realtime orchestration layer for Odyssey simulation systems.",
-    siteName: "Odyssey",
+    title: "Kawabunga Admin",
+    description: "Realtime orchestration layer for Kawabunga simulation systems.",
+    siteName: "Kawabunga",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Odyssey Admin",
-    description: "Realtime orchestration layer for Odyssey simulation systems.",
+    title: "Kawabunga Admin",
+    description: "Realtime orchestration layer for Kawabunga simulation systems.",
   },
 };
 

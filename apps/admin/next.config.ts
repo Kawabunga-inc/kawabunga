@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // Load these from node_modules at runtime instead of bundling them:
   //  - @huggingface/transformers / onnxruntime-node: native .node/.so binaries
   //    the bundler can't process (bge runs on a long-running host, not here).
-  //  - ws (streaming TTS adapters in @odyssey/engine/audio.ts): its node:
+  //  - ws (streaming TTS adapters in @kawabunga/engine/audio.ts): its node:
   //    builtins break the dev webpack bundle; audio.ts loads it via a runtime
   //    createRequire instead.
   serverExternalPackages: ["@huggingface/transformers", "onnxruntime-node", "ws"],
@@ -21,12 +21,12 @@ const nextConfig: NextConfig = {
     externalDir: true,
   },
   transpilePackages: [
-    "@odyssey/types",
-    "@odyssey/utils",
-    "@odyssey/db",
-    "@odyssey/auth",
-    "@odyssey/ui",
-    "@odyssey/voice-pipeline",
+    "@kawabunga/types",
+    "@kawabunga/utils",
+    "@kawabunga/db",
+    "@kawabunga/auth",
+    "@kawabunga/ui",
+    "@kawabunga/voice-pipeline",
   ],
   images: {
     remotePatterns: [

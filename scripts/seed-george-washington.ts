@@ -11,8 +11,8 @@
 import * as dotenv from "dotenv";
 dotenv.config({ override: true });
 
-import { getCharacterStore, getWikiStore, getWikisStore } from "@odyssey/db";
-import { resolveModel, runIngestion } from "@odyssey/wiki-ingest";
+import { getCharacterStore, getWikiStore, getWikisStore } from "@kawabunga/db";
+import { resolveModel, runIngestion } from "@kawabunga/wiki-ingest";
 
 const SLUG = "george-washington";
 const DO_INGEST = process.argv.includes("--ingest");
@@ -109,7 +109,7 @@ His legacy is therefore inseparable from tension. He helped secure American inde
 const SOURCE_METADATA = {
   provenance: {
     ingestionType: "authored",
-    author: "Odyssey sample data",
+    author: "Kawabunga sample data",
     role: "curated historical briefing",
   },
   tags: ["sample", "biography", "american-history", "george-washington"],

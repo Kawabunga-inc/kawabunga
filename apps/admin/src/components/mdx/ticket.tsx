@@ -1,4 +1,4 @@
-import { getTicketStore } from "@odyssey/db";
+import { getTicketStore } from "@kawabunga/db";
 
 const statusColors: Record<string, { bg: string; text: string }> = {
   "backlog": { bg: "rgba(255,255,255,0.06)", text: "var(--text-tertiary)" },

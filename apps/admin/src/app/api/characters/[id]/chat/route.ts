@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { getCharacterStore, getSceneSessionStore } from "@odyssey/db";
-import { getChatProviderForModel, type ChatSystemBlock } from "@odyssey/engine";
+import { getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
+import { getChatProviderForModel, type ChatSystemBlock } from "@kawabunga/engine";
 import { buildCharacterContext } from "@/lib/character-context";
 import { estimateSessionTurnCost } from "@/lib/session-cost";
 

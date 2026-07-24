@@ -1,4 +1,4 @@
-import type { CharacterDirective } from "@odyssey/db";
+import type { CharacterDirective } from "@kawabunga/db";
 
 /**
  * Compile an L02 Directive into the Frontier Playbook XML envelope.
@@ -8,7 +8,7 @@ import type { CharacterDirective } from "@odyssey/db";
  *     attend more reliably than prose paragraphs labeled "Important:".
  *   - Anthropic's "Keep Claude in Character" — anti-patterns and explicit
  *     refusal-shaped exemplars land harder than vague "stay in character".
- *   - Synthesized in `odyssey labs - harness` Paper file, artboard 6KB-0
+ *   - Synthesized in `kawabunga labs - harness` Paper file, artboard 6KB-0
  *     "The Frontier Playbook".
  *
  * Empty sections are omitted so partially-authored directives still produce

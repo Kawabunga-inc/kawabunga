@@ -7,7 +7,7 @@
  * payload structurally valid by construction, while letting the *body* of a
  * page stay free-form markdown (inside the `body` string field).
  *
- * The shapes here mirror types.ts / @odyssey/db/wiki-types closely; when we
+ * The shapes here mirror types.ts / @kawabunga/db/wiki-types closely; when we
  * parse the LLM response we cast with light validation and fail loudly on
  * anything genuinely malformed.
  */

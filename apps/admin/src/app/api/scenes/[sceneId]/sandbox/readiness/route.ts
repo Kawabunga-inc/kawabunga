@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { existsSync } from "fs";
 import { join } from "path";
-import { getAudioAssetStore, getSceneSessionStore, getVoiceStore } from "@odyssey/db";
+import { getAudioAssetStore, getSceneSessionStore, getVoiceStore } from "@kawabunga/db";
 import { resolveScene, resolveSpeakerCharacter } from "@/lib/scene-orchestration";
 
 export const runtime = "nodejs";

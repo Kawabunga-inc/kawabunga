@@ -10,7 +10,7 @@ import type {
   TimeIndex,
   WikiPageRecord,
   WikiPageType,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { updateWikiPage } from "@/app/(authenticated)/characters/actions";
 
 /* ── Tokens ────────────────────────────────────────────────────── */

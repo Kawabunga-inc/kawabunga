@@ -12,9 +12,9 @@ import {
   type Perspective,
   type TimeIndex,
   type WikiPageType,
-} from "@odyssey/db";
-import { embedText, EMBEDDING_MODEL } from "@odyssey/engine";
-import { call, extractToolUse } from "@odyssey/wiki-ingest";
+} from "@kawabunga/db";
+import { embedText, EMBEDDING_MODEL } from "@kawabunga/engine";
+import { call, extractToolUse } from "@kawabunga/wiki-ingest";
 import { computeKnowledgeLayout } from "@/lib/kg-layout";
 import { parseSourceFrontmatter } from "@/lib/source-frontmatter";
 

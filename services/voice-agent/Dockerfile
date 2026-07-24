@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Odyssey voice-agent image (LiveKit Node worker) — mirrors services/voice-host/Dockerfile.
+# Kawabunga voice-agent image (LiveKit Node worker) — mirrors services/voice-host/Dockerfile.
 #
 # BUILD CONTEXT = monorepo root. In Railway, set this service's Root Directory to
 # the repo root and the Dockerfile path to `services/voice-agent/Dockerfile`, so
@@ -8,7 +8,7 @@
 # root node_modules.
 #
 # No build step: runs via tsx (matching voice-host + worker:wiki-ingest); the
-# @odyssey/* packages export raw TS.
+# @kawabunga/* packages export raw TS.
 FROM node:22-slim
 
 # rtc-node's NATIVE engine does its own TLS to LiveKit Cloud (the region fetch on
@@ -54,7 +54,7 @@ RUN npm ci
 # sends the token as a Bearer header when present. Scoped to this RUN, not ENV, so
 # it isn't baked into the runtime image.
 ARG HF_TOKEN
-RUN HF_TOKEN=$HF_TOKEN npm run -w @odyssey/voice-agent prewarm
+RUN HF_TOKEN=$HF_TOKEN npm run -w @kawabunga/voice-agent prewarm
 
 EXPOSE 8080
 # Runtime env (Railway): LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET.

@@ -37,7 +37,7 @@ const COLORS = {
   textFaint: "var(--text-quaternary, #5A6066)",
 };
 
-/* ── Probe shape (mirrors @odyssey/evals Probe) ──────────────── */
+/* ── Probe shape (mirrors @kawabunga/evals Probe) ──────────────── */
 
 const CATEGORIES = ["identity", "trait", "scope", "deflect", "frame", "jailbreak", "edge"] as const;
 type Category = (typeof CATEGORIES)[number];

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { inArray } from "drizzle-orm";
-import { usersTable } from "@odyssey/db";
+import { usersTable } from "@kawabunga/db";
 
 async function main() {
   const ids = process.argv.slice(2);

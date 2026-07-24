@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { HarnessShell } from "@/components/harness/harness-shell";
 import { HarnessCharacterProvider } from "@/components/harness/harness-character-context";
 import { HarnessLayoutProvider } from "@/components/harness/harness-layout-context";

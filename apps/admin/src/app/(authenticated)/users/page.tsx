@@ -5,7 +5,7 @@ import {
   usersTable,
   accountsTable,
   sceneSessionsTable,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { UsersTable, type UserRow } from "@/components/users-table";
 
 export const dynamic = "force-dynamic";

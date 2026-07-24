@@ -72,7 +72,7 @@ if (!process.env.OPENAI_API_KEY) {
 
 const openai = new OpenAI();
 
-const prompt = `You are a changelog writer for a software project called Odyssey (a voice-first AI simulation engine).
+const prompt = `You are a changelog writer for a software project called Kawabunga (a voice-first AI simulation engine).
 
 Given the following commit information, generate a changelog entry.
 

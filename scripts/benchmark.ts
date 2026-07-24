@@ -1,9 +1,9 @@
 /**
- * Odyssey world simulation harness benchmark report.
+ * Kawabunga world simulation harness benchmark report.
  *
  * This is a read-only aggregation layer over the two systems we already have:
- *   - @odyssey/evals: character quality, pass rate, probe-level scores
- *   - @odyssey/sonar: voice/runtime latency, endpointing, observed providers
+ *   - @kawabunga/evals: character quality, pass rate, probe-level scores
+ *   - @kawabunga/sonar: voice/runtime latency, endpointing, observed providers
  *
  * It intentionally does not launch evals. First run the underlying suites,
  * then use this command to compare recent harness configurations:
@@ -25,14 +25,14 @@ import {
   type EvalProbeResultRecord,
   type EvalRunRecord,
   type EvalSuiteRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   CONTEXT_ACTIVATION_SCORES_PATH,
   loadContextActivationScores,
   loadLedger,
   type ContextActivationScoreRecord,
   type SonarLedgerEntry,
-} from "@odyssey/sonar";
+} from "@kawabunga/sonar";
 
 const REPO_ROOT = process.cwd();
 const AGENCY_SCORES_PATH = "evals/sonar/agency-scores.jsonl";
@@ -457,7 +457,7 @@ function renderBenchmark(
   }
 
   const lines = [
-    `Odyssey World Simulation Harness Benchmark · character=${opts.characterArg} · sonar=${opts.sonarSuite} · endpointing=${opts.endpointingSuite} · agency=${opts.agencySuite} · context=${opts.contextActivationSuite}` +
+    `Kawabunga World Simulation Harness Benchmark · character=${opts.characterArg} · sonar=${opts.sonarSuite} · endpointing=${opts.endpointingSuite} · agency=${opts.agencySuite} · context=${opts.contextActivationSuite}` +
       (opts.runGroup ? ` · group=${opts.runGroup}` : ""),
     "",
     renderTable(table),
@@ -497,7 +497,7 @@ function renderTable(rows: string[][]): string {
 }
 
 function weightsCommand() {
-  console.log("Odyssey World Simulation Harness Score weights");
+  console.log("Kawabunga World Simulation Harness Score weights");
   for (const item of WEIGHTS) {
     console.log(`  ${String(item.key).padEnd(20)} ${Math.round(item.weight * 100)}%`);
   }
@@ -505,7 +505,7 @@ function weightsCommand() {
 
 function printHelp() {
   console.log(
-    `Odyssey world simulation harness benchmark\n\n` +
+    `Kawabunga world simulation harness benchmark\n\n` +
       `Commands:\n` +
       `  report                  compare recent eval runs with Sonar runtime rows\n` +
       `  weights                 print composite score weights\n\n` +

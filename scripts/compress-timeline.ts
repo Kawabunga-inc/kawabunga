@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getVersionStore, getFeatureStore, getTicketStore } from "@odyssey/db";
+import { getVersionStore, getFeatureStore, getTicketStore } from "@kawabunga/db";
 
 const BINNY = "1bdbaaf9-7850-46cc-896e-65945c023b06";
 const SAM = "8730c64b-20ef-4ecd-8e0e-36bbb5b47746";

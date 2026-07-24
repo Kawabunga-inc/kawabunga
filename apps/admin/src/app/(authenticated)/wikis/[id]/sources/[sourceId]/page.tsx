@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getWikiStore, getWikisStore } from "@odyssey/db";
+import { getWikiStore, getWikisStore } from "@kawabunga/db";
 import { WikiSourceDetailView } from "./wiki-source-detail-view";
 
 export const dynamic = "force-dynamic";

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import { usersTable, accountsTable } from "@odyssey/db";
+import { usersTable, accountsTable } from "@kawabunga/db";
 
 async function main() {
   const url = process.env.DATABASE_URL;

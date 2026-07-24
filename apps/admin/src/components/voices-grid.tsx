@@ -13,14 +13,14 @@ import { SortMenu } from "@/components/sort-menu";
 import { VoiceUploadDialog } from "@/components/voice-upload-dialog";
 import { ProviderPickerModal } from "@/components/provider-picker-modal";
 import { ElevenLabsPickerModal } from "@/components/elevenlabs-picker-modal";
-import type { VoiceProvider, VoiceStatus } from "@odyssey/db";
+import type { VoiceProvider, VoiceStatus } from "@kawabunga/db";
 import type { VoiceSummary } from "@/app/(authenticated)/voices/page";
 import {
   ConfirmModal,
   ContextMenu,
   ContextMenuTriggerButton,
   type ContextMenuItem,
-} from "@odyssey/ui";
+} from "@kawabunga/ui";
 
 /* ── Theme tokens ─────────────────────────────────────────────── */
 

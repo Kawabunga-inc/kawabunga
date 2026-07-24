@@ -12,6 +12,7 @@ name: Sync Backlog (PR)
 
 on:
   pull_request:
+    branches: [dev]
     types: [opened, reopened, ready_for_review, synchronize]
 
 jobs:

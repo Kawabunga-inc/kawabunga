@@ -17,7 +17,7 @@ import {
   ContextMenu,
   ContextMenuTriggerButton,
   type ContextMenuItem,
-} from "@odyssey/ui";
+} from "@kawabunga/ui";
 
 /* ── Theme tokens ─────────────────────────────────────────────── */
 

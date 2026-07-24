@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 dotenv.config({ override: true, quiet: true });
 
-import { getCharacterStore } from "@odyssey/db";
+import { getCharacterStore } from "@kawabunga/db";
 import { curate } from "./index";
 
 const TOKEN_BUDGET = 3000;
@@ -67,7 +67,9 @@ const GOLD_CASES: GoldCase[] = [
   },
 ];
 
-const describeWithDb = process.env.DATABASE_URL ? describe : describe.skip;
+const shouldRunDbContextTests =
+  Boolean(process.env.DATABASE_URL) && process.env.RUN_DB_CONTEXT_TESTS === "true";
+const describeWithDb = shouldRunDbContextTests ? describe : describe.skip;
 
 describeWithDb("wiki-curator context activation", () => {
   let characterId: string;

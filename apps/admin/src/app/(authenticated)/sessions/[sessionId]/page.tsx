@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSceneSessionStore } from "@odyssey/db";
+import { getSceneSessionStore } from "@kawabunga/db";
 import { SessionDetailWorkbench } from "@/components/session-detail-workbench";
 
 export const dynamic = "force-dynamic";

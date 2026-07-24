@@ -2,14 +2,14 @@ import {
   getCharacterStore,
   type CharacterBrainModel,
   type CharacterRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import {
   buildSystemPromptParts,
   getChatProviderForModel,
   pricingFor,
   type ChatSystemBlock,
-} from "@odyssey/engine";
-import { curate } from "@odyssey/wiki-curator";
+} from "@kawabunga/engine";
+import { curate } from "@kawabunga/wiki-curator";
 import { captureCharacterSnapshot } from "./snapshot";
 import { judgeResponse } from "./judge";
 import type {

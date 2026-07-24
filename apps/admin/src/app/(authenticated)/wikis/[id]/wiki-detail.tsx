@@ -15,7 +15,7 @@ import type {
   CharacterKnowledgeBindingRecord,
   KnowledgeGraphData,
   WikiRecord,
-} from "@odyssey/db";
+} from "@kawabunga/db";
 import { updateWikiMeta } from "../actions";
 
 /* ── Tokens (phosphor / terminal) ──────────────────────────────── */

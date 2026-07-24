@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getDb, usersTable } from "@odyssey/db";
+import { getDb, usersTable } from "@kawabunga/db";
 
 export async function GET() {
   const db = getDb();

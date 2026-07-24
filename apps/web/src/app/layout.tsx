@@ -31,14 +31,13 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
   icons: {
     icon: [
-      { url: "/favicon.ico" },
       { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
       { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
     ],
-    shortcut: [{ url: "/favicon.ico" }],
+    shortcut: [{ url: "/favicon.svg", type: "image/svg+xml" }],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-    other: [{ rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#5f4025" }],
+    other: [{ rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#8fd1cb" }],
   },
   openGraph: {
     title: "Kawabunga",
@@ -60,13 +59,13 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
   },
   other: {
-    "msapplication-TileColor": "#dce7ea",
+    "msapplication-TileColor": "#0c0e14",
     "msapplication-TileImage": "/mstile-150x150.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#dce7ea",
+  themeColor: "#0c0e14",
 };
 
 export default function RootLayout({

@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import type { SceneSound } from "@odyssey/types";
+import type { SceneSound } from "@kawabunga/types";
 import { getDb } from "./client";
 import { retryRead } from "./retry";
 import { charactersTable, sceneNodesTable } from "./schema";

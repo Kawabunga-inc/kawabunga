@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { VoiceProvider } from "@odyssey/db";
+import type { VoiceProvider } from "@kawabunga/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
  * voices** in this deployment. Drives the "+ new voice" Provider Picker
  * modal — each tile reads `configured: true | false` from this response.
  *
- * Not to be confused with `getAudioRuntimeConfig` in @odyssey/engine, which
+ * Not to be confused with `getAudioRuntimeConfig` in @kawabunga/engine, which
  * describes the live STT+TTS routing pipeline (and counts ElevenLabs as
  * configured only when both an API key AND a voice id are set). Here we
  * just need to know "can the user create a new voice via this provider's

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getWikiStore, getWikisStore } from "@odyssey/db";
+import { getWikiStore, getWikisStore } from "@kawabunga/db";
 import { parseSourceMetadataFilters } from "@/lib/source-metadata-filters";
 import { WikiSourcesView } from "./wiki-sources-view";
 

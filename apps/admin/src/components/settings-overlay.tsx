@@ -520,7 +520,7 @@ function ProfilePane({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-24)" }}>
-      <PaneHeader eyebrow="Profile" headline="Who are you on Odyssey?" />
+      <PaneHeader eyebrow="Profile" headline="Who are you on Kawabunga?" />
 
       {/* Identity row */}
       <div

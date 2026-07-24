@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSceneSessionStore } from "@odyssey/db";
+import { getSceneSessionStore } from "@kawabunga/db";
 import { readSessionAudio } from "@/lib/session-audio-storage";
 
 export const runtime = "nodejs";

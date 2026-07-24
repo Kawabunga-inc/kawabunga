@@ -1,4 +1,4 @@
-import { pricingFor } from "@odyssey/engine";
+import { pricingFor } from "@kawabunga/engine";
 
 export type SessionTokenUsage = {
   inputTokens?: number;

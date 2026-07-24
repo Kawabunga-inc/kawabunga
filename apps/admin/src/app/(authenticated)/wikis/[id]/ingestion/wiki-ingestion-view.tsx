@@ -10,13 +10,13 @@ import {
   useRef,
   useState,
 } from "react";
-import type { IngestionEvent, ModelId, PlanOp } from "@odyssey/wiki-ingest";
+import type { IngestionEvent, ModelId, PlanOp } from "@kawabunga/wiki-ingest";
 import type {
   WikiIngestionLogRecord,
   WikiSourceKind,
   WikiSourceRecord,
-} from "@odyssey/db";
-import { deriveSourceTypeFromKind } from "@odyssey/db";
+} from "@kawabunga/db";
+import { deriveSourceTypeFromKind } from "@kawabunga/db";
 import {
   ASCIIMatterCanvas,
   matterStateFromIngestion,
@@ -33,7 +33,7 @@ import { OpsLog, type OpQueueRow } from "./ops-log";
 import { LiveStream, type ActiveWriteSnapshot } from "./live-stream";
 import { ResolvedSummary } from "./resolved-summary";
 import { FailedRecovery } from "./failed-recovery";
-import { estimateCost } from "@odyssey/wiki-ingest";
+import { estimateCost } from "@kawabunga/wiki-ingest";
 import { classifySourceForWiki } from "../../../characters/actions";
 import {
   AdminPageShell,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCharacterStore, getWikisStore } from "@odyssey/db";
+import { getCharacterStore, getWikisStore } from "@kawabunga/db";
 import { invalidateCharacterDetail } from "@/lib/character-detail-cache";
 import { invalidateCharactersList } from "@/lib/characters-cache";
 

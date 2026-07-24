@@ -95,7 +95,7 @@ const curate = vi.hoisted(() =>
   })),
 );
 
-vi.mock("@odyssey/db", () => ({
+vi.mock("@kawabunga/db", () => ({
   getCharacterStore: () => ({
     getById: vi.fn(async (id: string) => ({
       id,
@@ -142,7 +142,7 @@ vi.mock("@odyssey/db", () => ({
   }),
 }));
 
-vi.mock("@odyssey/engine", () => ({
+vi.mock("@kawabunga/engine", () => ({
   DEFAULT_VOICE_MODEL: "gpt-oss-120b",
   POCKET_TTS_SAMPLE_RATE: 24_000,
   embedText: vi.fn(async () => null),
@@ -210,7 +210,7 @@ vi.mock("@odyssey/engine", () => ({
   })),
 }));
 
-vi.mock("@odyssey/orchestration/server", () => ({
+vi.mock("@kawabunga/orchestration/server", () => ({
   buildVoicePromptPlan,
   OrchestrationContextError: class OrchestrationContextError extends Error {
     constructor(message: string, public readonly status = 500) {
@@ -219,7 +219,7 @@ vi.mock("@odyssey/orchestration/server", () => ({
   },
 }));
 
-vi.mock("@odyssey/wiki-curator", () => ({
+vi.mock("@kawabunga/wiki-curator", () => ({
   curate,
 }));
 
