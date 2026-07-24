@@ -57,7 +57,11 @@ export function RootHeader() {
       }`}
     >
       <div className="flex h-16 w-full items-center justify-between px-6 sm:px-10 lg:px-20">
-        <Link href="/" aria-label="Kawabunga home" className="shrink-0">
+        <Link
+          href="/"
+          aria-label="Kawabunga home"
+          className={`shrink-0 ${scrolled ? "" : "mix-blend-difference"}`}
+        >
           <Image
             src="/kawabunga_wordmark.svg"
             alt="Kawabunga"
@@ -71,37 +75,37 @@ export function RootHeader() {
         <nav
           aria-label="Primary navigation"
           className={`hidden items-center gap-7 text-[10px] uppercase tracking-[0.16em] transition-colors duration-500 md:flex ${
-            scrolled ? "text-[#07110f]/55" : "text-white/70"
+            scrolled ? "text-[#07110f]/55" : "mix-blend-difference text-white"
           }`}
           style={{ fontFamily: "var(--font-mono)" }}
         >
           <Link
             href="/#what-is-kawabunga"
-            className={`transition-colors ${scrolled ? "hover:text-[#0f756d]" : "hover:text-white"}`}
+            className={`transition-all ${scrolled ? "hover:text-[#0f756d]" : "hover:opacity-70"}`}
           >
             Overview
           </Link>
           <Link
             href="/#features"
-            className={`transition-colors ${scrolled ? "hover:text-[#0f756d]" : "hover:text-white"}`}
+            className={`transition-all ${scrolled ? "hover:text-[#0f756d]" : "hover:opacity-70"}`}
           >
             Experience
           </Link>
           <Link
             href="/#how-it-works"
-            className={`transition-colors ${scrolled ? "hover:text-[#0f756d]" : "hover:text-white"}`}
+            className={`transition-all ${scrolled ? "hover:text-[#0f756d]" : "hover:opacity-70"}`}
           >
             How It Works
           </Link>
           <Link
             href="/about"
-            className={`transition-colors ${scrolled ? "hover:text-[#0f756d]" : "hover:text-white"}`}
+            className={`transition-all ${scrolled ? "hover:text-[#0f756d]" : "hover:opacity-70"}`}
           >
             About
           </Link>
         </nav>
 
-        <GoogleAuthButton tone={scrolled ? "light" : "overlay"} />
+        <GoogleAuthButton tone={scrolled ? "light" : "adaptive"} />
       </div>
     </header>
   );
