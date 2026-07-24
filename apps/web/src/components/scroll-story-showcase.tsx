@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { GoogleAuthButton } from "./google-auth-button";
 
 const STORIES = [
   {
@@ -237,7 +236,6 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
             sizes="100vw"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-black/35" />
-          <HeroHeader product={embedded} />
           <HeroCopy />
         </section>
         <StoryCards />
@@ -287,8 +285,6 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
             ref={whiteWashRef}
             className="pointer-events-none absolute inset-0 bg-white opacity-0"
           />
-
-          <HeroHeader product={embedded} />
 
           <div ref={heroCopyRef} className="absolute inset-0 will-change-transform">
             <HeroCopy />
@@ -342,34 +338,6 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
       {sequence}
       <ClosingSection />
     </main>
-  );
-}
-
-function HeroHeader({ product = false }: { product?: boolean }) {
-  return (
-    <header className="absolute left-0 top-0 z-40 flex w-full items-center justify-between px-6 py-5 text-white mix-blend-difference sm:px-10 lg:px-20">
-      <Link href="/" aria-label="Kawabunga home">
-        <Image
-          src="/kawabunga_wordmark.svg"
-          alt="Kawabunga"
-          width={178}
-          height={24}
-          priority
-          className="h-6 w-auto"
-        />
-      </Link>
-      {product ? (
-        <GoogleAuthButton />
-      ) : (
-        <div
-          className="flex items-center gap-3 text-[9px] uppercase tracking-[0.18em]"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          <span className="hidden text-white/55 sm:inline">Scroll study</span>
-          <span className="rounded-full border border-white/30 px-3 py-1.5">V0.1</span>
-        </div>
-      )}
-    </header>
   );
 }
 

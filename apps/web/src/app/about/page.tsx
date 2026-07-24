@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { GoogleAuthButton } from "@/components/google-auth-button";
 
 export const metadata: Metadata = {
   title: "About — Kawabunga",
@@ -30,22 +29,6 @@ export default function AboutPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/90 via-black/30 to-black/45" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent" />
         </div>
-
-        <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10 lg:px-20">
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/kawabunga_wordmark.svg"
-              alt="Kawabunga"
-              width={178}
-              height={24}
-              priority
-              className="h-6 w-auto"
-            />
-          </Link>
-          <div className="flex items-center gap-2">
-            <GoogleAuthButton />
-          </div>
-        </header>
 
         <div className="relative z-10 flex min-h-[75vh] flex-col justify-end px-6 pb-16 sm:px-10 lg:px-20">
           <div className="max-w-2xl space-y-5">
