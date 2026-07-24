@@ -7,21 +7,16 @@ import Link from "next/link";
 export function GoogleAuthButton({
   tone = "overlay",
 }: {
-  tone?: "adaptive" | "light" | "overlay";
+  tone?: "light" | "overlay";
 }) {
   const { data: session, status } = useSession();
   const light = tone === "light";
-  const adaptive = tone === "adaptive";
 
   if (status === "loading") {
     return (
       <div
         className={`h-9 w-24 animate-pulse rounded-full border ${
-          light
-            ? "border-[#0b3732]/10 bg-[#f1f7f5]"
-            : adaptive
-              ? "border-white/25 bg-white/10 mix-blend-difference"
-              : "border-white/15 bg-white/8"
+          light ? "border-[#0b3732]/10 bg-[#f1f7f5]" : "border-white/15 bg-white/8"
         }`}
         aria-label="Loading"
       />
@@ -35,9 +30,7 @@ export function GoogleAuthButton({
         className={`flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm backdrop-blur-lg transition-all ${
           light
             ? "border-[#0b3732]/15 bg-[#f1f7f5]/85 text-[#07110f] hover:border-[#0b3732]/30 hover:bg-white"
-            : adaptive
-              ? "relative border-transparent bg-transparent before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:border before:border-white/35 before:mix-blend-difference hover:before:bg-white/10"
-              : "border-white/25 bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:border-white/40 hover:bg-white/25"
+            : "border-white/25 bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:border-white/40 hover:bg-white/25"
         }`}
         style={{ fontFamily: "var(--font-mono)" }}
       >
@@ -50,11 +43,7 @@ export function GoogleAuthButton({
             className="rounded-full"
           />
         )}
-        <span
-          className={`max-w-[120px] truncate ${
-            adaptive ? "mix-blend-difference text-white" : ""
-          }`}
-        >
+        <span className="max-w-[120px] truncate">
           {session.user.name ?? session.user.email}
         </span>
       </Link>
@@ -67,9 +56,7 @@ export function GoogleAuthButton({
       className={`flex items-center gap-2 rounded-full border px-5 py-1.5 text-sm backdrop-blur-lg transition-all ${
         light
           ? "border-[#0b3732]/15 bg-[#f1f7f5]/85 text-[#07110f] hover:border-[#0b3732]/30 hover:bg-white"
-          : adaptive
-            ? "relative border-transparent bg-transparent before:pointer-events-none before:absolute before:inset-0 before:rounded-full before:border before:border-white/35 before:mix-blend-difference hover:before:bg-white/10"
-            : "border-white/25 bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:border-white/40 hover:bg-white/25 hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
+          : "border-white/25 bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:border-white/40 hover:bg-white/25 hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
       }`}
       style={{ fontFamily: "var(--font-mono)" }}
     >
@@ -91,9 +78,7 @@ export function GoogleAuthButton({
           fill="#EA4335"
         />
       </svg>
-      <span className={adaptive ? "mix-blend-difference text-white" : ""}>
-        Sign in
-      </span>
+      Sign in
     </button>
   );
 }
