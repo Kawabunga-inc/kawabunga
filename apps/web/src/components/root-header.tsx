@@ -24,7 +24,14 @@ export function RootHeader() {
         const storyScroller = document.querySelector<HTMLElement>(
           '[aria-label="Kawabunga scroll story"]',
         );
-        setScrolled(Math.max(window.scrollY, storyScroller?.scrollTop ?? 0) > 24);
+        const scrollStory = document.querySelector<HTMLElement>("[data-scroll-story]");
+        const scrollTop = Math.max(window.scrollY, storyScroller?.scrollTop ?? 0);
+        const viewportHeight = storyScroller?.clientHeight ?? window.innerHeight;
+        const storyComplete = scrollStory
+          ? scrollStory.getBoundingClientRect().bottom <= viewportHeight + 1
+          : scrollTop > 24;
+
+        setScrolled(storyComplete);
       });
     };
 

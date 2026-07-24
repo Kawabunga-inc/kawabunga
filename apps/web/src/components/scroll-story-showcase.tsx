@@ -225,7 +225,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
 
   if (reducedMotion) {
     const reducedSequence = (
-      <>
+      <div data-scroll-story>
         <section className="relative flex min-h-[100svh] overflow-hidden bg-[#07110f] text-white">
           <Image
             src="/landing-hero-lg.jpg"
@@ -239,7 +239,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
           <HeroCopy />
         </section>
         <StoryCards />
-      </>
+      </div>
     );
 
     if (embedded) return reducedSequence;
@@ -253,7 +253,11 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
   }
 
   const sequence = (
-    <section ref={rootRef} className="relative h-[480svh] w-full flex-none bg-white">
+    <section
+      ref={rootRef}
+      data-scroll-story
+      className="relative h-[480svh] w-full flex-none bg-white"
+    >
         <div className="sticky top-0 h-[100svh] overflow-hidden bg-[#07110f]">
           <video
             ref={videoRef}
