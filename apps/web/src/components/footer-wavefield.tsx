@@ -79,12 +79,15 @@ export function FooterWavefield() {
   }, [audioData, reducedMotion, visible]);
 
   return (
-    <div ref={rootRef} className="pointer-events-none absolute inset-0 z-0 opacity-55">
+    <div ref={rootRef} className="pointer-events-none absolute inset-0 z-0 opacity-75">
       {visible && (
         <WavefieldStage
           audioData={audioData}
           idleMotion={reducedMotion ? "static" : "ambient"}
           backgroundColor="#0a0a0a"
+          cameraPosition={[0, 1.55, 1.15]}
+          cameraFov={35}
+          renderQuality="high"
         />
       )}
     </div>

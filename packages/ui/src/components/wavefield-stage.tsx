@@ -1308,11 +1308,19 @@ export function WavefieldStage({
   audioData,
   idleMotion = "ambient",
   backgroundColor = "var(--background)",
+  cameraPosition = [0, 2.2, 3.22],
+  cameraFov = 42,
+  renderQuality = "balanced",
 }: {
   audioData: AudioData;
   idleMotion?: IdleMotionMode;
   backgroundColor?: string;
+  cameraPosition?: [number, number, number];
+  cameraFov?: number;
+  renderQuality?: "balanced" | "high";
 }) {
+  const highQuality = renderQuality === "high";
+
   return (
     <div
       style={{
@@ -1326,10 +1334,14 @@ export function WavefieldStage({
     >
       <Canvas
         frameloop="always"
-        dpr={[0.75, 1]}
-        camera={{ position: [0, 2.2, 3.22], fov: 42 }}
+        dpr={highQuality ? [1, 1.5] : [0.75, 1]}
+        camera={{ position: cameraPosition, fov: cameraFov }}
         style={{ width: "100%", height: "100%", position: "relative", zIndex: 1 }}
-        gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
+        gl={{
+          antialias: highQuality,
+          alpha: true,
+          powerPreference: "high-performance",
+        }}
       >
         <Scene audioData={audioData} idleMotion={idleMotion} />
       </Canvas>
