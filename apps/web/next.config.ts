@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     "@kawabunga/ui",
   ],
   images: {
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: "https",
