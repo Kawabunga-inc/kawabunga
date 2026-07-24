@@ -255,7 +255,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
   }
 
   const sequence = (
-    <section ref={rootRef} className="relative h-[480svh] bg-white">
+    <section ref={rootRef} className="relative h-[480svh] w-full flex-none bg-white">
         <div className="sticky top-0 h-[100svh] overflow-hidden bg-[#07110f]">
           <video
             ref={videoRef}

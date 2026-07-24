@@ -7,14 +7,17 @@
  * own scrolling there). This site is a normal long-scrolling marketing page,
  * so restore native document scroll here instead.
  */
-html,
-body {
+html {
   height: auto;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
 
-html {
-  scroll-behavior: smooth;
+body {
+  min-height: 100%;
+  height: auto;
+  overflow: clip;
 }
 
 /* Landing-page motion primitives. Content remains visible before hydration;

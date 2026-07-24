@@ -472,12 +472,18 @@ export function LandingPageV3() {
   }, []);
 
   return (
-    <main className="w-full bg-[#0a0a0a] text-white" style={{ fontFamily: "var(--font-body)" }}>
+    <main
+      className="flex w-full flex-col bg-[#0a0a0a] text-white"
+      style={{ fontFamily: "var(--font-body)" }}
+    >
       <ScrollStoryShowcase embedded />
 
       {/* ── What is Kawabunga ── */}
-      <section id="what-is-kawabunga" className="px-6 py-24 sm:px-10 sm:py-28 lg:px-20 lg:py-32">
-        <div className="grid gap-14 lg:grid-cols-12 lg:items-start lg:gap-8">
+      <section
+        id="what-is-kawabunga"
+        className="relative bg-[#0a0a0a] px-6 py-24 before:pointer-events-none before:absolute before:inset-x-0 before:-top-40 before:h-40 before:bg-gradient-to-b before:from-transparent before:to-[#0a0a0a] sm:px-10 sm:py-28 lg:px-20 lg:py-32"
+      >
+        <div className="relative z-10 grid gap-14 lg:grid-cols-12 lg:items-start lg:gap-8">
           <Reveal className="lg:col-span-5">
             <div>
               <p
