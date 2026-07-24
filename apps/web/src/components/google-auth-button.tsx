@@ -4,13 +4,20 @@ import { signIn, useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 
-export function GoogleAuthButton() {
+export function GoogleAuthButton({
+  tone = "overlay",
+}: {
+  tone?: "light" | "overlay";
+}) {
   const { data: session, status } = useSession();
+  const light = tone === "light";
 
   if (status === "loading") {
     return (
       <div
-        className="h-9 w-24 animate-pulse rounded-full border border-white/15 bg-white/8"
+        className={`h-9 w-24 animate-pulse rounded-full border ${
+          light ? "border-[#0b3732]/10 bg-[#f1f7f5]" : "border-white/15 bg-white/8"
+        }`}
         aria-label="Loading"
       />
     );
@@ -20,7 +27,11 @@ export function GoogleAuthButton() {
     return (
       <Link
         href="/dashboard"
-        className="flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-1.5 text-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] backdrop-blur-lg transition-all hover:border-white/40 hover:bg-white/25"
+        className={`flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm backdrop-blur-lg transition-all ${
+          light
+            ? "border-[#0b3732]/15 bg-[#f1f7f5]/85 text-[#07110f] hover:border-[#0b3732]/30 hover:bg-white"
+            : "border-white/25 bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:border-white/40 hover:bg-white/25"
+        }`}
         style={{ fontFamily: "var(--font-mono)" }}
       >
         {session.user.image && (
@@ -42,7 +53,11 @@ export function GoogleAuthButton() {
   return (
     <button
       onClick={() => signIn("google")}
-      className="flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-5 py-1.5 text-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] backdrop-blur-lg transition-all hover:border-white/40 hover:bg-white/25 hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
+      className={`flex items-center gap-2 rounded-full border px-5 py-1.5 text-sm backdrop-blur-lg transition-all ${
+        light
+          ? "border-[#0b3732]/15 bg-[#f1f7f5]/85 text-[#07110f] hover:border-[#0b3732]/30 hover:bg-white"
+          : "border-white/25 bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:border-white/40 hover:bg-white/25 hover:shadow-[inset_0_1px_2px_rgba(255,255,255,0.2)]"
+      }`}
       style={{ fontFamily: "var(--font-mono)" }}
     >
       <svg viewBox="0 0 24 24" width="16" height="16" className="shrink-0">
