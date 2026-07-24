@@ -15,7 +15,7 @@ export function RootFooter() {
       <FooterWavefield />
       <div className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-[#0a0a0a]/45 via-[#0a0a0a]/10 to-[#0a0a0a]/65" />
 
-      <div className="relative z-10 flex items-center justify-between border-b border-white/10 pb-8">
+      <div className="relative z-10 flex items-center border-b border-white/10 pb-8">
         <Link href="/" aria-label="Kawabunga home">
           <Image
             src="/kawabunga_wordmark.svg"
@@ -25,12 +25,6 @@ export function RootFooter() {
             className="h-6 w-auto"
           />
         </Link>
-        <p
-          className="hidden text-[9px] uppercase tracking-[0.2em] text-white/40 sm:block"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          Voice-first immersive reality
-        </p>
       </div>
 
       <div className="relative z-10 flex flex-1 items-center py-14 sm:py-20">
