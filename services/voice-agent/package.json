@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx --env-file-if-exists=.env src/agent.ts dev",
+    "dev": "dotenv -e .env -e ../../.env -- tsx scripts/dev.ts dev",
     "start": "tsx src/agent.ts start",
     "prewarm": "tsx scripts/prewarm.ts"
   },
