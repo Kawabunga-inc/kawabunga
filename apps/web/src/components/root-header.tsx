@@ -74,12 +74,12 @@ export function RootHeader() {
           className="shrink-0"
         >
           <Image
-            src="/kawabunga_wordmark.svg"
+            src="/brand/kawabunga-wavefield-logo.png"
             alt="Kawabunga"
-            width={178}
-            height={24}
+            width={756}
+            height={303}
             priority
-            className={`h-5 w-auto transition-[filter] duration-500 ${
+            className={`h-14 w-auto transition-[filter] duration-500 ${
               darkForeground ? "brightness-0" : ""
             }`}
           />

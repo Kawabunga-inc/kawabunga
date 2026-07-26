@@ -439,11 +439,11 @@ export default function AboutPage() {
         {/* Footer */}
         <footer className="mx-auto mt-[120px] flex max-w-[1280px] items-center justify-between border-t border-white/8 px-6 py-12 sm:px-10 lg:px-20">
           <Image
-            src="/kawabunga_wordmark.svg"
+            src="/brand/kawabunga-wavefield-logo.png"
             alt="Kawabunga"
-            width={178}
-            height={24}
-            className="h-5 w-auto opacity-60"
+            width={756}
+            height={303}
+            className="h-12 w-auto opacity-60"
           />
           <span className="text-[13px] text-white/35">
             Built with conviction, not permission.

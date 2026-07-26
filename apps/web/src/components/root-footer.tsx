@@ -18,11 +18,11 @@ export function RootFooter() {
       <div className="relative z-10 flex items-center border-b border-white/10 pb-8">
         <Link href="/" aria-label="Kawabunga home">
           <Image
-            src="/kawabunga_wordmark.svg"
+            src="/brand/kawabunga-wavefield-logo.png"
             alt="Kawabunga"
-            width={178}
-            height={24}
-            className="h-6 w-auto"
+            width={756}
+            height={303}
+            className="h-14 w-auto"
           />
         </Link>
       </div>
