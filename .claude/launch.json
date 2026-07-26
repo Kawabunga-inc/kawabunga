@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev:preview", "-w", "apps/admin"],
       "port": 3001,
       "autoPort": true
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "apps/web"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

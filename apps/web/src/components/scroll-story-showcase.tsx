@@ -3,27 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { SceneScatter, type SceneScatterHandle } from "./scene-scatter";
 
-const STORIES = [
-  {
-    number: "01",
-    eyebrow: "Live the lesson",
-    title: "Experiential understanding",
-    body: "Enter a historical crisis, a boardroom, or a first-contact scenario. Understanding comes from experience, not explanation.",
-  },
-  {
-    number: "02",
-    eyebrow: "Practice the moment",
-    title: "Deliberate practice",
-    body: "Rehearse interviews, negotiations, and difficult conversations in a world that listens, remembers, and responds.",
-  },
-  {
-    number: "03",
-    eyebrow: "Create the impossible",
-    title: "New media",
-    body: "Build responsive worlds where characters have memory and every choice changes what becomes possible next.",
-  },
-] as const;
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
@@ -44,9 +25,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
   const scrollCueRef = useRef<HTMLDivElement>(null);
   const whiteWashRef = useRef<HTMLDivElement>(null);
   const cardsLayerRef = useRef<HTMLDivElement>(null);
-  const cardsHeadingRef = useRef<HTMLDivElement>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const scatterRef = useRef<SceneScatterHandle>(null);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -64,6 +43,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
     const video = videoRef.current;
     if (!root || (!embedded && !scrollContainer) || !video) return;
 
+    const scatter = scatterRef.current;
     let frame = 0;
     let targetProgress = 0;
     let renderedProgress = 0;
@@ -72,71 +52,23 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
     let desiredVideoTime = 0;
     let seekInFlight = false;
     let cardsTriggered = false;
-    let cardAnimations: Animation[] = [];
 
     const resetCards = () => {
       cardsTriggered = false;
-      cardAnimations.forEach((animation) => animation.cancel());
-      cardAnimations = [];
-
       if (cardsLayerRef.current) {
         cardsLayerRef.current.style.opacity = "0";
         cardsLayerRef.current.style.pointerEvents = "none";
       }
-      if (cardsHeadingRef.current) {
-        cardsHeadingRef.current.style.opacity = "0";
-        cardsHeadingRef.current.style.transform = "translate3d(0, 32px, 0)";
-      }
-      cardRefs.current.forEach((card, index) => {
-        if (!card) return;
-        card.style.opacity = "0";
-        card.style.transform =
-          `translate3d(0, ${72 + index * 18}px, 0) rotate(${(index - 1) * 1.5}deg)`;
-      });
+      scatter?.reset();
     };
 
     const triggerCards = () => {
       cardsTriggered = true;
-
       if (cardsLayerRef.current) {
         cardsLayerRef.current.style.opacity = "1";
         cardsLayerRef.current.style.pointerEvents = "auto";
       }
-      if (cardsHeadingRef.current) {
-        cardAnimations.push(
-          cardsHeadingRef.current.animate(
-            [
-              { opacity: 0, transform: "translate3d(0, 32px, 0)" },
-              { opacity: 1, transform: "translate3d(0, 0, 0)" },
-            ],
-            {
-              duration: 520,
-              easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-              fill: "forwards",
-            },
-          ),
-        );
-      }
-      cardRefs.current.forEach((card, index) => {
-        if (!card) return;
-        cardAnimations.push(
-          card.animate(
-            [
-              {
-                opacity: 0,
-                transform: `translate3d(0, ${72 + index * 18}px, 0) rotate(${(index - 1) * 1.5}deg)`,
-              },
-              { opacity: 1, transform: "translate3d(0, 0, 0) rotate(0deg)" },
-            ],
-            {
-              duration: 680,
-              delay: 90 + index * 115,
-              easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-              fill: "forwards",
-            },
-          ),
-        );
-      });
+      scatter?.reveal();
     };
 
     resetCards();
@@ -163,9 +95,13 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
       renderedProgress += (targetProgress - renderedProgress) * 0.14;
       const progress = renderedProgress;
 
+      // Budget for the section, in progress: the video scrubs, the wash takes
+      // over, the scatter reveals itself, the composition then *holds* so it
+      // can be read, and only then lifts away into the next section.
       const heroOut = smoothstep(0.07, 0.24, progress);
-      const videoProgress = smoothstep(0.04, 0.72, progress);
-      const washIn = smoothstep(0.69, 0.82, progress);
+      const videoProgress = smoothstep(0.04, 0.44, progress);
+      const washIn = smoothstep(0.40, 0.52, progress);
+      const exit = smoothstep(0.86, 1, progress);
 
       desiredVideoTime = Math.min(
         videoDuration - 0.025,
@@ -193,11 +129,9 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
       if (whiteWashRef.current) {
         whiteWashRef.current.style.opacity = `${washIn}`;
       }
-      if (!cardsTriggered && progress >= 0.755) triggerCards();
-      if (cardsTriggered && progress < 0.68) resetCards();
-      if (progressRef.current) {
-        progressRef.current.style.transform = `scaleX(${Math.max(progress, 0.015)})`;
-      }
+      if (!cardsTriggered && progress >= 0.50) triggerCards();
+      if (cardsTriggered && progress < 0.42) resetCards();
+      scatter?.setExit(exit);
 
       if (Math.abs(targetProgress - renderedProgress) > 0.0005) {
         frame = requestAnimationFrame(render);
@@ -266,7 +200,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
 
     return () => {
       cancelAnimationFrame(frame);
-      cardAnimations.forEach((animation) => animation.cancel());
+      scatter?.reset();
       video.removeEventListener("loadedmetadata", handleMetadata);
       video.removeEventListener("loadeddata", handleLoadedData);
       video.removeEventListener("seeked", handleSeeked);
@@ -297,7 +231,9 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
           <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-transparent to-transparent" />
           <HeroCopy />
         </section>
-        <StoryCards />
+        <section className="relative h-[100svh] bg-white">
+          <SceneScatter revealed />
+        </section>
       </div>
     );
 
@@ -315,7 +251,7 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
     <section
       ref={rootRef}
       data-scroll-story
-      className="relative h-[480svh] w-full flex-none bg-white"
+      className="relative h-[520svh] w-full flex-none bg-white"
     >
         <div
           ref={stickyViewportRef}
@@ -378,23 +314,10 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
             </span>
           </div>
 
-          <div
-            ref={cardsLayerRef}
-            className="absolute inset-0 z-20 flex items-center opacity-0"
-          >
-            <StoryCards
-              headingRef={cardsHeadingRef}
-              cardRefs={cardRefs}
-              layered
-            />
+          <div ref={cardsLayerRef} className="absolute inset-0 z-20 opacity-0">
+            <SceneScatter ref={scatterRef} />
           </div>
 
-          <div className="absolute bottom-0 left-0 z-40 h-[2px] w-full bg-black/10">
-            <div
-              ref={progressRef}
-              className="h-full origin-left scale-x-0 bg-[#14877e]"
-            />
-          </div>
         </div>
     </section>
   );
@@ -445,100 +368,6 @@ function HeroCopy() {
         </p>
       </div>
     </div>
-  );
-}
-
-type StoryCardsProps = {
-  headingRef?: React.RefObject<HTMLDivElement | null>;
-  cardRefs?: React.MutableRefObject<(HTMLDivElement | null)[]>;
-  layered?: boolean;
-};
-
-function StoryCards({ headingRef, cardRefs, layered = false }: StoryCardsProps) {
-  return (
-    <section
-      className={`w-full bg-white px-6 text-[#081b19] sm:px-10 lg:px-20 ${
-        layered ? "py-5 sm:py-10 md:py-24" : "py-24 sm:py-32"
-      }`}
-    >
-      <div className="mx-auto max-w-[1440px]">
-        <div
-          ref={headingRef}
-          className={layered ? "opacity-0 will-change-transform" : ""}
-        >
-          <p
-            className="text-[10px] uppercase tracking-[0.22em] text-[#14877e]"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            One engine, infinite realities
-          </p>
-          <h2
-            className={`max-w-3xl font-medium leading-[1.02] tracking-[-0.045em] sm:mt-4 sm:text-5xl lg:text-6xl ${
-              layered ? "mt-2 text-2xl" : "mt-4 text-3xl"
-            }`}
-            style={{ fontFamily: "var(--font-heading)" }}
-          >
-            Worlds built to move with you.
-          </h2>
-        </div>
-
-        <div
-          className={`grid md:grid-cols-3 ${
-            layered
-              ? "mt-4 gap-1.5 sm:mt-8 sm:gap-2 md:mt-14 md:gap-3 lg:gap-5"
-              : "mt-10 gap-3 sm:mt-14 lg:gap-5"
-          }`}
-        >
-          {STORIES.map((story, index) => (
-            <div
-              key={story.number}
-              ref={(node) => {
-                if (cardRefs) cardRefs.current[index] = node;
-              }}
-              className={`group flex flex-col justify-between rounded-[24px] border border-[#0b3732]/10 bg-[#f1f7f5] transition-colors duration-300 hover:bg-[#e4f2ef] lg:p-8 ${
-                layered
-                  ? "min-h-[104px] p-3 opacity-0 will-change-transform sm:min-h-[145px] sm:p-5 md:min-h-[290px] md:p-7"
-                  : "min-h-[250px] p-6 sm:min-h-[290px] sm:p-7"
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <span
-                  className="text-[10px] uppercase tracking-[0.17em] text-[#14877e]"
-                  style={{ fontFamily: "var(--font-mono)" }}
-                >
-                  {story.eyebrow}
-                </span>
-                <span
-                  className="text-xs text-[#081b19]/35"
-                  style={{ fontFamily: "var(--font-mono)" }}
-                >
-                  {story.number}
-                </span>
-              </div>
-              <div>
-                <h3
-                  className={`max-w-xs font-medium leading-tight tracking-[-0.03em] lg:text-3xl ${
-                    layered ? "text-xl sm:text-2xl" : "text-2xl"
-                  }`}
-                  style={{ fontFamily: "var(--font-heading)" }}
-                >
-                  {story.title}
-                </h3>
-                <p
-                  className={`max-w-sm text-sm text-[#163c37]/60 ${
-                    layered
-                      ? "mt-1 line-clamp-1 text-xs leading-4 sm:mt-2 sm:line-clamp-2 sm:text-sm sm:leading-5 md:mt-4 md:line-clamp-none md:leading-6"
-                      : "mt-4 leading-6"
-                  }`}
-                >
-                  {story.body}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
   );
 }
 
