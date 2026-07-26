@@ -7,6 +7,8 @@ import { SceneScatter, type SceneScatterHandle } from "./scene-scatter";
 
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
+const AUDIO_WAVE_HEIGHTS = [12, 20, 8, 24, 14, 18, 10];
+const AUDIO_WAVE_OPACITIES = [0.5, 0.7, 0.4, 1, 0.6, 0.8, 0.45];
 
 function smoothstep(start: number, end: number, value: number) {
   const progress = clamp((value - start) / (end - start));
@@ -359,14 +361,57 @@ function HeroCopy() {
             you can imagine
           </h1>
         </div>
-        <p
-          className="max-w-sm text-sm leading-6 text-white/65"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          Speak naturally. Shape the narrative. Experience a world that
-          remembers every choice you make.
-        </p>
+        <div className="flex flex-col items-start gap-4">
+          <AudioWaveBars />
+          <p
+            className="max-w-sm text-sm leading-6 text-white/65"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            Speak naturally. Shape the narrative. Experience a world that
+            remembers every choice you make.
+          </p>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function AudioWaveBars() {
+  const barsRef = useRef<(HTMLSpanElement | null)[]>([]);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let frame = 0;
+    const animate = () => {
+      const time = performance.now() / 1000;
+
+      barsRef.current.forEach((bar, index) => {
+        if (!bar) return;
+        const wave = Math.sin(time * 2.5 + index * 0.9) * 0.4 + 0.6;
+        bar.style.height = `${AUDIO_WAVE_HEIGHTS[index] * wave}px`;
+        bar.style.opacity = `${AUDIO_WAVE_OPACITIES[index] * (0.5 + wave * 0.5)}`;
+      });
+
+      frame = requestAnimationFrame(animate);
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <div className="flex h-6 items-end gap-[3px]" aria-hidden="true">
+      {AUDIO_WAVE_HEIGHTS.map((height, index) => (
+        <span
+          key={index}
+          ref={(element) => {
+            barsRef.current[index] = element;
+          }}
+          className="w-[3px] rounded-full bg-[#8fd1cb]"
+          style={{ height, opacity: AUDIO_WAVE_OPACITIES[index] }}
+        />
+      ))}
     </div>
   );
 }
