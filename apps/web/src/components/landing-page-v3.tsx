@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MeshGradient } from "./mesh-gradient";
 import { RootFooter } from "./root-footer";
 import { ScrollStoryShowcase } from "./scroll-story-showcase";
@@ -10,21 +12,35 @@ import { ScrollStoryShowcase } from "./scroll-story-showcase";
 const heading = "var(--font-heading)";
 const mono = "var(--font-mono)";
 
-const EXPERIENCE_CATEGORIES = [
+type ExperienceCategory = {
+  label: string;
+  body: string;
+  tags: string[];
+  artwork: string;
+  artworkAlt: string;
+};
+
+const EXPERIENCE_CATEGORIES: ExperienceCategory[] = [
   {
     label: "Education",
     body: "The best way to learn is Socratically. Study for a test or step into history through conversation — like an audio time machine.",
     tags: ["Einstein", "Shakespeare", "George Washington"],
+    artwork: "/experience/education-audio-time-machine-v2.webp",
+    artworkAlt: "A learner speaking with Einstein, Shakespeare, and George Washington through a luminous audio wave",
   },
   {
     label: "Creation",
     body: "Turn your ideas and source material into original characters, stories, and responsive worlds.",
     tags: ["Original personalities", "Living casts", "Custom worlds"],
+    artwork: "/experience/creation-shakespeare-knowledge-graph-v4.webp",
+    artworkAlt: "Shakespeare source documents and audio becoming a living character connected to a knowledge graph",
   },
   {
     label: "Entertainment",
     body: "Enter fantasy adventures and mysteries that remember your choices and change around you.",
     tags: ["Fantasy quests", "Mysteries & roleplay", "Play with friends"],
+    artwork: "/experience/entertainment-oz-building-variant-v4.webp",
+    artworkAlt: "The road to the Emerald City materializing from Kawabunga’s teal wavefield",
   },
 ];
 
@@ -335,17 +351,36 @@ function ExperienceConnector() {
 /**
  * A hybrid of the two reference layouts: three connected square cards set up
  * the kinds of worlds Kawabunga can become, then alternating editorial rows
- * create a zigzag down the page. The empty surfaces are intentionally blank so
- * art, product UI, motion, or video can be added later without redesigning the
- * content structure.
+ * create a zigzag down the page. The category illustrations translate each
+ * path into the same living wavefield language used across the landing page.
  */
 function ExperienceCanvas({
   categories,
   features,
 }: {
-  categories: Array<{ label: string; body: string; tags: string[] }>;
+  categories: ExperienceCategory[];
   features: Array<{ title: string; body: string; context: string }>;
 }) {
+  const [selectedCategory, setSelectedCategory] = useState<ExperienceCategory | null>(null);
+
+  useEffect(() => {
+    if (!selectedCategory) return;
+
+    const preventScroll = (event: Event) => event.preventDefault();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedCategory(null);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("wheel", preventScroll, { passive: false });
+    window.addEventListener("touchmove", preventScroll, { passive: false });
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("wheel", preventScroll);
+      window.removeEventListener("touchmove", preventScroll);
+    };
+  }, [selectedCategory]);
+
   return (
     <div className="px-6 sm:px-10 lg:px-20">
       <Reveal>
@@ -366,8 +401,37 @@ function ExperienceCanvas({
         {categories.map((category, i) => (
           <Fragment key={category.label}>
             <Reveal delay={i * 110} variant="scale" className="h-full">
-              <article className="flex min-h-[380px] flex-col overflow-hidden rounded-3xl border border-[#0b3732]/10 bg-[#f1f7f5] lg:aspect-square lg:min-h-0">
-                <div className="cinematic-surface min-h-24 flex-1 bg-[#e8f1ef]" aria-hidden="true" />
+              <article
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-label={`View ${category.label} illustration`}
+                onClick={() => setSelectedCategory(category)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedCategory(category);
+                  }
+                }}
+                className="group flex min-h-[380px] cursor-zoom-in flex-col overflow-hidden rounded-3xl border border-[#0b3732]/10 bg-[#f1f7f5] text-left shadow-[0_24px_70px_-48px_rgba(4,38,34,0.55)] outline-none transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_30px_75px_-44px_rgba(4,38,34,0.65)] focus-visible:ring-2 focus-visible:ring-[#14877e] focus-visible:ring-offset-4 lg:aspect-square lg:min-h-0"
+              >
+                <div className="cinematic-surface relative min-h-40 flex-1 overflow-hidden bg-[#061310]">
+                  <Image
+                    src={category.artwork}
+                    alt={category.artworkAlt}
+                    fill
+                    sizes="(min-width: 1024px) 29vw, (min-width: 640px) 80vw, 100vw"
+                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+                  />
+                  <div
+                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(6,19,16,0.04)_35%,rgba(6,19,16,0.42)_100%)]"
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#7de3dc]/45 to-transparent"
+                    aria-hidden="true"
+                  />
+                </div>
                 <div className="border-t border-[#0b3732]/10 p-5 sm:p-6">
                   <span
                     className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/35"
@@ -462,7 +526,58 @@ function ExperienceCanvas({
           })}
         </div>
       </div>
+
+      {selectedCategory && (
+        <ExperienceArtworkDialog
+          category={selectedCategory}
+          onClose={() => setSelectedCategory(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function ExperienceArtworkDialog({
+  category,
+  onClose,
+}: {
+  category: ExperienceCategory;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${category.label} illustration enlarged view`}
+      className="card-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center px-5 py-10"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[#03110e]/30 backdrop-blur-[16px] backdrop-saturate-150" />
+      <div className="card-dialog-enter relative aspect-[4/3] w-[min(92vw,1080px,104vh)]">
+        <div className="relative h-full w-full overflow-hidden rounded-[24px] border border-white/15 bg-[#061310] shadow-[0_38px_100px_rgba(0,0,0,0.42)]">
+          <Image
+            src={category.artwork}
+            alt={category.artworkAlt}
+            fill
+            priority
+            sizes="(min-width: 1200px) 1080px, 92vw"
+            className="object-contain"
+          />
+        </div>
+        <button
+          type="button"
+          autoFocus
+          aria-label="Close enlarged illustration"
+          onClick={onClose}
+          className="absolute -right-3 -top-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#07110f] text-xl text-white shadow-[0_12px_30px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ddd1]"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
