@@ -191,7 +191,13 @@ export function buildSceneDecisionRequest(input: {
       },
       {
         role: "user",
-        content: buildOrchestratorUserPrompt(recentTurns, input.lastUserMessage),
+        content: buildOrchestratorUserPrompt(
+          recentTurns,
+          input.lastUserMessage,
+          input.scene.characters.filter((c) =>
+            input.sceneState.presentCharacterSlugs.includes(c.characterSlug),
+          ),
+        ),
       },
     ],
     responseSchema: ORCHESTRATOR_JSON_SCHEMA,
@@ -284,7 +290,16 @@ export function buildSpeakerTurnRequest(input: {
     .reverse()
     .find((t) => t.speakerSlug !== speakerSlug);
   const beat = input.decision.beat ?? input.sceneState.beat;
-  const message = previousTurn?.text ?? beat;
+  // ATTRIBUTION: the speaker's history collapses everyone else into role
+  // "user", so without labels the speaker can't tell another character's line
+  // from the real user's. Prefix every non-user, non-self line with its
+  // speaker's name ("Sarah: …", "Narrator: …"); the user's own lines stay
+  // bare. The convention is declared in the directive chunk below.
+  const attribute = (turn: SceneTurnForPlanning): string =>
+    turn.speakerSlug === "user" || turn.speakerSlug === speakerSlug
+      ? turn.text
+      : `${turn.speakerName ?? turn.speakerSlug}: ${turn.text}`;
+  const message = previousTurn ? attribute(previousTurn) : beat;
   // History is the context BEFORE the turn we're responding to. Exclude the
   // `previousTurn` we just lifted into `message`, or it's fed twice (here AND as the
   // appended user message downstream — run-voice-stream `[...history, {message}]`).
@@ -293,7 +308,7 @@ export function buildSpeakerTurnRequest(input: {
     .slice(-RECENT_TURNS_LIMIT)
     .map((turn) => ({
       role: turn.speakerSlug === speakerSlug ? ("assistant" as const) : ("user" as const),
-      content: turn.text,
+      content: attribute(turn),
     }));
   // The orchestrator's per-turn DRIVE direction (`beat`), framed so the character
   // acts on it in their own voice; `sceneCue` is an optional scene-level note;
@@ -304,6 +319,13 @@ export function buildSpeakerTurnRequest(input: {
     beat,
     sceneCue: input.decision.sceneCue,
     speaker: character,
+    othersPresent: input.scene.characters
+      .filter(
+        (c) =>
+          c.characterSlug !== speakerSlug &&
+          input.sceneState.presentCharacterSlugs.includes(c.characterSlug),
+      )
+      .map((c) => c.displayName),
   });
 
   return {
@@ -369,6 +391,10 @@ export function buildDirectiveChunk(input: {
   beat: string;
   sceneCue?: string;
   speaker?: Pick<SceneCharacter, "motivations" | "behaviorTriggers" | "speakingStyle">;
+  /** Display names of the OTHER present characters — when set, declares the
+   *  multi-party transcript convention (name-prefixed lines) so the speaker
+   *  can tell the others' lines from the real user's. */
+  othersPresent?: string[];
 }): string {
   const lines = [
     `Direction: ${input.beat}`,
@@ -378,6 +404,14 @@ export function buildDirectiveChunk(input: {
     "Match your reply's shape to the direction - if it says to pause, land,",
     "concede, or act, end there; do not tack a question onto the end.",
   ];
+  if (input.othersPresent?.length) {
+    lines.push(
+      `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
+      'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
+      "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+      "only as yourself - never write the others' lines.",
+    );
+  }
   if (input.sceneCue) lines.push(`Scene note: ${input.sceneCue}`);
   if (input.speaker?.motivations) {
     lines.push(`Your agenda in this scene: ${input.speaker.motivations}`);
@@ -553,7 +587,7 @@ function buildOrchestratorSystemPrompt(
     state.lastSpeakerSlug
       ? `Last to speak: ${state.lastSpeakerSlug}` +
         (present.some((c) => c.characterSlug === state.lastSpeakerSlug)
-          ? ` - the user is talking WITH ${state.lastSpeakerSlug}. Unless the user names someone else or clearly turns away, their message is for ${state.lastSpeakerSlug}, and ${state.lastSpeakerSlug} answers it.`
+          ? ` - the user is talking WITH ${state.lastSpeakerSlug}. Unless the user names someone else or clearly turns away, their message is for ${state.lastSpeakerSlug}, and ${state.lastSpeakerSlug} answers it - no other character answers in their place.`
           : "")
       : "Scene has just opened.",
     state.ambience ? `Current ambience: ${state.ambience}` : "No ambience playing.",
@@ -564,16 +598,25 @@ function buildOrchestratorSystemPrompt(
     "",
     "Decision rules:",
     "- Default to advancing the scene with `action: \"speak\"` and an active `beat`.",
-    "  Pick the speaker whose move makes the scene move.",
+    "  Pick the speaker whose move makes the scene move. The default assumes an",
+    "  engaged user - a user who is taking their leave is not a scene to advance",
+    "  (see end-scene below); never re-open business they are walking away from.",
     ...(present.length > 1
       ? [
           "- ADDRESSEE CONTINUITY: the user replies to whoever last spoke to them.",
           "  An unaddressed user message (no name, no clear turn to someone else) is",
           "  FOR the last character to speak - that character answers. Do not rotate",
           "  speakers on the user's follow-up questions; a mid-conversation \"you\"",
-          "  means the character they are already talking with.",
+          "  means the character they are already talking with. Example: the LAST",
+          "  speaker was asked \"But do you believe it?\" - THEY answer, not the",
+          "  character the topic belongs to. But a pronoun pointing at someone",
+          "  just mentioned (\"let him say\", \"ask her\") IS a clear turn - the",
+          "  pointed-at character answers.",
           "- When the user addresses a present character BY NAME or speaks TO them,",
-          "  THAT character answers - never have someone else answer for them.",
+          "  THAT character answers - never have someone else answer for them, no",
+          "  matter who led the conversation so far. A vocative (\"Sarah - was it",
+          "  you?\") turns the conversation TO that character; more central",
+          "  characters must not answer over them.",
           "- When the dialogue notices a present character who hasn't spoken",
           "  (overheard, glimpsed, asked about), them stepping in is usually the",
           "  strongest move.",
@@ -609,7 +652,9 @@ function buildOrchestratorSystemPrompt(
     "- Use `action: \"narrate\"` sparingly - scene transitions or bridging beats only.",
     "  Keep narration under two sentences.",
     "- Use `action: \"end-scene\"` only when the situation has clearly resolved or the",
-    "  user has indicated they want to leave.",
+    "  user has indicated they want to leave. A clear goodbye from the user IS that",
+    "  indication: if farewells have already been exchanged, end the scene rather",
+    "  than sending another line after them.",
     "- Change `ambience` only when the emotional register shifts. Don't churn it.",
     ...(scene.sounds?.length
       ? [
@@ -683,6 +728,7 @@ export const PROACTIVE_SILENCE_MARKER = "(the user has gone quiet)";
 function buildOrchestratorUserPrompt(
   recentTurns: SceneTurnForPlanning[],
   lastUserMessage?: string,
+  present: SceneCharacter[] = [],
 ): string {
   const lines: string[] = [];
   if (recentTurns.length === 0) {
@@ -704,10 +750,38 @@ function buildOrchestratorUserPrompt(
     lines.push("");
     lines.push(`The user just said: "${lastUserMessage}"`);
     lines.push("Bias your decision toward whoever the user is addressing.");
+    // Deterministic addressee scaffolding: when the message literally names
+    // present characters, say so — the model under-weights the by-name rule
+    // when a more central character has been carrying the conversation
+    // (observed: Abraham answering "Sarah - was it you?").
+    const named = namedPresentCharacters(lastUserMessage, present);
+    if (named.length > 0) {
+      lines.push(
+        `The user's message names ${named
+          .map((c) => `${c.displayName} (slug: ${c.characterSlug})`)
+          .join(", ")} - a present character named like this is being addressed`,
+        "unless they are clearly only mentioned in passing; the addressed",
+        "character answers, themselves.",
+      );
+    }
   }
   lines.push("");
   lines.push("What happens next?");
   return lines.join("\n");
+}
+
+/** Present characters whose display name (or slug) appears as a whole word in
+ *  the user's message — deterministic input to the addressee hint above. */
+function namedPresentCharacters(
+  message: string,
+  present: SceneCharacter[],
+): SceneCharacter[] {
+  return present.filter((c) =>
+    [c.displayName, c.characterSlug].some((name) => {
+      const escaped = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return escaped && new RegExp(`\\b${escaped}\\b`, "i").test(message);
+    }),
+  );
 }
 
 function sanitizeSceneMemory(memory: unknown[]): string[] {

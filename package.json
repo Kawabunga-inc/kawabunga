@@ -19,6 +19,7 @@
     "eval": "tsx scripts/eval.ts",
     "sonar": "tsx scripts/sonar.ts",
     "simulate": "tsx scripts/simulate-scene.ts",
+    "scene-probes": "tsx scripts/scene-probes.ts",
     "benchmark": "tsx scripts/benchmark.ts",
     "build": "turbo build",
     "lint": "npm run theme:check && turbo lint",

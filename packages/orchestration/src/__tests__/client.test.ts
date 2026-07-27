@@ -371,12 +371,17 @@ describe("@kawabunga/orchestration client", () => {
         "Direction: Deflect, then probe.",
         "Match your reply's shape to the direction - if it says to pause, land,",
         "concede, or act, end there; do not tack a question onto the end.",
+        "Also in this scene: Turing. In the conversation,",
+        'a line starting with a name ("Turing: ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
         "Your agenda in this scene: protect the lab's secret while learning what the user knows",
         "When the machine is mentioned: deflect with a question",
       ].join("\n"),
     );
 
-    // No authored intention → directive is direction + shape rule only.
+    // No authored intention → directive is direction + shape rule + the
+    // multi-party attribution convention (this scene has two characters).
     const plainRequest = buildSpeakerTurnRequest({
       scene,
       sceneState: createInitialSceneState(scene),
@@ -388,6 +393,10 @@ describe("@kawabunga/orchestration client", () => {
         "Direction: Answer plainly.",
         "Match your reply's shape to the direction - if it says to pause, land,",
         "concede, or act, end there; do not tack a question onto the end.",
+        "Also in this scene: Turing. In the conversation,",
+        'a line starting with a name ("Turing: ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
       ].join("\n"),
     );
   });
@@ -461,15 +470,22 @@ describe("@kawabunga/orchestration client", () => {
     expect(request).toEqual({
       characterSlug: "ada",
       speakerName: "Ada",
-      message: "Ask Ada.",
+      // Another character's line is name-prefixed so Ada can tell Turing's
+      // words from the real user's (both arrive as role "user").
+      message: "Turing: Ask Ada.",
       // History excludes the turn lifted into `message` ("Ask Ada.") so it isn't fed
       // twice (here AND as the appended user message downstream).
       history: [{ role: "user", content: "What happened here?" }],
-      // Director `beat` framed as "Direction:"; `sceneCue` is the optional scene note.
+      // Director `beat` framed as "Direction:"; the attribution convention is
+      // declared before the optional scene note.
       promptChunk: [
         "Direction: Ada responds to the visitor.",
         "Match your reply's shape to the direction - if it says to pause, land,",
         "concede, or act, end there; do not tack a question onto the end.",
+        "Also in this scene: Turing. In the conversation,",
+        'a line starting with a name ("Turing: ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
         "Scene note: Keep it quiet.",
       ].join("\n"),
       voiceSlug: "ada-voice",
