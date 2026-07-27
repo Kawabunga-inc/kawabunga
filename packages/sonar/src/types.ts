@@ -55,6 +55,14 @@ export type SonarSuite = {
   /** Character slug the suite speaks to (CLI can override). */
   character: string;
   /**
+   * Registry scene id (e.g. "abrahams-tent") — runs the REAL multi-character
+   * loop: the orchestrator picks the speaker each turn and the runner routes
+   * to that speaker's /voice-stream, mirroring the browser scene player.
+   * Absent = the single-character sandbox (`character-sandbox:<character>`),
+   * whose solo fastpath skips speaker selection. Scene mode only.
+   */
+  sceneId?: string;
+  /**
    * "voice-stream": audio → STT → /voice-stream (single character).
    * "scene": audio → STT → /orchestrate decision → /voice-stream (full
    * scene loop, like use-scene-player). Both are voice-to-voice.
@@ -193,6 +201,11 @@ export type SonarTurnRecord = {
   responseText: string;
   /** Scene-loop prompt chunk derived from the orchestrator decision, when any. */
   orchestratorPrompt: string | null;
+  /** Roster suites: which character the director chose to voice this turn
+   *  (null when the decision wasn't a speak, or in sandbox suites). */
+  speakerSlug?: string | null;
+  /** Roster suites: the director's action for this turn ("speak", "wait-for-user"…). */
+  decisionAction?: string | null;
   utterance: SonarUtteranceInfo;
   stt: SonarSttInfo;
   spans: Partial<Record<SonarSpanName, number | null>>;

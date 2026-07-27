@@ -15,6 +15,13 @@
  * providers (STT, LLM, TTS, and TTS for input synthesis) and incurs cost.
  */
 
+import {
+  buildSceneSessionSnapshot,
+  buildSpeakerTurnRequest,
+  createInitialSceneState,
+  getScene,
+} from "@kawabunga/orchestration/client";
+import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
 import { loadRecording, resolveUtteranceSamples } from "./audio/synth";
 import { streamUtterance } from "./audio/stt-client";
 import { SONAR_VERSION } from "./version";
@@ -96,8 +103,22 @@ export async function runSonarSuite(opts: RunSonarSuiteOptions): Promise<SonarRu
   const runId = crypto.randomUUID();
   const http = makeHttp(opts.baseUrl, opts.cookie);
 
+  // Tier 3: a roster suite runs the REAL multi-character loop — the director
+  // picks the speaker each turn and the runner routes to that speaker's
+  // /voice-stream via buildSpeakerTurnRequest, mirroring the browser player.
+  const rosterScene: Scene | null = suite.sceneId ? (getScene(suite.sceneId) ?? null) : null;
+  if (suite.sceneId && !rosterScene) {
+    throw new Error(
+      `suite sceneId "${suite.sceneId}" is not in the static scene registry — ` +
+        `sonar resolves roster scenes client-side; DB-authored scenes aren't supported yet`,
+    );
+  }
+
   log(
-    `sonar v${SONAR_VERSION} · suite=${suite.name}@${suite.version} · character=${character} · ` +
+    `sonar v${SONAR_VERSION} · suite=${suite.name}@${suite.version} · ` +
+      (rosterScene
+        ? `scene=${rosterScene.id} (roster of ${rosterScene.characters.length}) · `
+        : `character=${character} · `) +
       `${sessions} session(s) × ${suite.turns.length} turn(s) · ${suite.sttOnly ? "endpointing (STT-only)" : "voice-to-voice"}` +
       (opts.ttsVoice ? ` · tts→${opts.ttsVoice}` : "") +
       (commitHoldMs > 0 ? ` · commit-hold=${commitHoldMs}ms (felt)` : "") +
@@ -139,31 +160,45 @@ export async function runSonarSuite(opts: RunSonarSuiteOptions): Promise<SonarRu
 
   for (let sessionIndex = 0; sessionIndex < sessions; sessionIndex++) {
     const sessionId = crypto.randomUUID();
-    const sceneId = `character-sandbox:${character}`;
+    const sceneId = rosterScene?.id ?? `character-sandbox:${character}`;
     // STT-only (endpointing) suites talk only to audio-rt — no admin session,
     // no prewarm, no cookie needed. Keeps the Smart Turn spike independent of
     // the web app.
     if (suite.sttOnly) {
       log(`session ${sessionIndex + 1}/${sessions} · STT-only`);
     } else {
+      const openingSnapshot = rosterScene
+        ? buildSceneSessionSnapshot(createInitialSceneState(rosterScene), {})
+        : initialSceneSnapshot(sceneId, character);
       await http.postJson("/api/scene-sessions", {
         id: sessionId,
         characterId: null,
         mode: "voice",
-        initialScene: initialSceneSnapshot(sceneId, character),
-        currentScene: initialSceneSnapshot(sceneId, character),
+        initialScene: openingSnapshot,
+        currentScene: openingSnapshot,
         metadata: { source: "sonar", sonarVersion: SONAR_VERSION, runId, characterSlug: character, sceneId },
       });
 
       // Warm the session context cache at open, like the real client does, so
       // turn-1 skips the curator/retrieval pass. Token budget matches what the
-      // voice-stream route uses for its cache lookup (2500).
+      // voice-stream route uses for its cache lookup (2500). Roster suites
+      // warm every present character — any of them may take turn 1.
       if (opts.prewarm) {
         const w0 = performance.now();
-        await http
-          .postJson(`/api/characters/${character}/voice-context`, { sessionId, tokenBudget: 2500 })
-          .then(() => log(`session ${sessionIndex + 1}/${sessions} · ${sessionId} · prewarmed in ${Math.round(performance.now() - w0)}ms`))
-          .catch((err: unknown) => log(`  (prewarm failed: ${String(err)})`));
+        const warmSlugs = rosterScene
+          ? rosterScene.characters.map((c) => c.characterSlug)
+          : [character];
+        await Promise.all(
+          warmSlugs.map((slug) =>
+            http
+              .postJson(`/api/characters/${slug}/voice-context`, { sessionId, tokenBudget: 2500 })
+              .catch((err: unknown) => log(`  (prewarm ${slug} failed: ${String(err)})`)),
+          ),
+        ).then(() =>
+          log(
+            `session ${sessionIndex + 1}/${sessions} · ${sessionId} · prewarmed ${warmSlugs.join(", ")} in ${Math.round(performance.now() - w0)}ms`,
+          ),
+        );
       } else {
         log(`session ${sessionIndex + 1}/${sessions} · ${sessionId}`);
       }
@@ -222,9 +257,17 @@ export async function runSonarSuite(opts: RunSonarSuiteOptions): Promise<SonarRu
       // window (speechEnd → first agent audio), so the sleep is captured.
       if (commitHoldMs > 0) await sleep(commitHoldMs);
 
-      // 3. Scene mode: orchestrator decision.
+      // 3. Scene mode: orchestrator decision. Roster suites take the REAL
+      // path: the decision picks the speaker, and buildSpeakerTurnRequest
+      // (the same builder the browser player uses) shapes the speaker's
+      // message/history/directive. Sandbox suites keep the legacy shape.
       let orchestrate: { totalMs: number; trace: TraceContract | null } | null = null;
       let promptChunk: string | undefined;
+      let speakerSlug: string | null = null;
+      let decisionAction: string | null = null;
+      let voiceCharacter = character;
+      let vsMessage = transcript;
+      let vsHistory: Array<{ role: "user" | "assistant"; content: string }> = [...history];
       if (suite.mode === "scene") {
         const o0 = performance.now();
         const payload = await http.postJson(`/api/scene-sessions/${sessionId}/orchestrate`, {
@@ -236,17 +279,59 @@ export async function runSonarSuite(opts: RunSonarSuiteOptions): Promise<SonarRu
           totalMs: performance.now() - o0,
           trace: (payload.trace as TraceContract | undefined) ?? null,
         };
-        promptChunk = promptChunkFromDecision(payload.decision);
+        if (rosterScene) {
+          const decision = (payload.decision ?? {}) as OrchestratorDecision;
+          const sceneState = (payload.sceneState ?? null) as SceneState | null;
+          decisionAction = typeof decision.action === "string" ? decision.action : null;
+          const speakerRequest =
+            sceneState && decision.action === "speak"
+              ? buildSpeakerTurnRequest({
+                  scene: rosterScene,
+                  sceneState,
+                  decision,
+                  recentTurns: sceneTurns,
+                })
+              : null;
+          if (!speakerRequest) {
+            // Non-speak decision (wait/narrate/end) — a legitimate director
+            // move with no voice leg. Record the decision turn and move on.
+            turns.push(
+              makeDecisionOnlyTurn({
+                sessionIndex,
+                turnIndex,
+                scripted,
+                utterance,
+                stt,
+                fixtureSynthesized: fixture.synthesized,
+                orchestrate,
+                decisionAction,
+              }),
+            );
+            log(
+              `  turn ${turnIndex + 1}/${suite.turns.length} · director: ${decisionAction ?? "(invalid)"} (no voice leg)` +
+                ` orch=${fmt(orchestrate.totalMs)} · "${truncate(transcript)}"`,
+            );
+            if (settleMs > 0) await sleep(settleMs);
+            continue;
+          }
+          speakerSlug = speakerRequest.characterSlug;
+          voiceCharacter = speakerRequest.characterSlug;
+          vsMessage = speakerRequest.message;
+          vsHistory = speakerRequest.history;
+          promptChunk = speakerRequest.promptChunk;
+        } else {
+          promptChunk = promptChunkFromDecision(payload.decision);
+        }
       }
 
-      // 4. Transcript → voice-stream.
+      // 4. Transcript → the (chosen) speaker's voice-stream.
       const turnId = crypto.randomUUID();
       const vs0 = performance.now();
-      const res = await http.post(`/api/characters/${character}/voice-stream`, {
+      const res = await http.post(`/api/characters/${voiceCharacter}/voice-stream`, {
         sessionId,
         turnId,
-        message: transcript,
-        history: [...history],
+        message: vsMessage,
+        history: vsHistory,
         promptChunk,
         model: opts.model,
         ttsVoiceSlug: opts.ttsVoice,
@@ -298,6 +383,7 @@ export async function runSonarSuite(opts: RunSonarSuiteOptions): Promise<SonarRu
         message: scripted,
         responseText: assistantText,
         orchestratorPrompt: promptChunk ?? null,
+        ...(rosterScene ? { speakerSlug, decisionAction } : {}),
         utterance,
         stt: {
           transcript: stt.transcript,
@@ -320,14 +406,19 @@ export async function runSonarSuite(opts: RunSonarSuiteOptions): Promise<SonarRu
       history.push({ role: "user", content: transcript });
       if (assistantText) {
         history.push({ role: "assistant", content: assistantText });
-        sceneTurns.push({ speakerSlug: character, speakerName: character, text: assistantText });
+        const replySlug = speakerSlug ?? character;
+        const replyName =
+          rosterScene?.characters.find((c) => c.characterSlug === replySlug)?.displayName ??
+          replySlug;
+        sceneTurns.push({ speakerSlug: replySlug, speakerName: replyName, text: assistantText });
       }
 
       log(
         `  turn ${turnIndex + 1}/${suite.turns.length} · ` +
           (turn.flags.error && turn.flags.error !== "stt-empty"
             ? `ERROR ${turn.flags.error}`
-            : `v2v=${fmt(voiceToVoice)} stt=${fmt(stt.marks.endpointToWordMs)} ` +
+            : (speakerSlug ? `${speakerSlug} · ` : "") +
+              `v2v=${fmt(voiceToVoice)} stt=${fmt(stt.marks.endpointToWordMs)} ` +
               `vs.ttfa=${fmt(spans["vs.ttfa"])} llm=${fmt(spans["server.llm.ttft"])}` +
               (orchestrate ? ` orch=${fmt(spans["orchestrate.total"])}` : "") +
               (turn.flags.contextCacheHit ? " [ctx-cache]" : "") +
@@ -456,6 +547,55 @@ function emptyUsage(): SonarTurnUsage {
     ttsVoice: null,
     ttsChars: null,
     ttsCostUsd: null,
+  };
+}
+
+/** Build a turn record for a roster turn whose decision had no voice leg
+ *  (wait-for-user / narrate / end-scene): STT + orchestrate spans only. */
+function makeDecisionOnlyTurn(input: {
+  sessionIndex: number;
+  turnIndex: number;
+  scripted: string;
+  utterance: SonarUtteranceInfo;
+  stt: Awaited<ReturnType<typeof streamUtterance>>;
+  fixtureSynthesized: boolean;
+  orchestrate: { totalMs: number; trace: TraceContract | null };
+  decisionAction: string | null;
+}): SonarTurnRecord {
+  const { stt } = input;
+  const extracted = extractVoiceStreamSpans({ frames: [], orchestrate: input.orchestrate });
+  return {
+    sessionIndex: input.sessionIndex,
+    turnIndex: input.turnIndex,
+    message: input.scripted,
+    responseText: "",
+    orchestratorPrompt: null,
+    speakerSlug: null,
+    decisionAction: input.decisionAction,
+    utterance: input.utterance,
+    stt: {
+      transcript: stt.transcript,
+      scripted: input.scripted,
+      wordCount: stt.words.length,
+      fixtureSynthesized: input.fixtureSynthesized,
+    },
+    spans: {
+      ...extracted.spans,
+      "stt.handshake": stt.marks.wsHandshakeMs,
+      "stt.endpoint-to-word": stt.marks.endpointToWordMs,
+      "stt.word-span": stt.marks.wordSpanMs,
+    },
+    flags: {
+      contextCacheHit: false,
+      retrievalSkipped: false,
+      ackDelivered: false,
+      ttsFallback: false,
+      sttEmpty: stt.error === "stt-empty",
+      error: sttHardError(stt.error),
+    },
+    usage: emptyUsage(),
+    serverTrace: null,
+    orchestrateTrace: input.orchestrate.trace,
   };
 }
 

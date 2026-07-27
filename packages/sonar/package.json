@@ -1,9 +1,9 @@
 {
   "name": "@kawabunga/sonar",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
-  "description": "Kawabunga Sonar — versioned voice-to-voice latency benchmark harness. Audio in, audio out; emit a ping, time the echo.",
+  "description": "Kawabunga Sonar \u2014 versioned voice-to-voice latency benchmark harness. Audio in, audio out; emit a ping, time the echo.",
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -14,7 +14,9 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.40.1"
+    "@anthropic-ai/sdk": "^0.40.1",
+    "@kawabunga/orchestration": "*",
+    "@kawabunga/types": "*"
   },
   "devDependencies": {
     "typescript": "^5"
