@@ -91,10 +91,13 @@ const STT_MODEL = process.env.VOICE_AGENT_STT ?? "deepgram/nova-3";
 // the endpoint hold so the multi-character speaker is usually already chosen when
 // the turn completes (hiding the ~0.5s orchestrate gap). Kill-switch: =0.
 const SPECULATE_ENABLED = process.env.VOICE_AGENT_SPECULATE !== "0";
-// Phase 4: the proactive director loop. Ships DARK (default off). When on, the
-// director may take a turn on its own after the user goes quiet for IDLE_MS, bounded
-// to MAX_PROACTIVE consecutive turns so it never monologues. Barge-in always wins.
-const PROACTIVE_ENABLED = process.env.VOICE_AGENT_PROACTIVE === "1";
+// Phase 4: the proactive director loop — ON by default. After the user goes
+// quiet for IDLE_MS the director may take a turn (a character re-engages or
+// presses), bounded to MAX_PROACTIVE consecutive turns so it never
+// monologues; barge-in always wins. The silence brakes are probe-verified
+// (hold family, evals/scenes) — the director reliably chooses wait-for-user
+// when the last turn already put a question to the user. Kill-switch: =0.
+const PROACTIVE_ENABLED = process.env.VOICE_AGENT_PROACTIVE !== "0";
 const MAX_PROACTIVE = Number(process.env.VOICE_AGENT_MAX_PROACTIVE ?? 2);
 const IDLE_MS = Number(process.env.VOICE_AGENT_IDLE_MS ?? 3500);
 // Persist the live SceneState snapshot after each decision (visible/resumable in
