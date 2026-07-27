@@ -60,6 +60,13 @@ adding speaker attribution to character history.
 | `move-diversity` | The next `beat` breaks a run of question-ending directions |
 | `arc-steering` | Directions move toward the `[next]` un-landed arc beat |
 | `speaker-validity` | Off-roster names never become hallucinated speaker slugs |
+| `memory` | Decisions honor facts stated earlier in the scene — at three depths: in the recent dialogue, in the verbatim memory window, and beyond it (where only the dramaturg's durable-facts store can carry them; `memory-beyond-window` is a threshold-0 control documenting the raw forgetting limit) |
+
+Long-transcript probes are production-faithful: the runner folds the full
+transcript through `updateSceneMemory` exactly as the live driver does, and
+a probe's `facts` field simulates the dramaturg's durable-facts store (the
+extraction side is covered by unit tests and `npm run simulate`, where the
+real dramaturg emits `FACT:` lines).
 
 Fixtures live in the suite, not the live scenes table — editing a fixture
 changes what every future run measures, so treat fixture edits like prompt

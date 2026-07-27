@@ -4,9 +4,11 @@ import {
   buildSceneSessionSnapshot,
   buildSpeakerTurnRequest,
   createInitialSceneState,
+  readSceneFactsFromSnapshot,
   readSceneMemoryFromSnapshot,
   readSceneStateFromSnapshot,
   resolveSceneDecision,
+  updateSceneFacts,
   updateSceneMemory,
   type Scene,
   getScene,
@@ -531,5 +533,80 @@ describe("@kawabunga/orchestration client", () => {
     });
 
     expect(request.messages).toMatchSnapshot("abrahams-tent-orchestrator-prompt");
+  });
+});
+
+describe("scene facts (durable memory)", () => {
+  it("merges, dedupes case-insensitively, and caps the facts store", () => {
+    const merged = updateSceneFacts({
+      previousFacts: ["Sarah admitted she laughed.", "  Eliezer   watched the road. "],
+      newFacts: ["sarah ADMITTED she laughed.", "Abraham named the child Isaac."],
+    });
+    expect(merged).toEqual([
+      "Sarah admitted she laughed.",
+      "Eliezer watched the road.",
+      "Abraham named the child Isaac.",
+    ]);
+
+    const capped = updateSceneFacts({
+      previousFacts: Array.from({ length: 5 }, (_, i) => `Fact number ${i}.`),
+      newFacts: ["The newest fact."],
+      maxEntries: 3,
+    });
+    expect(capped).toEqual(["Fact number 3.", "Fact number 4.", "The newest fact."]);
+  });
+
+  it("round-trips facts through the session snapshot", () => {
+    const state = createInitialSceneState(scene);
+    const snapshot = buildSceneSessionSnapshot(state, {
+      sceneMemory: ["Ada: I saw it."],
+      sceneFacts: ["Ada saw the machine run."],
+    });
+    expect(readSceneFactsFromSnapshot(snapshot, scene.id)).toEqual([
+      "Ada saw the machine run.",
+    ]);
+    // Wrong scene / legacy snapshots (no facts field) read as empty.
+    expect(readSceneFactsFromSnapshot(snapshot, "other-scene")).toEqual([]);
+    expect(
+      readSceneFactsFromSnapshot(buildSceneSessionSnapshot(state, {}), scene.id),
+    ).toEqual([]);
+  });
+
+  it("renders the facts block in the director prompt, before scene memory", () => {
+    const request = buildSceneDecisionRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: [{ speakerSlug: "user", text: "Hello?" }],
+      sceneMemory: ["Ada: An old line."],
+      sceneFacts: ["Ada saw the machine run."],
+      lastUserMessage: "Hello?",
+    });
+    const system = request.messages[0]!.content;
+    expect(system).toContain("Established in this scene (durable facts");
+    expect(system).toContain("- Ada saw the machine run.");
+    expect(system.indexOf("Established in this scene")).toBeLessThan(
+      system.indexOf("Scene memory"),
+    );
+    expect(request.trace.sceneFactCount).toBe(1);
+  });
+
+  it("omits memory entries that duplicate the recent dialogue block", () => {
+    const turns = [
+      { speakerSlug: "ada", speakerName: "Ada", text: "The machine ran twice." },
+      { speakerSlug: "user", text: "Twice, you say?" },
+    ];
+    // Production fold: memory holds the same newest turns the dialogue shows.
+    const memory = updateSceneMemory({ previousMemory: ["Ada: An older line."], recentTurns: turns });
+    const request = buildSceneDecisionRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: turns,
+      sceneMemory: memory,
+      lastUserMessage: "Twice, you say?",
+    });
+    const system = request.messages[0]!.content;
+    expect(system).toContain("- Ada: An older line.");
+    expect(system).not.toContain("- Ada: The machine ran twice.");
+    expect(request.messages[1]!.content).toContain("Ada: The machine ran twice.");
   });
 });

@@ -41,7 +41,8 @@ export type SceneProbe = {
     | "end"
     | "move-diversity"
     | "arc-steering"
-    | "speaker-validity";
+    | "speaker-validity"
+    | "memory";
   description: string;
   scene: Scene;
   /** Overlaid on createInitialSceneState(scene). */
@@ -49,8 +50,13 @@ export type SceneProbe = {
   recentTurns: SceneTurnForPlanning[];
   /** The user's finished utterance — or PROACTIVE_SILENCE_MARKER for a silence tick. */
   lastUserMessage?: string;
+  /** Durable facts as the dramaturg would have written them — simulates the
+   *  facts store for memory probes (the probe runner has no dramaturg). */
+  facts?: string[];
   expect: ProbeExpectation;
-  /** Pass-rate the probe must clear (default 0.8; soft judgment calls use 0.6). */
+  /** Pass-rate the probe must clear (default 0.8; soft judgment calls use
+   *  0.6; 0 marks an informational control whose rate is tracked in the
+   *  ledger but never fails the suite). */
   threshold?: number;
 };
 
@@ -111,6 +117,49 @@ const OPENING: SceneTurnForPlanning[] = [
   t("user", "Peace to this camp. May I rest here a while?"),
   t("abraham", "Peace to you, friend. Sit — there is shade, and water. You come at a strange hour.", "Abraham"),
 ];
+
+/* ── Memory fixtures ──
+ *
+ * A durable fact stated by SARAH — counter-stereotypical on purpose: the
+ * steward is the obvious guess for who drew the water, so a director that
+ * lost the fact fails loudly instead of passing by luck. The same fact and
+ * question run at three depths: recent (control), inside the verbatim
+ * memory window, and beyond it (where only a durable-facts store can win).
+ */
+
+const WELL_FACT = t(
+  "sarah",
+  "And it was I who drew the water for them at the well — with these old hands — before ever they spoke a word.",
+  "Sarah",
+);
+
+const MEMORY_QUESTION =
+  "One of you drew the water for the strangers before they spoke. Which of you was it? Let that one tell me of it.";
+
+const WELL_FACT_AS_WRITTEN =
+  "Sarah (not the steward) drew the water for the strangers at the well before they spoke.";
+
+/** Promise-talk padding — distinct lines so the rolling memory window
+ *  (deduped, last 12) actually evicts what precedes them. */
+const PAD: SceneTurnForPlanning[] = [
+  t("user", "Tell me more of these three strangers — what manner of men were they?"),
+  t("abraham", "Men, and yet not men only. Their word fell on the camp like the first rain — sudden, and not to be argued with.", "Abraham"),
+  t("user", "And the promise they spoke — say it plainly."),
+  t("abraham", "That Sarah my wife shall bear a son within the year. Say it plainly? I can barely say it at all.", "Abraham"),
+  t("sarah", "Plainly it sounds even stranger, husband. A son, to a woman who has counted ninety winters.", "Sarah"),
+  t("user", "Ninety winters! And yet you do not sound as one who has closed the matter."),
+  t("sarah", "What is closed may be opened. That is what frightens me, traveler.", "Sarah"),
+  t("eliezer", "The whole camp heard it, friend. Not one of us has spoken of anything else since midday.", "Eliezer"),
+  t("user", "Abraham, do you believe them?"),
+  t("abraham", "I believe the voice that called me out of Haran. If this is that voice, belief is not mine to withhold.", "Abraham"),
+  t("user", "And if it is not that voice?"),
+  t("abraham", "Then an old man has hoped foolishly one more year. I have survived worse verdicts.", "Abraham"),
+  t("sarah", "He has. We both have. Barrenness teaches a household how to survive hope.", "Sarah"),
+  t("user", "You speak of hope as one speaks of an illness."),
+  t("sarah", "It is one. The only one a person fears to be cured of.", "Sarah"),
+];
+
+const GREET = t("user", "Peace to this camp. May I rest here a while?");
 
 /* ── Probes ── */
 
@@ -281,6 +330,52 @@ export const SCENE_PROBES: SceneProbe[] = [
     lastUserMessage: "Tell me what happened here today.",
     expect: { action: ["speak"], beatMentionsAny: ["laugh", "sarah"] },
     threshold: 0.6,
+  },
+  {
+    id: "memory-control-recent",
+    family: "memory",
+    description: "The fact sits in the recent dialogue window — Sarah (who stated it) must answer, not the stereotype-favored steward.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    // Fact 3 turns back, still inside the 6-turn recent window.
+    recentTurns: [GREET, ...PAD.slice(0, 4), WELL_FACT, PAD[7]!, PAD[9]!],
+    lastUserMessage: MEMORY_QUESTION,
+    expect: { action: ["speak"], speaker: ["sarah"] },
+  },
+  {
+    id: "memory-mid-window",
+    family: "memory",
+    description: "The fact has left the recent dialogue but survives in the verbatim scene-memory block.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    // 8 turns after the fact: outside recent (6), inside memory (12).
+    recentTurns: [GREET, ...PAD.slice(0, 4), WELL_FACT, ...PAD.slice(4, 12)],
+    lastUserMessage: MEMORY_QUESTION,
+    expect: { action: ["speak"], speaker: ["sarah"] },
+  },
+  {
+    id: "memory-beyond-window",
+    family: "memory",
+    description: "CONTROL (threshold 0): the fact has rolled out of both windows — documents the raw forgetting limit; the ledger rate is the measurement.",
+    scene: MAMRE,
+    // Ends on Abraham so addressee continuity can't hand Sarah the answer.
+    state: { lastSpeakerSlug: "abraham" },
+    // 12 distinct turns after the fact: evicted from the 12-entry memory window.
+    recentTurns: [GREET, WELL_FACT, ...PAD.slice(0, 12)],
+    lastUserMessage: MEMORY_QUESTION,
+    expect: { action: ["speak"], speaker: ["sarah"] },
+    threshold: 0,
+  },
+  {
+    id: "memory-beyond-window-facts",
+    family: "memory",
+    description: "Same forgotten fact, but the dramaturg's durable-facts store carries it — the director must use the facts block.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [GREET, WELL_FACT, ...PAD.slice(0, 12)],
+    lastUserMessage: MEMORY_QUESTION,
+    facts: [WELL_FACT_AS_WRITTEN],
+    expect: { action: ["speak"], speaker: ["sarah"] },
   },
   {
     id: "speaker-validity-offroster",

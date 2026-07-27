@@ -21,6 +21,7 @@ import {
   parseDramaturgReflection,
   resolveOrchestratorExecutor,
   resolveSceneDecision,
+  updateSceneFacts,
   updateSceneMemory,
   type OrchestratorExecutorResolution,
   type SceneSessionSnapshot,
@@ -140,6 +141,9 @@ export class SceneDriver {
   #sceneState: SceneState;
   #recentTurns: SceneTurnForPlanning[] = [];
   #sceneMemory: string[] = [];
+  // Durable facts the dramaturg has extracted — the scene's long-term memory,
+  // surviving after the verbatim window scrolls past the turns that stated them.
+  #sceneFacts: string[] = [];
   // B4: the in-flight speculative decision (orchestrated off a partial transcript
   // during the endpoint hold) + the text it was computed from, so drive() can
   // accept it when the final transcript matches and skip the orchestrate latency.
@@ -375,6 +379,7 @@ export class SceneDriver {
       sceneState: this.#sceneState,
       recentTurns: this.#recentTurns,
       previousNote: this.#sceneState.directorNote,
+      sceneFacts: this.#sceneFacts,
     });
     this.#reflection = provider
       .complete({
@@ -385,7 +390,7 @@ export class SceneDriver {
         signal: AbortSignal.timeout(DRAMATURG_TIMEOUT_MS),
       })
       .then((response) => {
-        const { note, landed } = parseDramaturgReflection(response.text);
+        const { note, landed, facts } = parseDramaturgReflection(response.text);
         // Validate landed labels against the authored arc (tolerant match →
         // canonical label), then expand: the arc is ordered, so a later beat
         // landing implies every earlier beat landed too (the dramaturg often
@@ -402,8 +407,22 @@ export class SceneDriver {
           arcLabels,
         );
         const newlyLanded = mergedLanded.filter((l) => !already.has(l.toLowerCase()));
-        if (!note && newlyLanded.length === 0) return;
+        // Durable facts: merge into the store (deduped, capped) and log the new ones.
+        const mergedFacts = updateSceneFacts({
+          previousFacts: this.#sceneFacts,
+          newFacts: facts,
+        });
+        const factsChanged =
+          mergedFacts.length !== this.#sceneFacts.length ||
+          mergedFacts.some((f, i) => f !== this.#sceneFacts[i]);
+        if (!note && newlyLanded.length === 0 && !factsChanged) return;
 
+        if (factsChanged) {
+          for (const fact of mergedFacts.filter((f) => !this.#sceneFacts.includes(f))) {
+            console.log(`[dramaturg] fact: ${fact}`);
+          }
+          this.#sceneFacts = mergedFacts;
+        }
         for (const label of newlyLanded) {
           console.log(`[dramaturg] beat landed: ${label}`);
         }
@@ -443,7 +462,10 @@ export class SceneDriver {
     if (!this.#onState) return;
     try {
       this.#onState(
-        buildSceneSessionSnapshot(this.#sceneState, { sceneMemory: this.#sceneMemory }),
+        buildSceneSessionSnapshot(this.#sceneState, {
+          sceneMemory: this.#sceneMemory,
+          sceneFacts: this.#sceneFacts,
+        }),
       );
     } catch {
       // best-effort — persistence must never disrupt the turn
@@ -825,6 +847,7 @@ export class SceneDriver {
       sceneState: this.#sceneState,
       recentTurns: this.#recentTurns,
       sceneMemory: this.#sceneMemory,
+      sceneFacts: this.#sceneFacts,
       lastUserMessage: userText,
     });
 

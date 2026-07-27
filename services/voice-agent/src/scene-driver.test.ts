@@ -529,7 +529,11 @@ describe("SceneDriver — dramaturg", () => {
       complete: async (options: ChatRequestOptions): Promise<ChatResponse> => {
         reflections.push(options);
         return {
-          text: "LANDED: The laugh\nNOTE: The laugh is named; press Abraham's trust question.",
+          text: [
+            "FACT: Sarah denied laughing at the promise.",
+            "LANDED: The laugh",
+            "NOTE: The laugh is named; press Abraham's trust question.",
+          ].join("\n"),
           inputTokens: 0,
           outputTokens: 0,
           cacheReadTokens: 0,
@@ -549,6 +553,8 @@ describe("SceneDriver — dramaturg", () => {
       resolveCharacter: fakeCharacters(),
       dramaturgProvider: dramaturg,
     });
+    const snapshots: SceneSessionSnapshot[] = [];
+    driver.onState((s) => snapshots.push(s));
     const { speak } = fakeSpeak(["Welcome.", "I did NOT laugh!", "Sarah..."]);
 
     await driver.drive("Hello?", speak);
@@ -562,5 +568,11 @@ describe("SceneDriver — dramaturg", () => {
     // Landing "The laugh" (beat 2) expands to land "Greeting" (beat 1) too.
     expect(system).toContain("[landed] Greeting");
     expect(system).toContain("[landed] The laugh");
+    // The extracted fact reaches the director's durable-facts block and the
+    // persisted snapshot.
+    expect(system).toContain("- Sarah denied laughing at the promise.");
+    expect(snapshots[snapshots.length - 1]!.sceneFacts).toEqual([
+      "Sarah denied laughing at the promise.",
+    ]);
   });
 });

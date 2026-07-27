@@ -28,6 +28,7 @@ export type SceneDecisionRequest = {
     presentCharacterSlugs: string[];
     recentTurnCount: number;
     sceneMemoryCount: number;
+    sceneFactCount?: number;
     lastUserMessage?: string;
   };
 };
@@ -76,12 +77,17 @@ export type SceneSessionSnapshot = {
   sceneId: string;
   sceneState: SceneState;
   sceneMemory: string[];
+  /** Durable facts the dramaturg has extracted — survive after the verbatim
+   *  memory window scrolls past them. Optional: pre-facts snapshots lack it. */
+  sceneFacts?: string[];
   updatedAt: string;
 };
 
 const RECENT_TURNS_LIMIT = 6;
 const SCENE_MEMORY_LIMIT = 12;
 const SCENE_MEMORY_ENTRY_MAX_CHARS = 280;
+const SCENE_FACTS_LIMIT = 12;
+const SCENE_FACT_MAX_CHARS = 200;
 
 export function createInitialSceneState(scene: Scene): SceneState {
   return {
@@ -106,7 +112,9 @@ export function defaultSceneDecision(
 
 export function buildSceneSessionSnapshot(
   sceneState: SceneState,
-  options: string | { updatedAt?: string; sceneMemory?: string[] } = {},
+  options:
+    | string
+    | { updatedAt?: string; sceneMemory?: string[]; sceneFacts?: string[] } = {},
 ): SceneSessionSnapshot {
   const updatedAt = typeof options === "string"
     ? options
@@ -114,11 +122,15 @@ export function buildSceneSessionSnapshot(
   const sceneMemory = typeof options === "string"
     ? []
     : sanitizeSceneMemory(options.sceneMemory ?? []);
+  const sceneFacts = typeof options === "string"
+    ? []
+    : sanitizeSceneFacts(options.sceneFacts ?? []);
   return {
     version: 1,
     sceneId: sceneState.sceneId,
     sceneState,
     sceneMemory,
+    ...(sceneFacts.length ? { sceneFacts } : {}),
     updatedAt,
   };
 }
@@ -151,6 +163,40 @@ export function readSceneMemoryFromSnapshot(
   return sanitizeSceneMemory(candidate.sceneMemory);
 }
 
+export function readSceneFactsFromSnapshot(
+  value: unknown,
+  sceneId: string,
+): string[] {
+  if (!value || typeof value !== "object") return [];
+  const candidate = value as { sceneId?: unknown; sceneFacts?: unknown };
+  if (candidate.sceneId !== sceneId || !Array.isArray(candidate.sceneFacts)) {
+    return [];
+  }
+  return sanitizeSceneFacts(candidate.sceneFacts);
+}
+
+/** Merge newly extracted facts into the durable store: sanitized, deduped
+ *  case-insensitively (first statement wins), oldest first, capped — the cap
+ *  drops the OLDEST facts, matching how scenes accrete detail. */
+export function updateSceneFacts(input: {
+  previousFacts?: string[];
+  newFacts?: string[];
+  maxEntries?: number;
+}): string[] {
+  const maxEntries = input.maxEntries ?? SCENE_FACTS_LIMIT;
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  for (const fact of [...(input.previousFacts ?? []), ...(input.newFacts ?? [])]) {
+    const clean = truncateFactEntry(typeof fact === "string" ? fact : "");
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(clean);
+  }
+  return merged.slice(-maxEntries);
+}
+
 export function updateSceneMemory(input: {
   previousMemory?: string[];
   recentTurns?: SceneTurnForPlanning[];
@@ -179,15 +225,34 @@ export function buildSceneDecisionRequest(input: {
   sceneState: SceneState;
   recentTurns?: SceneTurnForPlanning[];
   sceneMemory?: string[];
+  sceneFacts?: string[];
   lastUserMessage?: string;
 }): SceneDecisionRequest {
   const recentTurns = (input.recentTurns ?? []).slice(-RECENT_TURNS_LIMIT);
-  const sceneMemory = sanitizeSceneMemory(input.sceneMemory ?? []);
+  // The verbatim memory window overlaps the recent-dialogue block (both hold
+  // the newest turns) — render only the OLDER memory entries, so the prompt
+  // never carries the same line twice.
+  const recentRendered = new Set(
+    recentTurns.map((t) =>
+      truncateMemoryEntry(
+        `${compactWhitespace(t.speakerName ?? t.speakerSlug)}: ${compactWhitespace(t.text)}`,
+      ),
+    ),
+  );
+  const sceneMemory = sanitizeSceneMemory(input.sceneMemory ?? []).filter(
+    (entry) => !recentRendered.has(entry),
+  );
+  const sceneFacts = sanitizeSceneFacts(input.sceneFacts ?? []);
   return {
     messages: [
       {
         role: "system",
-        content: buildOrchestratorSystemPrompt(input.scene, input.sceneState, sceneMemory),
+        content: buildOrchestratorSystemPrompt(
+          input.scene,
+          input.sceneState,
+          sceneMemory,
+          sceneFacts,
+        ),
       },
       {
         role: "user",
@@ -207,6 +272,7 @@ export function buildSceneDecisionRequest(input: {
       presentCharacterSlugs: input.sceneState.presentCharacterSlugs,
       recentTurnCount: recentTurns.length,
       sceneMemoryCount: sceneMemory.length,
+      ...(sceneFacts.length ? { sceneFactCount: sceneFacts.length } : {}),
       ...(input.lastUserMessage ? { lastUserMessage: input.lastUserMessage } : {}),
     },
   };
@@ -513,6 +579,7 @@ function buildOrchestratorSystemPrompt(
   scene: Scene,
   state: SceneState,
   sceneMemory: string[],
+  sceneFacts: string[] = [],
 ): string {
   const present = scene.characters.filter((c) =>
     state.presentCharacterSlugs.includes(c.characterSlug),
@@ -592,6 +659,15 @@ function buildOrchestratorSystemPrompt(
       : "Scene has just opened.",
     state.ambience ? `Current ambience: ${state.ambience}` : "No ambience playing.",
     ...buildSoundsBlock(scene),
+    ...(sceneFacts.length
+      ? [
+          "",
+          "Established in this scene (durable facts - the dialogue may have",
+          "scrolled past them, but they still hold; honor them when choosing",
+          "the speaker and writing the beat):",
+          ...sceneFacts.map((f) => `  - ${f}`),
+        ]
+      : []),
     ...(sceneMemory.length
       ? ["", "Scene memory (older context, oldest to newest):", ...sceneMemory.map((m) => `  - ${m}`)]
       : []),
@@ -789,6 +865,19 @@ function sanitizeSceneMemory(memory: unknown[]): string[] {
     .map((entry) => (typeof entry === "string" ? truncateMemoryEntry(entry) : ""))
     .filter(Boolean)
     .slice(-SCENE_MEMORY_LIMIT);
+}
+
+function sanitizeSceneFacts(facts: unknown[]): string[] {
+  return facts
+    .map((entry) => (typeof entry === "string" ? truncateFactEntry(entry) : ""))
+    .filter(Boolean)
+    .slice(-SCENE_FACTS_LIMIT);
+}
+
+function truncateFactEntry(value: string): string {
+  const compact = compactWhitespace(value);
+  if (compact.length <= SCENE_FACT_MAX_CHARS) return compact;
+  return `${compact.slice(0, SCENE_FACT_MAX_CHARS - 3).trimEnd()}...`;
 }
 
 function compactWhitespace(value: string): string {

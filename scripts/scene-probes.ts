@@ -38,6 +38,7 @@ import {
   createInitialSceneState,
   resolveOrchestratorExecutor,
   resolveSceneDecision,
+  updateSceneMemory,
 } from "@kawabunga/orchestration";
 import type { OrchestratorDecision, SceneState } from "@kawabunga/types";
 import { SCENE_PROBES, type SceneProbe } from "../evals/scenes/suite";
@@ -205,10 +206,19 @@ async function main(): Promise<void> {
       turnIndex: probe.recentTurns.length,
       ...probe.state,
     };
+    // Production-faithful context: the driver folds its rolling transcript
+    // into scene memory every turn — replay that fold so long-transcript
+    // probes measure exactly what a live scene's director would see.
+    const sceneMemory = updateSceneMemory({
+      previousMemory: [],
+      recentTurns: probe.recentTurns,
+    });
     const request = buildSceneDecisionRequest({
       scene: probe.scene,
       sceneState,
       recentTurns: probe.recentTurns,
+      sceneMemory,
+      sceneFacts: probe.facts,
       lastUserMessage: probe.lastUserMessage,
     });
     try {
