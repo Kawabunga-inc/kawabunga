@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * The scatter composition is authored against a fixed 1440x900 stage so card
@@ -47,8 +48,11 @@ type Card = {
   kicker?: string;
   kickerColor?: string;
   title?: string;
+  subtitle?: string;
   titleSize?: number;
   meta?: string;
+  /** Optional source-image ratio used by the enlarged view. */
+  expandedAspectRatio?: number;
   labelAt?: "top" | "bottom";
   labelInset?: number;
   live?: boolean;
@@ -56,107 +60,76 @@ type Card = {
   compact?: boolean;
 };
 
-const SCENE_FIELDS = {
-  graphite: "linear-gradient(140deg,#3A3A42 0%,#17171C 58%,#08080A 100%)",
-  abyss: "linear-gradient(160deg,#0B3A4E 0%,#06202C 58%,#030C11 100%)",
-  violet: "linear-gradient(135deg,#3D1E42 0%,#1A0D1E 58%,#08050A 100%)",
-  navy: "linear-gradient(130deg,#16304A 0%,#0A1724 58%,#04090E 100%)",
-  amber: "linear-gradient(160deg,#4A3115 0%,#1C1206 58%,#0A0703 100%)",
-} as const;
-
 const CARDS: Card[] = [
   {
-    id: "firstwood",
+    id: "tea-party",
     kind: "scene",
-    x: -22,
-    y: -72,
-    w: 520,
-    h: 304,
+    x: 12,
+    y: 64,
+    w: 480,
+    h: 270,
     rotate: -5,
-    src: "/scatter/scene-firstwood.webp",
-    position: "50% 46%",
-    kicker: "Fantasy · The Firstwood",
+    src: "/scatter/scene-mad-tea-party.webp",
+    position: "50% 48%",
+    kicker: "Fantasy · Wonderland",
     kickerColor: "#8FD1CB",
-    title: "The Glowing Wood",
-    titleSize: 34,
-    live: true,
+    title: "The Mad Tea Party",
+    titleSize: 32,
   },
   {
-    id: "cleopatra",
-    kind: "character",
-    x: 302,
-    y: 158,
-    w: 124,
-    h: 124,
-    rotate: 8,
-    src: "/scatter/char-cleopatra.webp",
-    position: "center 12%",
-    title: "Cleopatra VII",
-    compact: true,
-  },
-  {
-    id: "apollo",
+    id: "manhattan",
     kind: "scene",
-    x: 474,
-    y: -58,
-    w: 300,
-    h: 190,
-    rotate: 3,
-    field: SCENE_FIELDS.graphite,
-    kicker: "Space · July 1969",
-    kickerColor: "#E8B45E",
-    title: "Apollo 11, Descent",
-    titleSize: 22,
+    x: 505,
+    y: 55,
+    w: 495,
+    h: 205,
+    rotate: 2,
+    src: "/scatter/scene-manhattan-project.webp",
+    position: "55% 12%",
+    kicker: "Education · Los Alamos 1945",
+    kickerColor: "#A9CFA8",
+    title: "The Manhattan Project",
+    titleSize: 30,
+    expandedAspectRatio: 1586 / 992,
   },
   {
-    id: "churchill",
-    kind: "character",
-    x: 842,
-    y: -52,
-    w: 172,
-    h: 172,
-    rotate: -5,
-    src: "/scatter/char-churchill.webp",
-    position: "center 12%",
-    kicker: "Leaders",
-    kickerColor: "#60A5FA",
-    title: "Winston Churchill",
-    meta: "Britain · 1874–1965",
-  },
-  {
-    id: "trench",
+    id: "vinland",
     kind: "scene",
-    x: 1094,
-    y: -66,
-    w: 238,
-    h: 344,
+    x: 1068,
+    y: 62,
+    w: 236,
+    h: 315,
     rotate: 6,
-    field: SCENE_FIELDS.abyss,
-    kicker: "Exploration · Pacific",
-    kickerColor: "#7FB2E0",
-    title: "The Deep Trench",
-    titleSize: 26,
+    src: "/scatter/scene-voyage-vinland.webp",
+    position: "48% 54%",
+    kicker: "Viking Age · North Atlantic 1000",
+    kickerColor: "#79CED0",
+    title: "Voyage to Vinland",
+    titleSize: 24,
   },
   {
-    id: "lincoln",
+    id: "shakespeare",
     kind: "character",
-    x: 1318,
-    y: 266,
-    w: 118,
-    h: 118,
-    rotate: -8,
-    src: "/scatter/char-lincoln.webp",
-    position: "center 12%",
-    title: "A. Lincoln",
+    x: 1190,
+    y: 382,
+    w: 128,
+    h: 150,
+    rotate: -5,
+    src: "/scatter/char-shakespeare.webp",
+    position: "center 10%",
+    kicker: "Writers",
+    kickerColor: "#55BFC0",
+    title: "W. Shakespeare",
+    meta: "England · 1564–1616",
     compact: true,
   },
   {
     id: "washington",
     kind: "character",
-    x: 22,
-    y: 382,
-    w: 158,
-    h: 158,
+    x: 20,
+    y: 375,
+    w: 164,
+    h: 162,
     rotate: 5,
     src: "/scatter/char-washington.webp",
     position: "center 14%",
@@ -166,71 +139,74 @@ const CARDS: Card[] = [
     meta: "America · 1732–1799",
   },
   {
-    id: "salon",
+    id: "waterloo",
     kind: "scene",
-    x: -42,
-    y: 594,
-    w: 296,
-    h: 184,
+    x: 18,
+    y: 570,
+    w: 360,
+    h: 260,
     rotate: -3,
-    field: SCENE_FIELDS.violet,
-    kicker: "Arts · Paris 1889",
-    kickerColor: "#C79BE0",
-    title: "The Salon",
-    titleSize: 22,
-    labelInset: 56,
+    src: "/scatter/scene-waterloo.webp",
+    position: "50% 50%",
+    kicker: "Napoleonic Wars · 1815",
+    kickerColor: "#72C9D1",
+    title: "The Battle of Waterloo",
+    titleSize: 24,
+    labelInset: 20,
   },
   {
-    id: "baker",
+    id: "abraham",
     kind: "scene",
-    x: 466,
-    y: 678,
-    w: 480,
-    h: 292,
+    x: 445,
+    y: 570,
+    w: 510,
+    h: 275,
     rotate: -4,
-    field: SCENE_FIELDS.navy,
-    kicker: "Mystery · London 1891",
-    kickerColor: "#7FB2E0",
-    title: "Baker Street, 3am",
+    src: "/scatter/scene-abrahams-tent.webp",
+    position: "50% 52%",
+    kicker: "Ancient World · Canaan",
+    kickerColor: "#E8B45E",
+    title: "Abraham’s Tent",
     titleSize: 32,
-    labelAt: "top",
   },
   {
-    id: "alexandria",
+    id: "versailles",
     kind: "scene",
-    x: 1004,
-    y: 632,
-    w: 196,
-    h: 278,
+    x: 995,
+    y: 610,
+    w: 225,
+    h: 200,
     rotate: 5,
-    field: SCENE_FIELDS.amber,
-    kicker: "Antiquity · Egypt 48 BC",
-    kickerColor: "#E8B45E",
-    title: "Alexandria Harbor",
-    titleSize: 21,
-    labelAt: "top",
+    src: "/scatter/scene-treaty-versailles.webp",
+    position: "50% 48%",
+    kicker: "Diplomacy · Versailles 1919",
+    kickerColor: "#72C9D1",
+    title: "The Treaty of Versailles",
+    titleSize: 18,
   },
   {
     id: "create",
     kind: "create",
-    x: 1248,
-    y: 596,
-    w: 164,
-    h: 164,
+    x: 1242,
+    y: 555,
+    w: 180,
+    h: 205,
     rotate: -6,
-    title: "Create your own",
+    src: "/scatter/scene-europa-below.webp",
+    position: "center",
+    title: "Make Your Own World",
+    subtitle: "Try: Europa Below",
   },
 ];
 
 /** A trimmed set that keeps the centre clear on a tall, narrow viewport. */
 const MOBILE_CARDS: Card[] = [
-  { ...pick("firstwood"), x: -36, y: -40, w: 300, h: 180, rotate: -5, titleSize: 22 },
-  { ...pick("churchill"), x: 268, y: 26, w: 128, h: 128, rotate: 6, compact: true, meta: undefined },
+  { ...pick("tea-party"), x: -36, y: -40, w: 300, h: 180, rotate: -5, titleSize: 22 },
   { ...pick("washington"), x: -30, y: 170, w: 116, h: 116, rotate: 4, compact: true, meta: undefined },
-  { ...pick("apollo"), x: 238, y: 180, w: 190, h: 120, rotate: -4, titleSize: 17 },
+  { ...pick("manhattan"), x: 230, y: 22, w: 205, h: 128, rotate: 4, titleSize: 17 },
   { ...pick("create"), x: -28, y: 574, w: 118, h: 118, rotate: -6 },
-  { ...pick("baker"), x: 104, y: 596, w: 300, h: 186, rotate: -4, titleSize: 22 },
-  { ...pick("lincoln"), x: -34, y: 712, w: 118, h: 118, rotate: 7 },
+  { ...pick("abraham"), x: 104, y: 596, w: 300, h: 186, rotate: -4, titleSize: 22 },
+  { ...pick("shakespeare"), x: -34, y: 712, w: 118, h: 118, rotate: 7 },
 ];
 
 function pick(id: string): Card {
@@ -325,6 +301,7 @@ export const SceneScatter = forwardRef<SceneScatterHandle, { revealed?: boolean 
     const animations = useRef<Animation[]>([]);
     const idleAnimations = useRef<Animation[]>([]);
     const [portrait, setPortrait] = useState(false);
+    const [selectedCard, setSelectedCard] = useState<Card | null>(null);
 
     const stage = portrait ? MOBILE_STAGE : DESKTOP_STAGE;
     const cards = portrait ? MOBILE_CARDS : CARDS;
@@ -340,6 +317,35 @@ export const SceneScatter = forwardRef<SceneScatterHandle, { revealed?: boolean 
       query.addEventListener("change", sync);
       return () => query.removeEventListener("change", sync);
     }, []);
+
+    useEffect(() => {
+      if (!selectedCard) return;
+
+      const preventScroll = (event: Event) => event.preventDefault();
+      const closeOnEscape = (event: KeyboardEvent) => {
+        if (event.key === "Escape") {
+          setSelectedCard(null);
+          return;
+        }
+
+        if (
+          ["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(
+            event.key,
+          )
+        ) {
+          event.preventDefault();
+        }
+      };
+
+      window.addEventListener("keydown", closeOnEscape);
+      window.addEventListener("wheel", preventScroll, { passive: false });
+      window.addEventListener("touchmove", preventScroll, { passive: false });
+      return () => {
+        window.removeEventListener("keydown", closeOnEscape);
+        window.removeEventListener("wheel", preventScroll);
+        window.removeEventListener("touchmove", preventScroll);
+      };
+    }, [selectedCard]);
 
     // Scale the fixed stage to cover the viewport so edge cards keep bleeding
     // off-screen at every window size.
@@ -490,7 +496,6 @@ export const SceneScatter = forwardRef<SceneScatterHandle, { revealed?: boolean 
       <div className="absolute inset-0 overflow-hidden">
         <div
           ref={stageRef}
-          aria-hidden="true"
           className="absolute left-1/2 top-1/2 origin-center"
           style={{ width: stage.w, height: stage.h }}
         >
@@ -531,7 +536,19 @@ export const SceneScatter = forwardRef<SceneScatterHandle, { revealed?: boolean 
                     willChange: revealed ? "auto" : "transform, opacity",
                   }}
                 >
-                  <ScatterCard card={card} />
+                  {card.kind === "create" ? (
+                    <ScatterCard card={card} />
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={`Open ${card.title ?? "calling card"}`}
+                      aria-haspopup="dialog"
+                      className="group h-full w-full cursor-pointer rounded-[inherit] text-left outline-none transition-[filter] duration-300 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[#55ddd1] focus-visible:ring-offset-4 focus-visible:ring-offset-white"
+                      onClick={() => setSelectedCard(pick(card.id))}
+                    >
+                      <ScatterCard card={card} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -540,7 +557,7 @@ export const SceneScatter = forwardRef<SceneScatterHandle, { revealed?: boolean 
 
         <div
           ref={ctaExitRef}
-          className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center"
+          className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center"
         >
           <div
             ref={(node) => {
@@ -583,7 +600,7 @@ export const SceneScatter = forwardRef<SceneScatterHandle, { revealed?: boolean 
           >
             <button
               type="button"
-              className="inline-flex h-[50px] items-center gap-2 rounded-full bg-[#14877e] px-7 text-[13px] font-medium text-white transition-transform hover:scale-[1.03]"
+              className="pointer-events-auto inline-flex h-[50px] items-center gap-2 rounded-full bg-[#14877e] px-7 text-[13px] font-medium text-white transition-transform hover:scale-[1.03]"
               style={{ fontFamily: "var(--font-mono)" }}
             >
               <PlayIcon />
@@ -591,37 +608,137 @@ export const SceneScatter = forwardRef<SceneScatterHandle, { revealed?: boolean 
             </button>
             <button
               type="button"
-              className="text-[13px] text-[#0f756d] transition-colors hover:text-[#07110f]"
+              className="pointer-events-auto text-[13px] text-[#0f756d] transition-colors hover:text-[#07110f]"
               style={{ fontFamily: "var(--font-mono)" }}
             >
               Create a scene &rarr;
             </button>
           </div>
         </div>
+
+        {selectedCard && (
+          <ExpandedCardDialog
+            card={selectedCard}
+            onClose={() => setSelectedCard(null)}
+          />
+        )}
       </div>
     );
   },
 );
 
-function ScatterCard({ card }: { card: Card }) {
+function ExpandedCardDialog({
+  card,
+  onClose,
+}: {
+  card: Card;
+  onClose: () => void;
+}) {
+  const aspectRatio = card.expandedAspectRatio ?? card.w / card.h;
+  const maxWidth = card.kind === "character" ? 520 : 820;
+  const viewportHeightWidth = Math.round(aspectRatio * 78);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${card.title ?? "Calling card"} enlarged view`}
+      className="card-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center px-5 py-10"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[#03110e]/30 backdrop-blur-[16px] backdrop-saturate-150" />
+      <div
+        className="card-dialog-enter relative"
+        style={{
+          width: `min(88vw, ${maxWidth}px, ${viewportHeightWidth}vh)`,
+          aspectRatio: `${aspectRatio}`,
+        }}
+      >
+        <ScatterCard card={card} expanded />
+        <button
+          type="button"
+          autoFocus
+          aria-label="Close enlarged card"
+          onClick={onClose}
+          className="absolute -right-3 -top-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#07110f] text-xl text-white shadow-[0_12px_30px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ddd1]"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ScatterCard({
+  card,
+  expanded = false,
+}: {
+  card: Card;
+  expanded?: boolean;
+}) {
   if (card.kind === "create") {
+    const compactCreate = card.w < 150;
+
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-[9px] rounded-[18px] border-[1.5px] border-dashed border-[#14877e]/40 bg-[#8fd1cb]/[0.07]">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#14877e]/30 bg-[#8fd1cb]/15 text-xl text-[#0f756d]">
+      <div className="relative h-full w-full overflow-hidden rounded-[18px] border-[1.5px] border-dashed border-[#14877e]/55 bg-[#dceff0] text-center shadow-[0_22px_48px_rgba(20,135,126,0.16)]">
+        {card.src && (
+          <Image
+            src={card.src}
+            alt=""
+            fill
+            sizes={`${card.w}px`}
+            className="object-cover"
+            style={{
+              objectPosition: card.position,
+              filter: "brightness(0.9) contrast(1.28) saturate(1.2)",
+            }}
+          />
+        )}
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02)_0%,rgba(239,250,250,0.08)_45%,rgba(239,249,249,0.88)_76%,rgba(239,249,249,0.98)_100%)]" />
+        <div
+          className="absolute left-1/2 top-[31%] z-10 flex -translate-x-1/2 items-center justify-center rounded-xl border border-[#14877e]/35 bg-white/78 font-medium text-[#0f756d] shadow-[0_10px_24px_rgba(7,17,15,0.12)] backdrop-blur-[5px]"
+          style={{
+            width: compactCreate ? 34 : 44,
+            height: compactCreate ? 34 : 44,
+            fontSize: compactCreate ? 18 : 22,
+          }}
+        >
           +
         </div>
-        <span
-          className="text-sm font-semibold text-[#07110f]"
-          style={{ fontFamily: "var(--font-heading)" }}
+        <div
+          className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center px-2"
+          style={{ paddingBottom: compactCreate ? 12 : 19 }}
         >
-          {card.title}
-        </span>
+          <span
+            className="font-semibold leading-[0.98] tracking-[-0.02em] text-[#07110f]"
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: compactCreate ? 13 : 17,
+            }}
+          >
+            {card.title}
+          </span>
+          {card.subtitle && (
+            <span
+              className="mt-2 text-[#0f756d]/85"
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: compactCreate ? 7 : 8,
+              }}
+            >
+              {card.subtitle}
+            </span>
+          )}
+        </div>
       </div>
     );
   }
 
   const isCharacter = card.kind === "character";
-  const radius = card.w >= 460 ? 22 : card.w >= 190 ? 20 : 15;
+  const radius = expanded ? 28 : card.w >= 460 ? 22 : card.w >= 190 ? 20 : 15;
   const labelAtTop = card.labelAt === "top";
 
   return (
@@ -634,7 +751,7 @@ function ScatterCard({ card }: { card: Card }) {
           src={card.src}
           alt=""
           fill
-          sizes={`${card.w}px`}
+          sizes={expanded ? "(max-width: 768px) 88vw, 820px" : `${card.w}px`}
           className="object-cover"
           style={{ objectPosition: card.position, filter: "saturate(72%)" }}
         />
@@ -651,11 +768,20 @@ function ScatterCard({ card }: { card: Card }) {
       />
 
       {card.live && (
-        <div className="absolute right-4 top-[15px] flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#E5484D]" />
+        <div
+          className="absolute flex items-center gap-1.5"
+          style={{ right: expanded ? 24 : 16, top: expanded ? 24 : 15 }}
+        >
           <span
-            className="text-[8px] uppercase tracking-[0.14em] text-white/85"
-            style={{ fontFamily: "var(--font-mono)" }}
+            className="rounded-full bg-[#E5484D]"
+            style={{ width: expanded ? 8 : 6, height: expanded ? 8 : 6 }}
+          />
+          <span
+            className="uppercase tracking-[0.14em] text-white/85"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: expanded ? 11 : 8,
+            }}
           >
             Live now
           </span>
@@ -664,25 +790,46 @@ function ScatterCard({ card }: { card: Card }) {
 
       {isCharacter && card.kicker && (
         <span
-          className="absolute right-3 top-3 text-[8px] uppercase tracking-[0.11em]"
-          style={{ fontFamily: "var(--font-mono)", color: card.kickerColor }}
+          className="absolute uppercase tracking-[0.11em]"
+          style={{
+            fontFamily: "var(--font-mono)",
+            color: card.kickerColor,
+            right: expanded ? 24 : 12,
+            top: expanded ? 24 : 12,
+            fontSize: expanded ? 11 : 8,
+          }}
         >
           {card.kicker}
         </span>
       )}
 
       <div
-        className="absolute flex flex-col gap-1.5"
+        className="absolute flex flex-col"
         style={{
-          left: card.labelInset ?? (isCharacter ? 14 : 20),
-          right: 14,
-          [labelAtTop ? "top" : "bottom"]: labelAtTop ? 22 : 16,
+          gap: expanded ? 10 : 6,
+          left: expanded
+            ? isCharacter
+              ? 28
+              : 36
+            : card.labelInset ?? (isCharacter ? 14 : 20),
+          right: expanded ? 28 : 14,
+          [labelAtTop ? "top" : "bottom"]: expanded
+            ? labelAtTop
+              ? 34
+              : 30
+            : labelAtTop
+              ? 22
+              : 16,
         }}
       >
         {!isCharacter && card.kicker && (
           <span
-            className="text-[9px] uppercase tracking-[0.16em]"
-            style={{ fontFamily: "var(--font-mono)", color: card.kickerColor }}
+            className="uppercase tracking-[0.16em]"
+            style={{
+              fontFamily: "var(--font-mono)",
+              color: card.kickerColor,
+              fontSize: expanded ? 13 : 9,
+            }}
           >
             {card.kicker}
           </span>
@@ -691,7 +838,15 @@ function ScatterCard({ card }: { card: Card }) {
           className="font-bold tracking-[-0.03em] text-white"
           style={{
             fontFamily: "var(--font-heading)",
-            fontSize: isCharacter ? (card.compact ? 13 : 16) : card.titleSize,
+            fontSize: expanded
+              ? isCharacter
+                ? 32
+                : Math.min((card.titleSize ?? 22) * 1.5, 52)
+              : isCharacter
+                ? card.compact
+                  ? 13
+                  : 16
+                : card.titleSize,
             lineHeight: 1,
             fontWeight: isCharacter ? 600 : 700,
           }}
@@ -700,8 +855,11 @@ function ScatterCard({ card }: { card: Card }) {
         </span>
         {card.meta && (
           <span
-            className="text-[9px] text-white/50"
-            style={{ fontFamily: "var(--font-mono)" }}
+            className="text-white/50"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: expanded ? 13 : 9,
+            }}
           >
             {card.meta}
           </span>
