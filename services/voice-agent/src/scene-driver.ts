@@ -194,13 +194,16 @@ export class SceneDriver {
    *  character sessions through the exact same resolve path as any scene. Falls back
    *  to the legacy synthetic scene if provisioning/resolution fails — a DB hiccup
    *  must degrade observability, never take voice down. */
-  static async fromCharacter(character: CharacterRecord): Promise<SceneDriver> {
+  static async fromCharacter(
+    character: CharacterRecord,
+    deps?: Partial<SceneDriverDeps>,
+  ): Promise<SceneDriver> {
     try {
       const record = await getSceneStore().getOrCreateSoloScene(character.id);
       const scene = record
         ? await getSceneStore().resolveOrchestratorScene(record.id)
         : null;
-      if (scene) return new SceneDriver(scene);
+      if (scene) return new SceneDriver(scene, deps);
       console.warn(
         `[voice-agent] solo scene for "${character.slug}" did not resolve — falling back to synthetic scene`,
       );
@@ -210,7 +213,7 @@ export class SceneDriver {
         err,
       );
     }
-    return SceneDriver.syntheticFromCharacter(character);
+    return SceneDriver.syntheticFromCharacter(character, deps);
   }
 
   /** LEGACY floor: synthesize a one-actor scene (`character-sandbox:<slug>`) with no
@@ -218,7 +221,10 @@ export class SceneDriver {
    *  resolved (DB unavailable, character deleted mid-flight). The character's voice +
    *  brain are resolved by runVoiceStream from the id at speak time, so the scene
    *  `voice` field here is only a non-empty placeholder. */
-  static syntheticFromCharacter(character: CharacterRecord): SceneDriver {
+  static syntheticFromCharacter(
+    character: CharacterRecord,
+    deps?: Partial<SceneDriverDeps>,
+  ): SceneDriver {
     const slug = character.slug;
     const blurb = (character.summary ?? character.title).slice(0, 280);
     // sm-sound: the character's sandbox soundscape — the sound nodes placed
@@ -250,7 +256,7 @@ export class SceneDriver {
       defaultAmbience: defaultBed?.slug ?? null,
       ...(sounds.length > 0 ? { sounds } : {}),
     };
-    return new SceneDriver(scene);
+    return new SceneDriver(scene, deps);
   }
 
   /** Seed the running transcript with an opening character line (e.g. the greet)
