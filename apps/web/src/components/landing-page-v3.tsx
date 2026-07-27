@@ -483,7 +483,7 @@ export function LandingPageV3() {
       {/* ── What is Kawabunga ── */}
       <section
         id="what-is-kawabunga"
-        className="relative bg-white px-6 py-24 before:pointer-events-none before:absolute before:inset-x-0 before:-top-40 before:h-40 before:bg-gradient-to-b before:from-transparent before:to-white sm:px-10 sm:py-28 lg:px-20 lg:py-32"
+        className="relative bg-white px-6 py-24 sm:px-10 sm:py-28 lg:px-20 lg:py-32"
       >
         <div className="relative z-10 grid gap-14 lg:grid-cols-12 lg:items-start lg:gap-8">
           <Reveal className="lg:col-span-5">
