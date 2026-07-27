@@ -49,6 +49,17 @@ type VoiceHostTokenClaims = {
 const tokenSecret = process.env.VOICE_HOST_TOKEN_SECRET;
 const tokenKey = tokenSecret ? new TextEncoder().encode(tokenSecret) : null;
 if (!tokenKey) {
+  // Fail CLOSED outside local dev: one missing env var must not turn the
+  // brain endpoint into an open LLM/TTS proxy. Deliberate override only.
+  const productionLike =
+    process.env.NODE_ENV === "production" || Boolean(process.env.RAILWAY_ENVIRONMENT);
+  if (productionLike && process.env.VOICE_HOST_ALLOW_UNAUTHENTICATED !== "1") {
+    throw new Error(
+      "VOICE_HOST_TOKEN_SECRET is unset in a production-like environment — refusing to start " +
+        "with /voice-stream unauthenticated. Set the secret (or VOICE_HOST_ALLOW_UNAUTHENTICATED=1 " +
+        "to override deliberately).",
+    );
+  }
   app.log.warn(
     "VOICE_HOST_TOKEN_SECRET unset — /voice-stream is UNAUTHENTICATED (dev only)",
   );

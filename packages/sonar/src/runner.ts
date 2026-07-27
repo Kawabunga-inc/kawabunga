@@ -20,6 +20,7 @@ import {
   buildSpeakerTurnRequest,
   createInitialSceneState,
   getScene,
+  RECENT_TURNS_LIMIT,
 } from "@kawabunga/orchestration/client";
 import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
 import { loadRecording, resolveUtteranceSamples } from "./audio/synth";
@@ -272,7 +273,7 @@ export async function runSonarSuite(opts: RunSonarSuiteOptions): Promise<SonarRu
         const o0 = performance.now();
         const payload = await http.postJson(`/api/scene-sessions/${sessionId}/orchestrate`, {
           sceneId,
-          recentTurns: sceneTurns.slice(-6),
+          recentTurns: sceneTurns.slice(-RECENT_TURNS_LIMIT),
           lastUserMessage: transcript,
         });
         orchestrate = {

@@ -83,7 +83,10 @@ export type SceneSessionSnapshot = {
   updatedAt: string;
 };
 
-const RECENT_TURNS_LIMIT = 6;
+/** How many recent turns the director's dialogue window holds. The single
+ *  source of truth — the driver, the browser player, the orchestrate route,
+ *  and sonar all size their windows from this. */
+export const RECENT_TURNS_LIMIT = 6;
 const SCENE_MEMORY_LIMIT = 12;
 const SCENE_MEMORY_ENTRY_MAX_CHARS = 280;
 const SCENE_FACTS_LIMIT = 12;

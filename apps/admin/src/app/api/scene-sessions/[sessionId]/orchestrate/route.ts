@@ -10,6 +10,7 @@ import {
   readSceneMemoryFromSnapshot,
   readSceneStateFromSnapshot,
   resolveSceneDecision,
+  RECENT_TURNS_LIMIT,
   type SceneDecisionResolution,
   updateSceneMemory,
 } from "@kawabunga/orchestration/client";
@@ -31,8 +32,6 @@ export const dynamic = "force-dynamic";
  * JSON output. If no configured provider is available, return a sensible
  * default ("wait-for-user") so the scene can still run.
  */
-
-const RECENT_TURNS_LIMIT = 6;
 
 type RecentTurn = {
   speakerSlug: string;

@@ -16,6 +16,7 @@ import {
   defaultSceneDecision,
   getScene,
   PROACTIVE_SILENCE_MARKER,
+  RECENT_TURNS_LIMIT,
   expandLandedBeats,
   matchArcLabel,
   parseDramaturgReflection,
@@ -30,7 +31,6 @@ import {
 import type { OrchestratorDecision, Scene, SceneState, SfxCue } from "@kawabunga/types";
 import { isRefusalBoilerplate } from "@kawabunga/voice-pipeline";
 
-const RECENT_TURNS_LIMIT = 6;
 /** Don't speculate off a stray opener ("uh", "so") — wait for some real intent. */
 const MIN_SPECULATE_CHARS = 8;
 /** Accept a speculation only if it was computed off ≥ this fraction of the final

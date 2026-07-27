@@ -1,10 +1,11 @@
 /**
  * Browser-safe prompt compiler shim.
  *
- * Client harness editors need the pure XML/system-prompt helpers, but the
- * @kawabunga/engine barrel also exports server-only audio adapters that import
- * Node modules. Import the pure modules directly so Turbopack does not pull
- * the server graph into client chunks.
+ * Client harness editors need the pure XML/system-prompt helpers without the
+ * @kawabunga/engine barrel's server-only audio adapters. The engine now
+ * exposes a browser-safe subpath for exactly this — re-export it so existing
+ * imports keep working (new code can import `@kawabunga/engine/prompt`
+ * directly).
  */
 
 export {
@@ -12,7 +13,7 @@ export {
   buildSystemPromptParts,
   buildVoiceSystemPrompt,
   buildVoiceSystemPromptParts,
-} from "../../../../packages/engine/src/character-system-prompt";
-export { compileDirectiveXml } from "../../../../packages/engine/src/directive-xml";
-export { compileIdentityXml } from "../../../../packages/engine/src/identity-xml";
-export { compileVoiceXml } from "../../../../packages/engine/src/voice-xml";
+  compileDirectiveXml,
+  compileIdentityXml,
+  compileVoiceXml,
+} from "@kawabunga/engine/prompt";
