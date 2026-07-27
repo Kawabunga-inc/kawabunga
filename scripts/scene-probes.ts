@@ -21,6 +21,7 @@
  *   --family <name>     only probes of one family
  *   --concurrency <n>   parallel executor calls (default 4 — mind Groq TPM)
  *   --provider <name>   force cerebras|groq (default: ORCHESTRATOR_PROVIDER / key detection)
+ *   --model <id>        force the director model on the chosen provider
  *   --no-ledger         don't append to evals/scenes/ledger.jsonl
  *   --list              print the probe roster and exit
  *
@@ -53,6 +54,7 @@ function flag(name: string): string | undefined {
 const RUNS = Math.max(1, Number(flag("--runs") ?? 5));
 const CONCURRENCY = Math.max(1, Number(flag("--concurrency") ?? 4));
 const PROVIDER = flag("--provider");
+const MODEL = flag("--model");
 const PROBE_FILTER = flag("--probe");
 const FAMILY_FILTER = flag("--family");
 const WRITE_LEDGER = !args.includes("--no-ledger");
@@ -71,6 +73,9 @@ type Sample = {
   reason?: string;
   ok: boolean;
   failures: string[];
+  /** Wall time of the executor call — the director blocks the turn loop, so
+   *  a model that decides well but slowly is still the wrong director. */
+  latencyMs?: number;
 };
 
 function scoreDecision(probe: SceneProbe, sceneState: SceneState, raw: unknown): Sample {
@@ -179,9 +184,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { executor, reason } = resolveOrchestratorExecutor(
-    PROVIDER ? { provider: PROVIDER } : {},
-  );
+  const { executor, reason } = resolveOrchestratorExecutor({
+    ...(PROVIDER ? { provider: PROVIDER } : {}),
+    ...(MODEL ? { cerebrasModel: MODEL, groqModel: MODEL } : {}),
+  });
   if (!executor) {
     console.error(`No director executor available: ${reason}`);
     process.exit(1);
@@ -222,8 +228,10 @@ async function main(): Promise<void> {
       lastUserMessage: probe.lastUserMessage,
     });
     try {
+      const startedAt = Date.now();
       const raw = await executeWithRetry(() => executor.execute(request));
-      return { probe, sample: scoreDecision(probe, sceneState, raw) };
+      const latencyMs = Date.now() - startedAt;
+      return { probe, sample: { ...scoreDecision(probe, sceneState, raw), latencyMs } };
     } catch (err) {
       const sample: Sample = {
         action: "wait-for-user",
@@ -302,6 +310,16 @@ async function main(): Promise<void> {
   console.log("\nBy family:");
   for (const [family, { passes, runs }] of familyTotals) {
     console.log(`  ${family.padEnd(22)} ${passes}/${runs} (${Math.round((passes / runs) * 100)}%)`);
+  }
+  const latencies = flat
+    .map(({ sample }) => sample.latencyMs)
+    .filter((ms): ms is number => typeof ms === "number")
+    .sort((a, b) => a - b);
+  if (latencies.length > 0) {
+    const mean = Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length);
+    const p50 = latencies[Math.floor(latencies.length * 0.5)]!;
+    const p95 = latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * 0.95))]!;
+    console.log(`\nDirector latency: mean ${mean}ms · p50 ${p50}ms · p95 ${p95}ms`);
   }
   console.log(
     `\n${probes.length - failedProbes}/${probes.length} probes passed in ${((Date.now() - startedAt) / 1000).toFixed(1)}s` +

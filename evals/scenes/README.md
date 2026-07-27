@@ -26,8 +26,16 @@ npm run scene-probes                    # full suite, 5 runs per probe
 npm run scene-probes -- --runs 10
 npm run scene-probes -- --probe continuity
 npm run scene-probes -- --family by-name
+npm run scene-probes -- --provider cerebras --model gemma-4-31b   # director A/B
 npm run scene-probes -- --list
 ```
+
+The summary prints director latency (mean/p50/p95) — the director blocks
+the turn loop, so model comparisons must weigh speed with accuracy. Ledger
+rows carry the provider/model, so `--model` sweeps accumulate into a
+comparable record. (Thinking models may need a larger
+`ORCHESTRATOR_MAX_COMPLETION_TOKENS` — reasoning spends the completion
+budget before any JSON appears.)
 
 Requires `CEREBRAS_API_KEY` or `GROQ_API_KEY` (the same env the live
 director uses; `ORCHESTRATOR_*` overrides are honored). On Groq's free tier
