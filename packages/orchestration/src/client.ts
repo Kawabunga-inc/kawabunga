@@ -830,17 +830,29 @@ function buildOrchestratorUserPrompt(
     lines.push(`The user just said: "${lastUserMessage}"`);
     lines.push("Bias your decision toward whoever the user is addressing.");
     // Deterministic addressee scaffolding: when the message literally names
-    // present characters, say so — the model under-weights the by-name rule
-    // when a more central character has been carrying the conversation
-    // (observed: Abraham answering "Sarah - was it you?").
+    // present characters, classify HOW each name is used and say so. Two
+    // observed failure modes motivate the split: the model under-weights a
+    // vocative when a more central character has been carrying the
+    // conversation ("Sarah - was it you?" answered by Abraham), and it
+    // over-weights a bare mention ("What Abraham heard..." pulling Abraham
+    // away from the user's actual interlocutor). Boundary position or a
+    // preceding "you" reads as a vocative — robust to STT dropping the
+    // comma ("promised, Abraham?" arriving as "promised Abraham?").
     const named = namedPresentCharacters(lastUserMessage, present);
-    if (named.length > 0) {
+    const vocatives = named.filter((c) => isVocativeUse(lastUserMessage, c));
+    const mentions = named.filter((c) => !vocatives.includes(c));
+    for (const c of vocatives) {
       lines.push(
-        `The user's message names ${named
-          .map((c) => `${c.displayName} (slug: ${c.characterSlug})`)
-          .join(", ")} - a present character named like this is being addressed`,
-        "unless they are clearly only mentioned in passing; the addressed",
-        "character answers, themselves.",
+        `The user's message turns TO ${c.displayName} (slug: ${c.characterSlug}) -`,
+        "the name sits where spoken language puts a direct address (transcripts",
+        `often drop the comma). ${c.displayName} answers, themselves.`,
+      );
+    }
+    for (const c of mentions) {
+      lines.push(
+        `${c.displayName} is named mid-sentence - as subject matter, not as the`,
+        "addressee. Do not switch the speaker just because the name appears;",
+        "the user is still talking with whoever last spoke to them.",
       );
     }
   }
@@ -861,6 +873,36 @@ function namedPresentCharacters(
       return escaped && new RegExp(`\\b${escaped}\\b`, "i").test(message);
     }),
   );
+}
+
+/** Does the message use this character's name as a VOCATIVE (a turn to them)
+ *  rather than as subject matter? Punctuation-free heuristics, since STT
+ *  transcripts drop commas: the name at the message's start or end, or
+ *  directly preceded by "you" ("and you Eliezer..."), reads as an address;
+ *  a name embedded elsewhere reads as a mention. */
+function isVocativeUse(message: string, character: SceneCharacter): boolean {
+  const tokens = message
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
+    .split(" ")
+    .filter(Boolean);
+  if (tokens.length === 0) return false;
+  for (const name of [character.displayName, character.characterSlug]) {
+    const nameTokens = name
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
+      .split(" ")
+      .filter(Boolean);
+    if (nameTokens.length === 0) continue;
+    for (let i = 0; i + nameTokens.length <= tokens.length; i += 1) {
+      if (!nameTokens.every((t, j) => tokens[i + j] === t)) continue;
+      const atStart = i === 0;
+      const atEnd = i + nameTokens.length === tokens.length;
+      const afterYou = i > 0 && tokens[i - 1] === "you";
+      if (atStart || atEnd || afterYou) return true;
+    }
+  }
+  return false;
 }
 
 function sanitizeSceneMemory(memory: unknown[]): string[] {
