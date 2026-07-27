@@ -27,6 +27,8 @@ const ABRAHAMS_TENT: Scene = {
       voice: "abraham",
       blurb:
         "Old shepherd-patriarch. Plainspoken. Just heard from three strangers that Sarah will bear a son. Caught between awe and the embarrassment of his wife's laughter.",
+      motivations:
+        "Wants the traveler to understand what the strangers' promise means — and to steady his own shaken faith in it.",
     },
     {
       characterSlug: "sarah",
@@ -34,6 +36,8 @@ const ABRAHAMS_TENT: Scene = {
       voice: "sarah",
       blurb:
         "Sarah, ninety years old, barren her whole life. She laughed inside the tent when she overheard the promise. Now denying she laughed — afraid, defensive, sharp-tongued.",
+      motivations:
+        "Wants to deny the laugh without admitting the hope underneath it — she yields only when denial starts to cost more than the truth.",
     },
   ],
   openingBeat:
@@ -41,6 +45,34 @@ const ABRAHAMS_TENT: Scene = {
   defaultAmbience: "tent-evening",
   // Routed through OpenAI TTS in the current scene runner.
   narratorVoice: "fable",
+  // Authored intention: what the scene drives toward, and the ordered beats
+  // the dramaturg judges. Sarah's denial is the scene's tension — the arc
+  // makes the director EARN the admission instead of spending it on turn 2
+  // (observed before authoring: she admitted immediately).
+  objective:
+    "Sarah's laughter is admitted aloud — and the hope underneath it finally spoken.",
+  drive: "balanced",
+  arc: [
+    {
+      label: "The welcome",
+      summary: "The traveler is received into the camp with shade and water.",
+    },
+    {
+      label: "The laugh is named",
+      summary:
+        "Someone says aloud that the laughter from the tent was Sarah's, laughing at the strangers' promise.",
+    },
+    {
+      label: "The denial breaks",
+      summary:
+        "Sarah stops insisting she did not laugh and admits it — and why: the promise touches the one hope she buried.",
+    },
+    {
+      label: "The promise stands",
+      summary:
+        "Abraham and Sarah, in front of the traveler, let the promise stand over the laughter — wonder outweighing fear.",
+    },
+  ],
 };
 
 const SCENES: Record<string, Scene> = {
