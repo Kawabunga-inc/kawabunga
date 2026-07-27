@@ -275,15 +275,17 @@ export function ScrollStoryShowcase({ embedded = false }: { embedded?: boolean }
             />
             <source src="/kawabunga-scroll-story-hd.mp4" type="video/mp4" />
           </video>
-          <Image
-            ref={heroStillRef}
-            src="/landing-hero-lg.jpg"
-            alt=""
-            fill
-            priority
-            className="pointer-events-none object-cover will-change-[opacity]"
-            sizes="100vw"
-          />
+          <div className="pointer-events-none absolute inset-0">
+            <Image
+              ref={heroStillRef}
+              src="/landing-hero-lg.jpg"
+              alt=""
+              fill
+              priority
+              className="object-cover will-change-[opacity]"
+              sizes="100vw"
+            />
+          </div>
 
           <div
             ref={heroShadeRef}
