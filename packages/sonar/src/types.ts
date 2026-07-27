@@ -29,7 +29,10 @@ export type TimedSseFrame = {
   atMs: number;
 };
 
-export type SonarSuiteMode = "voice-stream" | "scene" | "context";
+/** "livekit" is a RUN mode, not a suite mode: the LiveKit runner replays a
+ *  scene-mode suite over WebRTC and stamps its run records with it so ledger
+ *  rows never get compared across transports by accident. */
+export type SonarSuiteMode = "voice-stream" | "scene" | "context" | "livekit";
 
 /**
  * What the user says in a turn:
@@ -130,6 +133,9 @@ export const SONAR_SPANS = [
   // Scene-loop overhead (scene mode only):
   "orchestrate.total", // POST /orchestrate → JSON response (client)
   "orchestrate.llm", // orchestrate.llm.start → orchestrate.llm.done (server)
+  // LiveKit-transport runs (run-livekit) — timed at a real room client:
+  "lk.endpoint", // user speech end → the agent's user-final transcript publish (STT + v1-mini commit)
+  "lk.first-text", // user speech end → first agent transcript delta (LLM first token proxy)
   // Voice-stream leg, client-observed from the POST:
   "vs.ttft", // POST → first `token` frame
   "vs.ttfa", // POST → first `audio` frame

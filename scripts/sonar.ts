@@ -92,6 +92,7 @@ const command = args[0];
 
 async function main() {
   if (command === "run") return runCommand();
+  if (command === "run-livekit") return runLiveKitCommand();
   if (command === "context-run") return contextRunCommand();
   if (command === "synth") return synthCommand();
   if (command === "recordings") return recordingsCommand();
@@ -103,6 +104,8 @@ async function main() {
     `Kawabunga Sonar v${SONAR_VERSION} — world simulation benchmarks\n\n` +
       `Commands:\n` +
       `  run --suite <name>        run a benchmark suite (audio in → audio out)\n` +
+      `  run-livekit --suite <name> run a scene suite over the REAL LiveKit transport\n` +
+      `                            (needs LIVEKIT_URL/_API_KEY/_API_SECRET + a running voice-agent worker)\n` +
       `  context-run               run context activation directly through the curator\n` +
       `  synth --suite <name>      pre-build the spoken-input fixtures\n` +
       `  recordings --suite <name> list the real recordings a suite needs (+ what's missing)\n` +
@@ -173,6 +176,78 @@ async function runCommand() {
     console.error(`\n${record.errors} turn(s) errored — see the run record for details.`);
     process.exit(1);
   }
+}
+
+/**
+ * LiveKit-transport run: joins a real room as a participant and lets the
+ * voice-agent worker do everything it does in production (LiveKit STT,
+ * v1-mini endpointing, SceneDriver, published audio). No admin cookie —
+ * the room token is minted locally from LIVEKIT_API_KEY/SECRET. Needs a
+ * voice-agent worker registered on the same LiveKit project.
+ */
+async function runLiveKitCommand() {
+  const suiteName = readFlag("--suite");
+  if (!suiteName) throw new Error("Missing --suite. Available: " + Object.keys(SUITES).join(", "));
+  const suite = SUITES[suiteName];
+  if (!suite) throw new Error(`Unknown suite "${suiteName}". Available: ` + Object.keys(SUITES).join(", "));
+  if (suite.sttOnly) throw new Error("STT-only suites have no LiveKit form — use `run`.");
+
+  const livekitUrl = process.env.LIVEKIT_URL;
+  const apiKey = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+  if (!livekitUrl || !apiKey || !apiSecret) {
+    throw new Error(
+      "LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET must be set (same project the voice-agent worker registers with).",
+    );
+  }
+
+  // Suites without a sceneId run the solo path — char-<uuid> rooms encode
+  // the character's DB id, so resolve the slug here.
+  let characterId: string | undefined;
+  if (!suite.sceneId) {
+    const slug = readFlag("--character") ?? suite.character;
+    const record =
+      (await getCharacterStore().getBySlug(slug)) ?? (await getCharacterStore().getById(slug));
+    if (!record) throw new Error(`character "${slug}" did not resolve`);
+    characterId = record.id;
+  }
+
+  // Lazy import: @livekit/rtc-node's native module holds the event loop open
+  // from the moment it loads — only this command may pay that.
+  const { runLiveKitSuite } = await import("@kawabunga/sonar/livekit");
+  const record = await runLiveKitSuite({
+    suite,
+    repoRoot: REPO_ROOT,
+    livekitUrl,
+    apiKey,
+    apiSecret,
+    characterId,
+    sessions: readNumberFlag("--sessions"),
+    label: readFlag("--label") ?? undefined,
+    runGroupId: readFlag("--run-group") ?? process.env.ODYSSEY_RUN_GROUP ?? undefined,
+    sloMs: readNumberFlag("--slo-ms"),
+    git: gitInfo(),
+    log: (line) => console.log(line),
+  });
+
+  console.log("\n" + renderRunSummary(record));
+  const recordFile = writeRunRecord(record, REPO_ROOT);
+  console.log(`\nrun record → ${recordFile}`);
+  const clean = Boolean(record.aggregates["voice-to-voice"]) && record.errors === 0;
+  if (hasFlag("--no-ledger")) {
+    // skip
+  } else if (clean) {
+    const ledgerFile = appendLedger(record, REPO_ROOT);
+    console.log(`ledger     → ${ledgerFile} (commit this to track progression)`);
+  } else {
+    console.log(`ledger     → skipped (${record.errors} error(s); only clean runs are recorded)`);
+  }
+  if (record.errors > 0) {
+    console.error(`\n${record.errors} turn(s) errored — see the run record for details.`);
+    process.exit(1);
+  }
+  // rtc-node keeps the loop alive even after room.disconnect() — exit explicitly.
+  process.exit(0);
 }
 
 async function contextRunCommand() {

@@ -8,6 +8,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./livekit": {
+      "types": "./src/livekit-runner.ts",
+      "default": "./src/livekit-runner.ts"
     }
   },
   "scripts": {
@@ -16,7 +20,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.1",
     "@kawabunga/orchestration": "*",
-    "@kawabunga/types": "*"
+    "@kawabunga/types": "*",
+    "@livekit/rtc-node": "^0.13.29",
+    "livekit-server-sdk": "^2.15.5"
   },
   "devDependencies": {
     "typescript": "^5"
