@@ -5,7 +5,7 @@ import {
   soundDesignToSceneSounds,
   type CharacterRecord,
 } from "@kawabunga/db";
-import { getChatProviderForModel } from "@kawabunga/engine";
+import { getChatProviderForModel, type ChatProvider } from "@kawabunga/engine";
 import {
   buildDirectiveChunk,
   buildDramaturgMessages,
@@ -16,19 +16,21 @@ import {
   defaultSceneDecision,
   getScene,
   PROACTIVE_SILENCE_MARKER,
+  RECENT_TURNS_LIMIT,
   expandLandedBeats,
   matchArcLabel,
   parseDramaturgReflection,
   resolveOrchestratorExecutor,
   resolveSceneDecision,
+  updateSceneFacts,
   updateSceneMemory,
+  type OrchestratorExecutorResolution,
   type SceneSessionSnapshot,
   type SceneTurnForPlanning,
 } from "@kawabunga/orchestration";
 import type { OrchestratorDecision, Scene, SceneState, SfxCue } from "@kawabunga/types";
 import { isRefusalBoilerplate } from "@kawabunga/voice-pipeline";
 
-const RECENT_TURNS_LIMIT = 6;
 /** Don't speculate off a stray opener ("uh", "so") — wait for some real intent. */
 const MIN_SPECULATE_CHARS = 8;
 /** Accept a speculation only if it was computed off ≥ this fraction of the final
@@ -94,7 +96,34 @@ export type SceneSpeakFn = (input: SceneSpeakInput, replyId: string) => Promise<
 export type SceneDriveOutcome = {
   action: OrchestratorDecision["action"];
   spoke: boolean;
+  /** True when a newer drive/proactive turn superseded this one mid-flight —
+   *  its decision was NOT applied and nothing was recorded. */
+  superseded?: boolean;
 };
+
+/** Injectable collaborators — production defaults resolve from env + the DB;
+ *  tests swap in fakes so the driver's turn machinery runs deterministically
+ *  with no network, keys, or database. */
+export type SceneDriverDeps = {
+  /** Resolve the director executor (default: resolveOrchestratorExecutor from env). */
+  resolveExecutor: () => OrchestratorExecutorResolution;
+  /** Resolve a roster slug (or id) to its character record (default: character store). */
+  resolveCharacter: (slugOrId: string) => Promise<CharacterRecord | null>;
+  /** When set, the dramaturg uses this provider (and is force-enabled);
+   *  default resolves DRAMATURG_MODEL via getChatProviderForModel. */
+  dramaturgProvider?: ChatProvider;
+};
+
+const defaultDeps: SceneDriverDeps = {
+  resolveExecutor: () => resolveOrchestratorExecutor(),
+  resolveCharacter: async (slugOrId) =>
+    (await getCharacterStore().getBySlug(slugOrId).catch(() => null)) ??
+    (await getCharacterStore().getById(slugOrId).catch(() => null)),
+};
+
+/** What #decide resolves to: the decision, plus the failure it papered over
+ *  (executor error / timeout) so the caller can recover instead of waiting. */
+type DecideResult = { decision: OrchestratorDecision; failed?: string };
 
 /**
  * Drives a multi-character SCENE over a LiveKit room. Each user turn it asks the
@@ -108,38 +137,68 @@ export type SceneDriveOutcome = {
  */
 export class SceneDriver {
   readonly scene: Scene;
+  #deps: SceneDriverDeps;
   #sceneState: SceneState;
   #recentTurns: SceneTurnForPlanning[] = [];
   #sceneMemory: string[] = [];
+  // Durable facts the dramaturg has extracted — the scene's long-term memory,
+  // surviving after the verbatim window scrolls past the turns that stated them.
+  #sceneFacts: string[] = [];
   // B4: the in-flight speculative decision (orchestrated off a partial transcript
   // during the endpoint hold) + the text it was computed from, so drive() can
   // accept it when the final transcript matches and skip the orchestrate latency.
-  #speculation: { basedOnText: string; promise: Promise<OrchestratorDecision> } | null = null;
+  // The controller cancels the provider call when the speculation goes stale.
+  #speculation: {
+    basedOnText: string;
+    abort: AbortController;
+    promise: Promise<DecideResult>;
+  } | null = null;
   // Optional persistence hook — invoked with a fresh snapshot after every decision.
   #onState: ((snapshot: SceneSessionSnapshot) => void) | null = null;
   #onSfx: ((cues: SfxCue[]) => void) | null = null;
+  // Voices a `narrate` decision. Optional — unset = narration is recorded in
+  // the transcript (so the director keeps continuity) but not spoken.
+  #onNarrate: ((text: string) => Promise<void> | void) | null = null;
+  #warnedUnvoicedNarration = false;
+  // Turn epoch — bumped at the start of every drive()/driveProactive(). An
+  // in-flight turn that observes a newer epoch after an await is SUPERSEDED
+  // (barge-in / a newer user turn): it must stop mutating driver state.
+  #epoch = 0;
+  // Roster characters resolve once per driver — the roster is fixed for the
+  // scene's lifetime, so no per-turn DB round-trips.
+  #characterCache = new Map<string, CharacterRecord | null>();
   // Dramaturg: completed-spoken-turn counter (cadence), single-flight guard, and a
   // once-only disable if the provider can't be constructed (e.g. missing key).
   #spokenTurns = 0;
   #reflecting = false;
-  #dramaturgDisabled = !DRAMATURG_ENABLED;
+  #dramaturgDisabled: boolean;
   // The in-flight reflection (null when idle) — held so headless callers can
   // await it between turns (see settleReflection).
   #reflection: Promise<void> | null = null;
 
-  private constructor(scene: Scene) {
+  private constructor(scene: Scene, deps?: Partial<SceneDriverDeps>) {
     this.scene = scene;
+    this.#deps = { ...defaultDeps, ...deps };
     this.#sceneState = createInitialSceneState(scene);
+    // An injected dramaturg provider force-enables reflection (tests);
+    // otherwise the env kill-switch decides.
+    this.#dramaturgDisabled = this.#deps.dramaturgProvider ? false : !DRAMATURG_ENABLED;
+  }
+
+  /** Construct a driver directly from a Scene struct — the test/simulator
+   *  entry point (no registry or DB resolution). */
+  static fromScene(scene: Scene, deps?: Partial<SceneDriverDeps>): SceneDriver {
+    return new SceneDriver(scene, deps);
   }
 
   /** Resolve a scene id — hardcoded registry first, then the DB graph→roster bridge. */
-  static async load(sceneId: string): Promise<SceneDriver | null> {
+  static async load(sceneId: string, deps?: Partial<SceneDriverDeps>): Promise<SceneDriver | null> {
     const scene =
       getScene(sceneId) ??
       (await getSceneStore()
         .resolveOrchestratorScene(sceneId)
         .catch(() => null));
-    return scene ? new SceneDriver(scene) : null;
+    return scene ? new SceneDriver(scene, deps) : null;
   }
 
   /** A character session IS a scene — load (auto-provisioning on first use) the
@@ -148,13 +207,16 @@ export class SceneDriver {
    *  character sessions through the exact same resolve path as any scene. Falls back
    *  to the legacy synthetic scene if provisioning/resolution fails — a DB hiccup
    *  must degrade observability, never take voice down. */
-  static async fromCharacter(character: CharacterRecord): Promise<SceneDriver> {
+  static async fromCharacter(
+    character: CharacterRecord,
+    deps?: Partial<SceneDriverDeps>,
+  ): Promise<SceneDriver> {
     try {
       const record = await getSceneStore().getOrCreateSoloScene(character.id);
       const scene = record
         ? await getSceneStore().resolveOrchestratorScene(record.id)
         : null;
-      if (scene) return new SceneDriver(scene);
+      if (scene) return new SceneDriver(scene, deps);
       console.warn(
         `[voice-agent] solo scene for "${character.slug}" did not resolve — falling back to synthetic scene`,
       );
@@ -164,7 +226,7 @@ export class SceneDriver {
         err,
       );
     }
-    return SceneDriver.syntheticFromCharacter(character);
+    return SceneDriver.syntheticFromCharacter(character, deps);
   }
 
   /** LEGACY floor: synthesize a one-actor scene (`character-sandbox:<slug>`) with no
@@ -172,7 +234,10 @@ export class SceneDriver {
    *  resolved (DB unavailable, character deleted mid-flight). The character's voice +
    *  brain are resolved by runVoiceStream from the id at speak time, so the scene
    *  `voice` field here is only a non-empty placeholder. */
-  static syntheticFromCharacter(character: CharacterRecord): SceneDriver {
+  static syntheticFromCharacter(
+    character: CharacterRecord,
+    deps?: Partial<SceneDriverDeps>,
+  ): SceneDriver {
     const slug = character.slug;
     const blurb = (character.summary ?? character.title).slice(0, 280);
     // sm-sound: the character's sandbox soundscape — the sound nodes placed
@@ -204,7 +269,7 @@ export class SceneDriver {
       defaultAmbience: defaultBed?.slug ?? null,
       ...(sounds.length > 0 ? { sounds } : {}),
     };
-    return new SceneDriver(scene);
+    return new SceneDriver(scene, deps);
   }
 
   /** Seed the running transcript with an opening character line (e.g. the greet)
@@ -230,6 +295,47 @@ export class SceneDriver {
     this.#onSfx = cb;
   }
 
+  /** Wire the narration sink: awaited with the narrator's literal text when the
+   *  director chooses `action:"narrate"`. The narrator turn is recorded in the
+   *  running transcript either way, so the director keeps continuity — without
+   *  a sink the line is silent (logged once). */
+  onNarrate(cb: (text: string) => Promise<void> | void): void {
+    this.#onNarrate = cb;
+  }
+
+  /** Voice + record a narrate decision. Returns true when audio was produced. */
+  async #narrate(text: string): Promise<boolean> {
+    this.#recentTurns.push({ speakerSlug: "narrator", speakerName: "Narrator", text });
+    this.#trim();
+    if (!this.#onNarrate) {
+      if (!this.#warnedUnvoicedNarration) {
+        this.#warnedUnvoicedNarration = true;
+        console.warn(
+          "[voice-agent] narrate decision with no narration sink — recorded in transcript, not voiced",
+        );
+      }
+      return false;
+    }
+    try {
+      await this.#onNarrate(text);
+      return true;
+    } catch (err) {
+      console.warn(`[voice-agent] narration failed: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
+  /** Resolve a roster slug to its character record, cached for the driver's
+   *  lifetime (the roster is fixed; misses are cached too). */
+  async #resolveCharacter(slugOrId: string): Promise<CharacterRecord | null> {
+    if (this.#characterCache.has(slugOrId)) {
+      return this.#characterCache.get(slugOrId) ?? null;
+    }
+    const record = await this.#deps.resolveCharacter(slugOrId).catch(() => null);
+    this.#characterCache.set(slugOrId, record);
+    return record;
+  }
+
   #emitSfx(cues: SfxCue[] | undefined): void {
     if (!this.#onSfx || !cues?.length) return;
     try {
@@ -247,13 +353,16 @@ export class SceneDriver {
    * warn only — the scene loop must never feel this.
    */
   #maybeReflect(): void {
-    if (this.#dramaturgDisabled || this.#reflecting) return;
+    if (this.#dramaturgDisabled) return;
+    // Count every completed spoken turn — even ones landing while a reflection
+    // is in flight — so the DRAMATURG_EVERY cadence doesn't stretch under load.
     this.#spokenTurns += 1;
+    if (this.#reflecting) return;
     if (this.#spokenTurns % DRAMATURG_EVERY !== 0) return;
 
-    let provider: ReturnType<typeof getChatProviderForModel>;
+    let provider: ChatProvider;
     try {
-      provider = getChatProviderForModel(DRAMATURG_MODEL);
+      provider = this.#deps.dramaturgProvider ?? getChatProviderForModel(DRAMATURG_MODEL);
     } catch (err) {
       // No key / unknown model — disable for the session, warn once.
       this.#dramaturgDisabled = true;
@@ -270,6 +379,7 @@ export class SceneDriver {
       sceneState: this.#sceneState,
       recentTurns: this.#recentTurns,
       previousNote: this.#sceneState.directorNote,
+      sceneFacts: this.#sceneFacts,
     });
     this.#reflection = provider
       .complete({
@@ -280,7 +390,7 @@ export class SceneDriver {
         signal: AbortSignal.timeout(DRAMATURG_TIMEOUT_MS),
       })
       .then((response) => {
-        const { note, landed } = parseDramaturgReflection(response.text);
+        const { note, landed, facts } = parseDramaturgReflection(response.text);
         // Validate landed labels against the authored arc (tolerant match →
         // canonical label), then expand: the arc is ordered, so a later beat
         // landing implies every earlier beat landed too (the dramaturg often
@@ -297,8 +407,22 @@ export class SceneDriver {
           arcLabels,
         );
         const newlyLanded = mergedLanded.filter((l) => !already.has(l.toLowerCase()));
-        if (!note && newlyLanded.length === 0) return;
+        // Durable facts: merge into the store (deduped, capped) and log the new ones.
+        const mergedFacts = updateSceneFacts({
+          previousFacts: this.#sceneFacts,
+          newFacts: facts,
+        });
+        const factsChanged =
+          mergedFacts.length !== this.#sceneFacts.length ||
+          mergedFacts.some((f, i) => f !== this.#sceneFacts[i]);
+        if (!note && newlyLanded.length === 0 && !factsChanged) return;
 
+        if (factsChanged) {
+          for (const fact of mergedFacts.filter((f) => !this.#sceneFacts.includes(f))) {
+            console.log(`[dramaturg] fact: ${fact}`);
+          }
+          this.#sceneFacts = mergedFacts;
+        }
         for (const label of newlyLanded) {
           console.log(`[dramaturg] beat landed: ${label}`);
         }
@@ -338,7 +462,10 @@ export class SceneDriver {
     if (!this.#onState) return;
     try {
       this.#onState(
-        buildSceneSessionSnapshot(this.#sceneState, { sceneMemory: this.#sceneMemory }),
+        buildSceneSessionSnapshot(this.#sceneState, {
+          sceneMemory: this.#sceneMemory,
+          sceneFacts: this.#sceneFacts,
+        }),
       );
     } catch {
       // best-effort — persistence must never disrupt the turn
@@ -357,11 +484,27 @@ export class SceneDriver {
     if (text.length < MIN_SPECULATE_CHARS) return;
     if (!SOLO_CUE_ENABLED && this.#presentRoster().length <= 1) return;
     if (this.#speculation?.basedOnText === text) return;
-    this.#speculation = { basedOnText: text, promise: this.#decide(text, "speculate") };
+    // A longer partial supersedes the in-flight speculation — cancel the
+    // provider call instead of letting it burn tokens to be discarded.
+    this.#speculation?.abort.abort();
+    const abort = new AbortController();
+    this.#speculation = {
+      basedOnText: text,
+      abort,
+      promise: this.#decide(text, "speculate", abort.signal),
+    };
   }
 
-  /** One finished user turn → orchestrate → voice the chosen character (if any). */
-  async drive(userText: string, speak: SceneSpeakFn): Promise<SceneDriveOutcome> {
+  /** One finished user turn → orchestrate → voice the chosen character (if any).
+   *  `signal` (optional) is the turn's abort — once it fires, or a newer turn
+   *  starts (epoch bump), this drive stops mutating driver state. */
+  async drive(
+    userText: string,
+    speak: SceneSpeakFn,
+    opts?: { signal?: AbortSignal },
+  ): Promise<SceneDriveOutcome> {
+    const epoch = ++this.#epoch;
+    const superseded = () => epoch !== this.#epoch || opts?.signal?.aborted === true;
     const spec = this.#speculation;
     this.#speculation = null;
 
@@ -375,36 +518,73 @@ export class SceneDriver {
     // Use the speculation if it was computed off ~the same intent as the final turn;
     // its orchestrate ran under the hold, so the await is usually instant (the gap is
     // hidden). Otherwise pay the orchestrate on the final transcript.
-    let rawDecision: OrchestratorDecision;
+    let rawDecision: OrchestratorDecision | null = null;
+    let decideFailed: string | undefined;
     if (spec && this.#acceptsSpeculation(spec.basedOnText, userText)) {
       const waitedAt = Date.now();
-      rawDecision = await spec.promise;
-      console.log(
-        `[voice-agent] speculative HIT (waited ${Date.now() - waitedAt}ms) → ${rawDecision.action} ${rawDecision.speakerId ?? ""}`.trimEnd(),
-      );
-    } else {
-      if (spec) {
-        spec.promise.catch(() => undefined); // discard the stale in-flight speculation
-        console.log("[voice-agent] speculative MISS — orchestrating on final transcript");
+      const result = await spec.promise;
+      if (!result.failed) {
+        rawDecision = result.decision;
+        console.log(
+          `[voice-agent] speculative HIT (waited ${Date.now() - waitedAt}ms) → ${rawDecision.action} ${rawDecision.speakerId ?? ""}`.trimEnd(),
+        );
+      } else {
+        console.log(
+          `[voice-agent] speculative decision failed (${result.failed}) — orchestrating on final transcript`,
+        );
       }
-      rawDecision = await this.#decide(userText);
+    } else if (spec) {
+      spec.abort.abort(); // cancel the stale in-flight speculation
+      console.log("[voice-agent] speculative MISS — orchestrating on final transcript");
     }
-    const resolution = resolveSceneDecision(
+    if (!rawDecision) {
+      const result = await this.#decide(userText);
+      rawDecision = result.decision;
+      decideFailed = result.failed;
+    }
+    // A newer turn owns the scene now — applying this decision would clobber
+    // its state (double turnIndex bump, stale beat) and interleave transcripts.
+    if (superseded()) {
+      console.log("[voice-agent] scene: turn superseded before decision applied");
+      return { action: rawDecision.action, spoke: false, superseded: true };
+    }
+    let resolution = resolveSceneDecision(
       { scene: this.scene, sceneState: this.#sceneState },
       rawDecision,
     );
+    // RECOVERY: the user just said something — a decision lost to an executor
+    // failure or an invalid shape must not resolve to silence. Let the
+    // character they were talking with (or the first present) answer plainly.
+    if (
+      (decideFailed || resolution.degraded) &&
+      resolution.decision.action === "wait-for-user"
+    ) {
+      const fallback = this.#fallbackSpeaker();
+      if (fallback) {
+        console.warn(
+          `[voice-agent] scene: decision degraded (${decideFailed ?? resolution.reason ?? "unknown"}) — recovering with speak:${fallback}`,
+        );
+        resolution = resolveSceneDecision(
+          { scene: this.scene, sceneState: this.#sceneState },
+          { action: "speak", speakerId: fallback },
+        );
+      }
+    }
     this.#sceneState = resolution.sceneState;
     this.#persistState();
     this.#emitSfx(resolution.decision.sfx);
+
+    if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
+      const voiced = await this.#narrate(resolution.decision.narration.trim());
+      return { action: "narrate", spoke: voiced };
+    }
 
     if (resolution.decision.action !== "speak" || !resolution.speakerSlug) {
       console.log(`[voice-agent] scene: ${resolution.decision.action} (no speaker)`);
       return { action: resolution.decision.action, spoke: false };
     }
 
-    const character =
-      (await getCharacterStore().getBySlug(resolution.speakerSlug).catch(() => null)) ??
-      (await getCharacterStore().getById(resolution.speakerSlug).catch(() => null));
+    const character = await this.#resolveCharacter(resolution.speakerSlug);
     if (!character) {
       console.warn(
         `[voice-agent] scene: speaker "${resolution.speakerSlug}" did not resolve — skipping turn`,
@@ -448,10 +628,23 @@ export class SceneDriver {
       },
       `s${Date.now()}`,
     );
-    this.#recentTurns.push({ speakerSlug: resolution.speakerSlug, text: replyText });
-    this.#trim();
-    this.#maybeReflect();
-    return { action: "speak", spoke: true };
+    // Superseded mid-speak (barge-in): the new turn's user text is already in
+    // the transcript, so appending this (cut-off) reply would land AFTER it —
+    // out of order. Drop it, matching the browser player's behavior.
+    if (superseded()) {
+      return { action: "speak", spoke: Boolean(replyText), superseded: true };
+    }
+    // An aborted/failed speak resolves to "" — never record an empty turn.
+    if (replyText) {
+      this.#recentTurns.push({
+        speakerSlug: resolution.speakerSlug,
+        speakerName: displayName,
+        text: replyText,
+      });
+      this.#trim();
+      this.#maybeReflect();
+    }
+    return { action: "speak", spoke: Boolean(replyText) };
   }
 
   /**
@@ -460,7 +653,12 @@ export class SceneDriver {
    * / presses) or holds (`wait-for-user`). Latency is invisible — nobody is waiting.
    * The silence is NOT recorded as a user turn. Returns true iff a character spoke.
    */
-  async driveProactive(speak: SceneSpeakFn): Promise<boolean> {
+  async driveProactive(
+    speak: SceneSpeakFn,
+    opts?: { signal?: AbortSignal },
+  ): Promise<boolean> {
+    const epoch = ++this.#epoch;
+    const superseded = () => epoch !== this.#epoch || opts?.signal?.aborted === true;
     // Refusal echo guard: if the last spoken line was assistant boilerplate
     // that slipped past the pipeline's re-roll, a proactive turn tends to
     // parrot it verbatim (the model anchors on its own last line). Hold for
@@ -470,7 +668,15 @@ export class SceneDriver {
       console.log("[voice-agent] proactive: hold (last reply was refusal boilerplate)");
       return false;
     }
-    const decision = await this.#decide(PROACTIVE_SILENCE_MARKER, "proactive");
+    // Proactive failures stay a hold — nobody is waiting, so silence is the
+    // correct degraded behavior (unlike the reactive path's recovery).
+    const { decision } = await this.#decide(PROACTIVE_SILENCE_MARKER, "proactive");
+    // The user started talking (or a new turn began) while we deliberated —
+    // the floor is theirs; don't apply the proactive decision.
+    if (superseded()) {
+      console.log("[voice-agent] proactive: superseded before decision applied");
+      return false;
+    }
     const resolution = resolveSceneDecision(
       { scene: this.scene, sceneState: this.#sceneState },
       decision,
@@ -479,14 +685,17 @@ export class SceneDriver {
     this.#persistState();
     this.#emitSfx(resolution.decision.sfx);
 
+    if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
+      console.log("[voice-agent] proactive: narrator bridges");
+      return await this.#narrate(resolution.decision.narration.trim());
+    }
+
     if (resolution.decision.action !== "speak" || !resolution.speakerSlug) {
       console.log(`[voice-agent] proactive: ${resolution.decision.action} (hold)`);
       return false;
     }
 
-    const character =
-      (await getCharacterStore().getBySlug(resolution.speakerSlug).catch(() => null)) ??
-      (await getCharacterStore().getById(resolution.speakerSlug).catch(() => null));
+    const character = await this.#resolveCharacter(resolution.speakerSlug);
     if (!character) {
       console.warn(`[voice-agent] proactive: speaker "${resolution.speakerSlug}" did not resolve`);
       return false;
@@ -500,15 +709,28 @@ export class SceneDriver {
     const beat = resolution.decision.beat ?? this.#sceneState.beat;
     const hasCue = Boolean(resolution.decision.beat || resolution.decision.sceneCue);
     // Shared with the reactive path (buildSpeakerTurnRequest) so the
-    // speaker's authored agenda rides along on proactive turns too.
+    // speaker's authored agenda — and the multi-party attribution
+    // convention — ride along on proactive turns too.
     const directive = buildDirectiveChunk({
       beat,
       sceneCue: resolution.decision.sceneCue,
       speaker: speakerCharacter,
+      othersPresent: this.scene.characters
+        .filter(
+          (c) =>
+            c.characterSlug !== resolution.speakerSlug &&
+            this.#sceneState.presentCharacterSlugs.includes(c.characterSlug),
+        )
+        .map((c) => c.displayName),
     });
+    // Same attribution rule as buildSpeakerTurnRequest: other characters'
+    // lines are name-prefixed so the speaker can tell them from the user's.
     const history = this.#recentTurns.slice(-RECENT_TURNS_LIMIT).map((turn) => ({
       role: turn.speakerSlug === resolution.speakerSlug ? ("assistant" as const) : ("user" as const),
-      content: turn.text,
+      content:
+        turn.speakerSlug === "user" || turn.speakerSlug === resolution.speakerSlug
+          ? turn.text
+          : `${turn.speakerName ?? turn.speakerSlug}: ${turn.text}`,
     }));
 
     console.log(`[voice-agent] proactive: ${resolution.speakerSlug} follows up`);
@@ -524,12 +746,17 @@ export class SceneDriver {
       },
       `p${Date.now()}`,
     );
+    if (superseded()) return Boolean(replyText);
     if (replyText) {
-      this.#recentTurns.push({ speakerSlug: resolution.speakerSlug, text: replyText });
+      this.#recentTurns.push({
+        speakerSlug: resolution.speakerSlug,
+        speakerName: displayName,
+        text: replyText,
+      });
       this.#trim();
       this.#maybeReflect();
     }
-    return true;
+    return Boolean(replyText);
   }
 
   /** Director-side statuses for the observability `sceneFeatures` block (see
@@ -562,6 +789,14 @@ export class SceneDriver {
     );
   }
 
+  /** Who absorbs a failed decision after a real user message: whoever the
+   *  user was talking with (addressee continuity), else the first present. */
+  #fallbackSpeaker(): string | null {
+    const present = this.#presentRoster();
+    if (present.length === 0) return null;
+    return present.find((slug) => slug === this.#sceneState.lastSpeakerSlug) ?? present[0]!;
+  }
+
   /** Accept a speculation only when its text is a prefix of the final turn AND
    *  covers most of it — so the speaker was chosen off ~the whole intent. */
   #acceptsSpeculation(basedOnText: string, finalText: string): boolean {
@@ -580,7 +815,8 @@ export class SceneDriver {
   async #decide(
     userText: string,
     phase: "final" | "speculate" | "proactive" = "final",
-  ): Promise<OrchestratorDecision> {
+    signal?: AbortSignal,
+  ): Promise<DecideResult> {
     const present = this.#presentRoster();
     const solo = present.length <= 1 ? (present[0] ?? null) : null;
     const soloFloor: OrchestratorDecision | null =
@@ -590,16 +826,20 @@ export class SceneDriver {
           ? { action: "speak", speakerId: solo }
           : null;
 
-    const { executor } = resolveOrchestratorExecutor();
-    if (!executor) return soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState);
+    const { executor } = this.#deps.resolveExecutor();
+    if (!executor) {
+      return { decision: soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState) };
+    }
 
     // Solo → the lone character carries the turn. Reactive solo skips the LLM on the
     // hot path (the cue rides a speculative HIT) unless opted in. Proactive solo
     // ALWAYS calls it — no user is waiting, so latency is invisible and the director
     // gets to choose advance-or-hold.
     if (solo) {
-      if (phase === "speculate" && !SOLO_CUE_ENABLED) return soloFloor!;
-      if (phase === "final" && (!SOLO_CUE_ENABLED || !SOLO_CUE_ON_MISS)) return soloFloor!;
+      if (phase === "speculate" && !SOLO_CUE_ENABLED) return { decision: soloFloor! };
+      if (phase === "final" && (!SOLO_CUE_ENABLED || !SOLO_CUE_ON_MISS)) {
+        return { decision: soloFloor! };
+      }
     }
 
     const request = buildSceneDecisionRequest({
@@ -607,23 +847,34 @@ export class SceneDriver {
       sceneState: this.#sceneState,
       recentTurns: this.#recentTurns,
       sceneMemory: this.#sceneMemory,
+      sceneFacts: this.#sceneFacts,
       lastUserMessage: userText,
     });
 
     const startedAt = Date.now();
     try {
-      const decision = await executor.execute(request);
+      const decision = await executor.execute(request, { signal });
       console.log(
         `[voice-agent] orchestrate[${phase}] ${Date.now() - startedAt}ms → ${decision.action} ${decision.speakerId ?? ""}`.trimEnd(),
       );
-      // Reactive solo: pin the speaker (the user addressed them). Proactive solo:
-      // respect a `wait-for-user` decision — that's the silence/monologue brake.
-      return solo && phase !== "proactive"
-        ? { ...decision, action: "speak", speakerId: solo }
-        : decision;
+      // Reactive solo: pin the speaker (the user addressed them, so a
+      // `wait-for-user` would leave them hanging). Never override end-scene
+      // or narrate — those are deliberate non-speak moves. Proactive solo:
+      // respect `wait-for-user` too — that's the silence/monologue brake.
+      const pinnable = decision.action === "speak" || decision.action === "wait-for-user";
+      return {
+        decision:
+          solo && phase !== "proactive" && pinnable
+            ? { ...decision, action: "speak", speakerId: solo }
+            : decision,
+      };
     } catch (err) {
-      console.error("[voice-agent] orchestrate failed", err);
-      return soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState);
+      const failed = err instanceof Error ? err.message : String(err);
+      if (!signal?.aborted) console.error("[voice-agent] orchestrate failed", err);
+      return {
+        decision: soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState),
+        failed,
+      };
     }
   }
 

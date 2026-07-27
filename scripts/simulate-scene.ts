@@ -38,7 +38,10 @@ import { createInterface } from "node:readline/promises";
 import { getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
 import { getChatProviderForModel } from "@kawabunga/engine";
 import { runVoiceStream } from "@kawabunga/voice-pipeline";
-import type { SceneSessionSnapshot } from "@kawabunga/orchestration";
+import {
+  resolveOrchestratorExecutor,
+  type SceneSessionSnapshot,
+} from "@kawabunga/orchestration";
 import { SceneDriver, type SceneSpeakInput } from "../services/voice-agent/src/scene-driver";
 
 /* ── Flags ────────────────────────────────────────────────────── */
@@ -58,6 +61,9 @@ const userPersona = flag("--user");
 const userModel = flag("--user-model") ?? "claude-haiku-4-5-20251001";
 const maxTurns = Number(flag("--max-turns") ?? 8);
 const turnDelayMs = Number(flag("--delay") ?? 0);
+// Force the director provider (cerebras|groq), bypassing ORCHESTRATOR_PROVIDER
+// from .env — dotenv override:true means a shell var can't win against it.
+const providerFlag = flag("--provider");
 const persist = has("--persist");
 const jsonPath = flag("--json");
 
@@ -97,9 +103,12 @@ async function main() {
   }
 
   // ── Load the scene through the same paths the voice agent uses.
+  const driverDeps = providerFlag
+    ? { resolveExecutor: () => resolveOrchestratorExecutor({ provider: providerFlag }) }
+    : undefined;
   let driver: SceneDriver;
   if (sceneId) {
-    const loaded = await SceneDriver.load(sceneId);
+    const loaded = await SceneDriver.load(sceneId, driverDeps);
     if (!loaded) throw new Error(`scene "${sceneId}" did not resolve`);
     driver = loaded;
   } else {
@@ -109,7 +118,7 @@ async function main() {
     if (!character) throw new Error(`character "${characterRef}" did not resolve`);
     // Loads (auto-provisioning) the character's solo scene — a real scene row,
     // so --persist writes a valid scene_sessions.scene_id.
-    driver = await SceneDriver.fromCharacter(character);
+    driver = await SceneDriver.fromCharacter(character, driverDeps);
   }
   const scene = driver.scene;
 

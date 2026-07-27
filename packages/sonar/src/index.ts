@@ -1,6 +1,10 @@
 export { SONAR_VERSION } from "./version";
 export * from "./types";
 export { runSonarSuite, type RunSonarSuiteOptions } from "./runner";
+// NOTE: the LiveKit runner is deliberately NOT re-exported here — importing
+// @livekit/rtc-node loads a native module that holds the event loop open,
+// which would hang every sonar/benchmark CLI exit. Import it lazily via the
+// "@kawabunga/sonar/livekit" subpath only when actually running it.
 export { extractVoiceStreamSpans, extractServerTrace } from "./spans";
 export { readTimedSseFrames } from "./sse";
 export { aggregate, percentile, sloAttainmentPct } from "./stats";
@@ -18,6 +22,7 @@ export {
   SUITES,
   VOICE_BASELINE,
   SCENE_BASELINE,
+  SCENE_ROSTER_BASELINE,
   AGENCY_BASELINE,
   CONTEXT_ACTIVATION_BASELINE,
   ENDPOINTING,

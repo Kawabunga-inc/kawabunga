@@ -76,3 +76,6 @@ apps/admin/.next-preview/
 eval-report-*.json
 model-sweep-*.json
 construction-sweep-*.json
+
+# Build output — packages export ./src/*.ts directly; dist/ is local tsc debris
+packages/*/dist/

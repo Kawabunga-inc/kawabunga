@@ -117,11 +117,30 @@ describe("parseDramaturgReflection", () => {
     expect(parseDramaturgReflection("Just a note.")).toEqual({
       note: "Just a note.",
       landed: [],
+      facts: [],
     });
     expect(parseDramaturgReflection("landed: Something Happened")).toEqual({
       note: null,
       landed: ["Something Happened"],
+      facts: [],
     });
+  });
+
+  it("extracts FACT lines alongside the note and landings", () => {
+    const { note, landed, facts } = parseDramaturgReflection(
+      [
+        "FACT: Sarah admitted she laughed at the promise.",
+        "LANDED: The laugh is named",
+        "fact:   Eliezer  followed the strangers to the ridge.",
+        "Press Abraham on whether he shares her doubt.",
+      ].join("\n"),
+    );
+    expect(facts).toEqual([
+      "Sarah admitted she laughed at the promise.",
+      "Eliezer followed the strangers to the ridge.",
+    ]);
+    expect(landed).toEqual(["The laugh is named"]);
+    expect(note).toBe("Press Abraham on whether he shares her doubt.");
   });
 });
 

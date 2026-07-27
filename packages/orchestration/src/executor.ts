@@ -12,7 +12,10 @@ export type OrchestratorProvider = "cerebras" | "groq";
 export type OrchestratorExecutor = {
   provider: OrchestratorProvider;
   model: string;
-  execute(request: SceneDecisionRequest): Promise<OrchestratorDecision>;
+  execute(
+    request: SceneDecisionRequest,
+    opts?: { signal?: AbortSignal },
+  ): Promise<OrchestratorDecision>;
 };
 
 export type OrchestratorExecutorResolution = {
@@ -35,6 +38,10 @@ const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
 const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 const DEFAULT_MAX_COMPLETION_TOKENS = 1024;
+// Director calls run 0.4–2s in practice; the timeout is a hung-provider
+// backstop, not a latency budget. The turn loop blocks on this call, so a
+// stalled fetch would otherwise stall the whole scene.
+const DEFAULT_TIMEOUT_MS = 10_000;
 
 export function resolveOrchestratorExecutor(
   config: OrchestratorExecutorConfig = {},
@@ -146,7 +153,7 @@ function createOpenAiCompatibleExecutor(opts: {
   return {
     provider: opts.provider,
     model: opts.model,
-    execute: (request) =>
+    execute: (request, executeOpts) =>
       callOpenAiCompatibleOrchestrator({
         provider: opts.provider,
         endpoint: opts.endpoint,
@@ -154,6 +161,7 @@ function createOpenAiCompatibleExecutor(opts: {
         model: opts.model,
         request,
         fetchImpl: opts.fetchImpl,
+        signal: executeOpts?.signal,
       }),
   };
 }
@@ -165,9 +173,15 @@ async function callOpenAiCompatibleOrchestrator(opts: {
   model: string;
   request: SceneDecisionRequest;
   fetchImpl: typeof fetch;
+  signal?: AbortSignal;
 }): Promise<OrchestratorDecision> {
+  // Hung-provider backstop + caller cancellation (e.g. a superseded
+  // speculation) in one signal.
+  const timeout = AbortSignal.timeout(readTimeoutMs());
+  const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout;
   const resp = await opts.fetchImpl(opts.endpoint, {
     method: "POST",
+    signal,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${opts.apiKey}`,
@@ -234,6 +248,17 @@ function readMaxCompletionTokens(): number {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return DEFAULT_MAX_COMPLETION_TOKENS;
+  }
+  return parsed;
+}
+
+function readTimeoutMs(): number {
+  const raw = process.env.ORCHESTRATOR_TIMEOUT_MS?.trim();
+  if (!raw) return DEFAULT_TIMEOUT_MS;
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_TIMEOUT_MS;
   }
   return parsed;
 }

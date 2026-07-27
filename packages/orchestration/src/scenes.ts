@@ -1,8 +1,17 @@
 import type { Scene } from "@kawabunga/types";
 
-// Static scene registry. For this phase, scenes are authored in code.
-// The orchestration package owns scene meaning and turn planning; later
-// this registry can be backed by persisted scene definitions.
+// Static scene registry — code-authored scenes that exist without a DB row.
+//
+// Current role: stable fixtures for benchmarks and headless runs (sonar's
+// scene-roster-baseline, simulate-scene, the LiveKit smoke path) — places
+// where a canvas-editable DB scene would make results drift under edits.
+// Authored production scenes live in the scenes table.
+//
+// ORDERING CAVEAT: every resolver (SceneDriver.load, admin resolveScene)
+// checks this registry BEFORE the DB, so a registry id shadows any DB scene
+// with the same id. DB ids are UUIDs and registry ids are slugs, so a
+// collision takes deliberate effort — but never add a registry id that
+// could collide with an authored scene's id or slug.
 
 const ABRAHAMS_TENT: Scene = {
   id: "abrahams-tent",

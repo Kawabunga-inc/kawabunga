@@ -1,58 +1,71 @@
 # @kawabunga/voice-agent
 
-The LiveKit twin of `services/voice-host`. A long-running `@livekit/agents` worker that
-registers with LiveKit, is dispatched into a room, and (from A2 on) runs the Kawabunga voice
-pipeline server-side over a WebRTC track — gaining real-time transport, AEC, and barge-in
-that the SSE path can't do. The knowledge-graph brain (`runVoiceStream`) is reused unchanged.
+The LiveKit twin of `services/voice-host`. A long-running `@livekit/agents`
+worker that registers with LiveKit, is dispatched into a room, and runs the
+Kawabunga voice pipeline server-side over a WebRTC track — real-time
+transport, AEC, and barge-in the SSE path can't do. The knowledge-graph
+brain (`runVoiceStream` from `@kawabunga/voice-pipeline`) is reused
+unchanged.
 
-## Status — A1 (skeleton)
+## Status
 
-This is the **A1** cut: the worker **registers + connects + warms bge + proves transport**
-(logs the room, participants, and subscribed tracks). It does **not** produce audio yet.
+Fully wired — the unit of voice is a **scene**:
 
-Sequenced next:
-- **A2** — replace the `entry` body with an `AgentSession` whose end-of-turn calls
-  `runVoiceStream` (the same generator voice-host uses) and publishes audio to the room.
-- **A3** — STT plugin (hosted, or audio-rt behind the agent).
-- **A4** — Silero VAD + LiveKit **v1-mini** turn detector (replaces Smart Turn).
+- **Rooms route by name** (`src/agent.ts`): `scene-<sceneId>-<sessionUUID>`
+  runs the multi-character orchestrator loop; `char-<characterUUID>-<sessionId>`
+  is a legacy shim resolving to that character's solo scene. Every room runs
+  through one `SceneDriver`.
+- **`SceneDriver`** (`src/scene-driver.ts`) owns the loop: per-turn director
+  decisions (Cerebras/Groq, in-process — no HTTP hop), speculative speaker
+  selection under the endpoint hold, the async **dramaturg** (director's
+  notes, arc landings, durable scene facts), narration TTS, sfx cues, turn
+  epochs/abort, and degraded-decision recovery.
+- **Audio in**: LiveKit Inference STT (`deepgram/nova-3` default), silero
+  VAD, `v1-mini` end-of-turn detector, Krisp background-voice cancellation.
+- **Audio out**: a dedicated published track fed by `runVoiceStream`
+  (deliberately not `session.say` — see the note in `src/agent.ts`), plus a
+  second `world-audio` track for ambience beds and one-shots
+  (`src/world-audio.ts`).
 
-## Run (the A1 gate)
+## Env flags
 
-1. **Install** (from repo root). `@livekit/agents` is intentionally NOT in `package.json` — its
-   version isn't pinned yet, so add it explicitly to lock the real one:
-   ```
-   npm install                                             # reconciles the new workspace into the lockfile
-   npm install @livekit/agents@latest -w @kawabunga/voice-agent   # adds the framework, pins the real version
-   # A3/A4: npm install @livekit/agents-plugin-silero@latest @livekit/agents-plugin-livekit@latest -w @kawabunga/voice-agent  (+ an STT plugin)
-   ```
-   Then `npx tsc --noEmit -p services/voice-agent` to confirm `src/agent.ts`'s imports match the
-   installed SDK — the worker/session API is version-sensitive (see the note in `src/agent.ts`).
-2. **Credentials.** Create a LiveKit Cloud project; copy `.env.example` → `.env` and fill
-   `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`.
-3. **Run the worker** (from repo root):
-   ```
-   npm run agent:voice -- dev
-   ```
-4. **Trigger the gate.** Join a room the worker is dispatched to (e.g. the LiveKit Cloud
-   Agents Playground, or any client publishing a mic track). Expected logs:
-   ```
-   [voice-agent] healthz on :8080
-   [voice-agent] bge warm — embedder ready
-   [voice-agent] connected to room "<name>"
-   [voice-agent] participant joined: <identity>
-   [voice-agent] track audio from <identity>
-   ```
-   `GET /healthz` → `{ "ok": true, "service": "voice-agent" }` (process liveness only —
-   prewarm runs in forked job subprocesses, so the health process can't see bge state).
+| Flag | Default | What it does |
+|---|---|---|
+| `VOICE_AGENT_CHARACTER_ID` | — | fallback character for rooms that encode neither scene nor character |
+| `VOICE_AGENT_STT` | `deepgram/nova-3` | LiveKit Inference STT model |
+| `VOICE_AGENT_SPECULATE` | on | speculative speaker selection off partial transcripts (`=0` off) |
+| `VOICE_AGENT_PROACTIVE` | off | director may take a turn after `VOICE_AGENT_IDLE_MS` silence (`=1` on) |
+| `VOICE_AGENT_DRAMATURG` | on | async reflection loop (notes, arc, facts; `=0` off) |
+| `VOICE_AGENT_DRAMATURG_MODEL` | `claude-sonnet-4-5` | dramaturg model |
+| `VOICE_AGENT_WORLD_AUDIO` | on | ambience/sfx track (`=0` off) |
+| `VOICE_AGENT_PERSIST_SCENE` | off | persist SceneState snapshots to the session (`=1` on) |
+| `VOICE_AGENT_SOLO_CUE` / `_ON_MISS` | on / off | latency-hidden director cues for solo scenes |
+| `ORCHESTRATOR_PROVIDER` / `_TIMEOUT_MS` | auto / 10000 | director provider pin and hung-call backstop |
 
-That round-trip (worker registers → joins a room → sees the user's audio track) is the A1
-exit criterion: transport is proven before any brain wiring.
+Plus the brain's env (`DATABASE_URL`, provider keys, `ELEVENLABS_*`, …) and
+`LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`.
+
+## Run
+
+```bash
+npm run dev -w @kawabunga/voice-agent     # loads services/voice-agent/.env + root .env
+npm run agent:voice -- dev                # repo root; env must already be exported
+```
+
+Join via the admin sandbox (`NEXT_PUBLIC_VOICE_AGENT=1`) or the LiveKit
+Agents Playground. `GET /healthz` reports process liveness only.
+
+Headless, no LiveKit needed:
+
+```bash
+npm run simulate -- --scene abrahams-tent --user "a skeptical traveler"   # full loop, text-only
+npm run scene-probes                                                      # director decision probes
+npx vitest run services/voice-agent                                       # driver unit tests
+```
 
 ## Deploy (Railway)
 
 Dockerfile mirrors voice-host: build context = repo root, Dockerfile path
-`services/voice-agent/Dockerfile`, `npm ci` + bge pre-bake, healthcheck `/healthz`. Set the
-`LIVEKIT_*` env in Railway; leave `EMBEDDING_PROVIDER` unset (warm in-process bge).
-
-> Branch: `feat/voice-agent` (off `origin/main`). Built in the `/tmp/kawabunga-voice-agent`
-> worktree to keep the main checkout's WIP untouched.
+`services/voice-agent/Dockerfile`, `npm ci` + bge pre-bake, healthcheck
+`/healthz`. Set the `LIVEKIT_*` env in Railway; leave `EMBEDDING_PROVIDER`
+unset (warm in-process bge).

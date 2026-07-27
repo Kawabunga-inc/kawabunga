@@ -6,6 +6,7 @@ import {
   buildSpeakerTurnRequest,
   createInitialSceneState,
   resolveSceneDecision,
+  RECENT_TURNS_LIMIT,
   type SpeakerTurnRequest,
 } from "@kawabunga/orchestration/client";
 import { SceneAudioBus, type SceneAudioMetrics } from "./scene-audio-bus";
@@ -89,8 +90,6 @@ export type UseSceneRunnerResult = {
   sendUserMessage: (text: string, options?: { turnId?: string }) => Promise<void>;
   stop: () => void;
 };
-
-const RECENT_TURNS_LIMIT = 8;
 
 export function useScenePlayer(opts: UseSceneRunnerOptions): UseSceneRunnerResult {
   const { scene, sessionId } = opts;
