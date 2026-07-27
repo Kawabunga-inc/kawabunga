@@ -536,6 +536,39 @@ describe("@kawabunga/orchestration client", () => {
   });
 });
 
+describe("addressee hint — vocative vs mention", () => {
+  const request = (lastUserMessage: string) =>
+    buildSceneDecisionRequest({
+      scene,
+      sceneState: { ...createInitialSceneState(scene), lastSpeakerSlug: "turing" },
+      recentTurns: [{ speakerSlug: "user", text: "earlier" }],
+      lastUserMessage,
+    }).messages[1]!.content;
+
+  it("reads a trailing name as a vocative even without the comma (STT)", () => {
+    const prompt = request("And do you believe what the machine showed Ada?");
+    expect(prompt).toContain("turns TO Ada");
+    expect(prompt).not.toContain("mid-sentence");
+  });
+
+  it("reads a leading or you-preceded name as a vocative", () => {
+    expect(request("Ada - was it you at the machine?")).toContain("turns TO Ada");
+    expect(request("and you Ada what did you see")).toContain("turns TO Ada");
+  });
+
+  it("reads an embedded name as a mention that must not steal the turn", () => {
+    const prompt = request("What Ada told the committee - do you believe it?");
+    expect(prompt).toContain("Ada is named mid-sentence");
+    expect(prompt).not.toContain("turns TO Ada");
+  });
+
+  it("emits no hint when nobody present is named", () => {
+    const prompt = request("What happens next in this room?");
+    expect(prompt).not.toContain("turns TO");
+    expect(prompt).not.toContain("mid-sentence");
+  });
+});
+
 describe("scene facts (durable memory)", () => {
   it("merges, dedupes case-insensitively, and caps the facts store", () => {
     const merged = updateSceneFacts({

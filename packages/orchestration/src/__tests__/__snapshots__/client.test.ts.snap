@@ -79,9 +79,9 @@ Return your decision as JSON matching the provided schema.",
 
 The user just said: "Sarah, why did you laugh?"
 Bias your decision toward whoever the user is addressing.
-The user's message names Sarah (slug: sarah) - a present character named like this is being addressed
-unless they are clearly only mentioned in passing; the addressed
-character answers, themselves.
+The user's message turns TO Sarah (slug: sarah) -
+the name sits where spoken language puts a direct address (transcripts
+often drop the comma). Sarah answers, themselves.
 
 What happens next?",
     "role": "user",
