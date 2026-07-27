@@ -134,18 +134,20 @@ describe("SceneDriver — speaker turns", () => {
     expect(lastDialogue(exec.requests)).toContain("Sarah: I did not laugh.");
   });
 
-  it("falls back to wait-for-user on an unknown speaker and records nothing", async () => {
+  it("recovers from an unknown speaker by letting the fallback character answer", async () => {
     const exec = fakeExecutor([speakDecision("melchizedek")]);
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
     });
-    const { speak, inputs } = fakeSpeak(["never spoken"]);
+    const { speak, inputs } = fakeSpeak(["I am here, friend."]);
 
+    // Unknown speaker → degraded wait → recovery: the user spoke, so the
+    // fallback (first present; no prior addressee) answers instead of silence.
     const outcome = await driver.drive("Hello?", speak);
-    expect(outcome.action).toBe("wait-for-user");
-    expect(outcome.spoke).toBe(false);
-    expect(inputs).toHaveLength(0);
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.characterId).toBe("id-abraham");
   });
 
   it("never records an empty reply turn", async () => {
@@ -407,6 +409,111 @@ describe("SceneDriver — proactive turns", () => {
     const spoke = await driver.driveProactive(speak);
     expect(spoke).toBe(false);
     expect(exec.calls).toBe(callsBefore); // held without consulting the director
+  });
+});
+
+describe("SceneDriver — degraded-decision recovery", () => {
+  const failingExecutor = () => {
+    let calls = 0;
+    return {
+      resolveExecutor: (): OrchestratorExecutorResolution => ({
+        executor: {
+          provider: "cerebras" as const,
+          model: "fake",
+          execute: async () => {
+            calls += 1;
+            throw new Error("provider down");
+          },
+        },
+      }),
+      get calls() {
+        return calls;
+      },
+    };
+  };
+
+  it("answers with the last addressee when the executor fails after a user message", async () => {
+    // Seed addressee continuity: Sarah spoke last on a healthy turn.
+    const healthy = fakeExecutor([speakDecision("sarah")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: healthy.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(["I did not laugh.", "As I said - I did not."]);
+    await driver.drive("Sarah, did you laugh?", speak);
+
+    // Now the director goes down mid-conversation.
+    const broken = failingExecutor();
+    const driver2 = SceneDriver.fromScene(TENT, {
+      resolveExecutor: broken.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak: speak2, inputs: inputs2 } = fakeSpeak(["Peace, friend."]);
+    const outcome = await driver2.drive("Anyone there?", speak2);
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(inputs2).toHaveLength(1);
+    expect(inputs2[0]!.characterId).toBe("id-abraham"); // no addressee yet → first present
+    expect(inputs).toHaveLength(1);
+  });
+
+  it("keeps proactive failures as a hold (nobody is waiting)", async () => {
+    const broken = failingExecutor();
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: broken.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(["unused"]);
+
+    const spoke = await driver.driveProactive(speak);
+    expect(spoke).toBe(false);
+    expect(inputs).toHaveLength(0);
+  });
+});
+
+describe("SceneDriver — speculation cancellation", () => {
+  /** Executor that records each call's abort signal and never resolves until released. */
+  const signalRecordingExecutor = (decision: OrchestratorDecision) => {
+    const signals: Array<AbortSignal | undefined> = [];
+    return {
+      resolveExecutor: (): OrchestratorExecutorResolution => ({
+        executor: {
+          provider: "cerebras" as const,
+          model: "fake",
+          execute: async (_request, opts?: { signal?: AbortSignal }) => {
+            signals.push(opts?.signal);
+            return decision;
+          },
+        },
+      }),
+      signals,
+    };
+  };
+
+  it("aborts the in-flight speculation when a longer partial supersedes it", async () => {
+    const exec = signalRecordingExecutor(speakDecision("abraham"));
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+
+    driver.speculate("Sarah, did you laugh");
+    driver.speculate("Sarah, did you laugh at the promise of a son");
+    expect(exec.signals).toHaveLength(2);
+    expect(exec.signals[0]?.aborted).toBe(true);
+    expect(exec.signals[1]?.aborted).toBe(false);
+  });
+
+  it("aborts a stale speculation on a MISS", async () => {
+    const exec = signalRecordingExecutor(speakDecision("abraham"));
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak } = fakeSpeak(["Welcome."]);
+
+    driver.speculate("Sarah, did you");
+    await driver.drive("Abraham, tell me of the strangers.", speak);
+    expect(exec.signals[0]?.aborted).toBe(true);
   });
 });
 

@@ -120,6 +120,10 @@ const defaultDeps: SceneDriverDeps = {
     (await getCharacterStore().getById(slugOrId).catch(() => null)),
 };
 
+/** What #decide resolves to: the decision, plus the failure it papered over
+ *  (executor error / timeout) so the caller can recover instead of waiting. */
+type DecideResult = { decision: OrchestratorDecision; failed?: string };
+
 /**
  * Drives a multi-character SCENE over a LiveKit room. Each user turn it asks the
  * orchestrator who speaks next — IN-PROCESS (no HTTP hop): fastpath when the roster
@@ -139,7 +143,12 @@ export class SceneDriver {
   // B4: the in-flight speculative decision (orchestrated off a partial transcript
   // during the endpoint hold) + the text it was computed from, so drive() can
   // accept it when the final transcript matches and skip the orchestrate latency.
-  #speculation: { basedOnText: string; promise: Promise<OrchestratorDecision> } | null = null;
+  // The controller cancels the provider call when the speculation goes stale.
+  #speculation: {
+    basedOnText: string;
+    abort: AbortController;
+    promise: Promise<DecideResult>;
+  } | null = null;
   // Optional persistence hook — invoked with a fresh snapshot after every decision.
   #onState: ((snapshot: SceneSessionSnapshot) => void) | null = null;
   #onSfx: ((cues: SfxCue[]) => void) | null = null;
@@ -453,7 +462,15 @@ export class SceneDriver {
     if (text.length < MIN_SPECULATE_CHARS) return;
     if (!SOLO_CUE_ENABLED && this.#presentRoster().length <= 1) return;
     if (this.#speculation?.basedOnText === text) return;
-    this.#speculation = { basedOnText: text, promise: this.#decide(text, "speculate") };
+    // A longer partial supersedes the in-flight speculation — cancel the
+    // provider call instead of letting it burn tokens to be discarded.
+    this.#speculation?.abort.abort();
+    const abort = new AbortController();
+    this.#speculation = {
+      basedOnText: text,
+      abort,
+      promise: this.#decide(text, "speculate", abort.signal),
+    };
   }
 
   /** One finished user turn → orchestrate → voice the chosen character (if any).
@@ -479,19 +496,29 @@ export class SceneDriver {
     // Use the speculation if it was computed off ~the same intent as the final turn;
     // its orchestrate ran under the hold, so the await is usually instant (the gap is
     // hidden). Otherwise pay the orchestrate on the final transcript.
-    let rawDecision: OrchestratorDecision;
+    let rawDecision: OrchestratorDecision | null = null;
+    let decideFailed: string | undefined;
     if (spec && this.#acceptsSpeculation(spec.basedOnText, userText)) {
       const waitedAt = Date.now();
-      rawDecision = await spec.promise;
-      console.log(
-        `[voice-agent] speculative HIT (waited ${Date.now() - waitedAt}ms) → ${rawDecision.action} ${rawDecision.speakerId ?? ""}`.trimEnd(),
-      );
-    } else {
-      if (spec) {
-        spec.promise.catch(() => undefined); // discard the stale in-flight speculation
-        console.log("[voice-agent] speculative MISS — orchestrating on final transcript");
+      const result = await spec.promise;
+      if (!result.failed) {
+        rawDecision = result.decision;
+        console.log(
+          `[voice-agent] speculative HIT (waited ${Date.now() - waitedAt}ms) → ${rawDecision.action} ${rawDecision.speakerId ?? ""}`.trimEnd(),
+        );
+      } else {
+        console.log(
+          `[voice-agent] speculative decision failed (${result.failed}) — orchestrating on final transcript`,
+        );
       }
-      rawDecision = await this.#decide(userText);
+    } else if (spec) {
+      spec.abort.abort(); // cancel the stale in-flight speculation
+      console.log("[voice-agent] speculative MISS — orchestrating on final transcript");
+    }
+    if (!rawDecision) {
+      const result = await this.#decide(userText);
+      rawDecision = result.decision;
+      decideFailed = result.failed;
     }
     // A newer turn owns the scene now — applying this decision would clobber
     // its state (double turnIndex bump, stale beat) and interleave transcripts.
@@ -499,10 +526,28 @@ export class SceneDriver {
       console.log("[voice-agent] scene: turn superseded before decision applied");
       return { action: rawDecision.action, spoke: false, superseded: true };
     }
-    const resolution = resolveSceneDecision(
+    let resolution = resolveSceneDecision(
       { scene: this.scene, sceneState: this.#sceneState },
       rawDecision,
     );
+    // RECOVERY: the user just said something — a decision lost to an executor
+    // failure or an invalid shape must not resolve to silence. Let the
+    // character they were talking with (or the first present) answer plainly.
+    if (
+      (decideFailed || resolution.degraded) &&
+      resolution.decision.action === "wait-for-user"
+    ) {
+      const fallback = this.#fallbackSpeaker();
+      if (fallback) {
+        console.warn(
+          `[voice-agent] scene: decision degraded (${decideFailed ?? resolution.reason ?? "unknown"}) — recovering with speak:${fallback}`,
+        );
+        resolution = resolveSceneDecision(
+          { scene: this.scene, sceneState: this.#sceneState },
+          { action: "speak", speakerId: fallback },
+        );
+      }
+    }
     this.#sceneState = resolution.sceneState;
     this.#persistState();
     this.#emitSfx(resolution.decision.sfx);
@@ -601,7 +646,9 @@ export class SceneDriver {
       console.log("[voice-agent] proactive: hold (last reply was refusal boilerplate)");
       return false;
     }
-    const decision = await this.#decide(PROACTIVE_SILENCE_MARKER, "proactive");
+    // Proactive failures stay a hold — nobody is waiting, so silence is the
+    // correct degraded behavior (unlike the reactive path's recovery).
+    const { decision } = await this.#decide(PROACTIVE_SILENCE_MARKER, "proactive");
     // The user started talking (or a new turn began) while we deliberated —
     // the floor is theirs; don't apply the proactive decision.
     if (superseded()) {
@@ -720,6 +767,14 @@ export class SceneDriver {
     );
   }
 
+  /** Who absorbs a failed decision after a real user message: whoever the
+   *  user was talking with (addressee continuity), else the first present. */
+  #fallbackSpeaker(): string | null {
+    const present = this.#presentRoster();
+    if (present.length === 0) return null;
+    return present.find((slug) => slug === this.#sceneState.lastSpeakerSlug) ?? present[0]!;
+  }
+
   /** Accept a speculation only when its text is a prefix of the final turn AND
    *  covers most of it — so the speaker was chosen off ~the whole intent. */
   #acceptsSpeculation(basedOnText: string, finalText: string): boolean {
@@ -738,7 +793,8 @@ export class SceneDriver {
   async #decide(
     userText: string,
     phase: "final" | "speculate" | "proactive" = "final",
-  ): Promise<OrchestratorDecision> {
+    signal?: AbortSignal,
+  ): Promise<DecideResult> {
     const present = this.#presentRoster();
     const solo = present.length <= 1 ? (present[0] ?? null) : null;
     const soloFloor: OrchestratorDecision | null =
@@ -749,15 +805,19 @@ export class SceneDriver {
           : null;
 
     const { executor } = this.#deps.resolveExecutor();
-    if (!executor) return soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState);
+    if (!executor) {
+      return { decision: soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState) };
+    }
 
     // Solo → the lone character carries the turn. Reactive solo skips the LLM on the
     // hot path (the cue rides a speculative HIT) unless opted in. Proactive solo
     // ALWAYS calls it — no user is waiting, so latency is invisible and the director
     // gets to choose advance-or-hold.
     if (solo) {
-      if (phase === "speculate" && !SOLO_CUE_ENABLED) return soloFloor!;
-      if (phase === "final" && (!SOLO_CUE_ENABLED || !SOLO_CUE_ON_MISS)) return soloFloor!;
+      if (phase === "speculate" && !SOLO_CUE_ENABLED) return { decision: soloFloor! };
+      if (phase === "final" && (!SOLO_CUE_ENABLED || !SOLO_CUE_ON_MISS)) {
+        return { decision: soloFloor! };
+      }
     }
 
     const request = buildSceneDecisionRequest({
@@ -770,7 +830,7 @@ export class SceneDriver {
 
     const startedAt = Date.now();
     try {
-      const decision = await executor.execute(request);
+      const decision = await executor.execute(request, { signal });
       console.log(
         `[voice-agent] orchestrate[${phase}] ${Date.now() - startedAt}ms → ${decision.action} ${decision.speakerId ?? ""}`.trimEnd(),
       );
@@ -779,12 +839,19 @@ export class SceneDriver {
       // or narrate — those are deliberate non-speak moves. Proactive solo:
       // respect `wait-for-user` too — that's the silence/monologue brake.
       const pinnable = decision.action === "speak" || decision.action === "wait-for-user";
-      return solo && phase !== "proactive" && pinnable
-        ? { ...decision, action: "speak", speakerId: solo }
-        : decision;
+      return {
+        decision:
+          solo && phase !== "proactive" && pinnable
+            ? { ...decision, action: "speak", speakerId: solo }
+            : decision,
+      };
     } catch (err) {
-      console.error("[voice-agent] orchestrate failed", err);
-      return soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState);
+      const failed = err instanceof Error ? err.message : String(err);
+      if (!signal?.aborted) console.error("[voice-agent] orchestrate failed", err);
+      return {
+        decision: soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState),
+        failed,
+      };
     }
   }
 
