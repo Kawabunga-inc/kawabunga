@@ -110,6 +110,17 @@ export const sceneSchema = z.object({
   // played once when the user enters (before any character speaks). Written
   // by the scene author; absent = the scene opens in silence as before.
   openingNarration: z.string().min(1).max(600).optional(),
+  // Extra authored openings. When present, one of [openingNarration,
+  // ...openingNarrationVariants] is chosen per session, so a scene doesn't
+  // replay the same words on every visit while staying fully authored.
+  openingNarrationVariants: z.array(z.string().min(1).max(600)).max(5).optional(),
+  // How the opening is produced:
+  //   "authored"  — play the authored line(s) verbatim (default when any exist)
+  //   "generated" — the narrator writes it fresh from the scene's premise at
+  //                 session open (varied, adapts to edits, costs one call)
+  //   "off"       — no opening
+  // Absent = authored when a line exists, otherwise off.
+  openingMode: z.enum(["authored", "generated", "off"]).optional(),
   // Narrator presence dial. "minimal" (default) = opening + answering the
   // user's narrator-questions + rendering the user's declared actions;
   // "scenic" adds proactive sensory narration and unfolding events to the
@@ -177,6 +188,8 @@ export const sceneDefinitionSchema = z.object({
   // Narrator authoring (see sceneSchema.openingNarration/narrator). Nullable
   // defaults keep pre-narrator definitions parsing unchanged.
   openingNarration: z.string().nullable().default(null),
+  openingNarrationVariants: z.array(z.string()).nullable().default(null),
+  openingMode: z.enum(["authored", "generated", "off"]).nullable().default(null),
   narrator: z.enum(["off", "minimal", "scenic"]).nullable().default(null),
   // Authored intention on the scene root (see sceneSchema.objective/drive).
   objective: z.string().nullable().default(null),

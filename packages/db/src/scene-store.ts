@@ -471,6 +471,10 @@ function neonStore(): SceneStore {
       // in pre-narrator definitions, where `narrator` undefined means the
       // "minimal" default (see narratorMode in @kawabunga/orchestration).
       const openingNarration = record.definition.openingNarration?.trim() || undefined;
+      const openingNarrationVariants = (record.definition.openingNarrationVariants ?? [])
+        .map((line) => line?.trim())
+        .filter((line): line is string => Boolean(line));
+      const openingMode = record.definition.openingMode ?? undefined;
       const narrator = record.definition.narrator ?? undefined;
 
       // The authored arc: every `event` node is a beat, ordered by
@@ -507,6 +511,8 @@ function neonStore(): SceneStore {
         ...(objective ? { objective } : {}),
         ...(drive ? { drive } : {}),
         ...(openingNarration ? { openingNarration } : {}),
+        ...(openingNarrationVariants.length ? { openingNarrationVariants } : {}),
+        ...(openingMode ? { openingMode } : {}),
         ...(narrator ? { narrator } : {}),
         ...(arc.length > 0 ? { arc } : {}),
         ...(soloCharacterId ? { solo: true } : {}),

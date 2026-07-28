@@ -662,12 +662,11 @@ export default defineAgent({
     // moment the user arrives, before any character speaks. Recorded into the
     // driver's transcript so the director and the characters know it was said.
     // Barge-in wins: the user speaking aborts it like any turn.
-    const openingNarration = sceneDriver.scene.openingNarration?.trim();
-    if (
-      openingNarration &&
-      narrationRouting &&
-      (sceneDriver.scene.narrator ?? "minimal") !== "off"
-    ) {
+    // authored → the authored line (one of its variants); generated → the
+    // narrator writes it from the premise, falling back to authored on any
+    // failure; off → silence. Resolved once, at session open.
+    const openingNarration = narrationRouting ? await sceneDriver.resolveOpening() : null;
+    if (openingNarration && narrationRouting) {
       turn = new AbortController();
       const openingSignal = turn.signal;
       speaking = true;

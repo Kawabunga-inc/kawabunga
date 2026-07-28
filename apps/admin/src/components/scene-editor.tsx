@@ -68,6 +68,14 @@ const T = {
   fontMono: adminTokens.fontMono,
 } as const;
 
+/** Variants edit as one newline-separated block; blank lines separate them. */
+function splitVariants(raw: string): string[] {
+  return raw
+    .split(/\n\s*\n|\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 type SceneEditorProps = {
   scene: {
     id: string;
@@ -80,6 +88,8 @@ type SceneEditorProps = {
     objective: string | null;
     drive: "gentle" | "balanced" | "insistent" | null;
     openingNarration: string | null;
+    openingNarrationVariants: string[] | null;
+    openingMode: "authored" | "generated" | "off" | null;
     narrator: "off" | "minimal" | "scenic" | null;
   };
   roster: SceneRosterEntry[];
@@ -133,6 +143,14 @@ export function SceneEditor({
   const [narratorVoiceId, setNarratorVoiceId] = useState(scene.narratorVoiceId);
   const [objective, setObjective] = useState(scene.objective ?? "");
   const [openingNarration, setOpeningNarration] = useState(scene.openingNarration ?? "");
+  // Variants edit as one newline-separated block — simplest control that
+  // still round-trips an array, and reads naturally for prose.
+  const [openingVariants, setOpeningVariants] = useState(
+    (scene.openingNarrationVariants ?? []).join("\n\n"),
+  );
+  const [openingMode, setOpeningMode] = useState<"authored" | "generated" | "off">(
+    scene.openingMode ?? (scene.openingNarration ? "authored" : "off"),
+  );
   const [narrator, setNarrator] = useState<"off" | "minimal" | "scenic">(
     scene.narrator ?? "minimal",
   );
@@ -197,6 +215,8 @@ export function SceneEditor({
         drive: drive === "balanced" ? null : drive,
         openingNarration: openingNarration.trim() || null,
         narrator: narrator === "minimal" ? null : narrator,
+        openingNarrationVariants: splitVariants(openingVariants),
+        openingMode,
       });
       if (res.ok) setSavedAt(Date.now());
       router.refresh();
@@ -209,6 +229,8 @@ export function SceneEditor({
     drive,
     openingNarration,
     narrator,
+    openingVariants,
+    openingMode,
     prompt,
     router,
     scene.id,
@@ -231,6 +253,8 @@ export function SceneEditor({
     drive,
     openingNarration,
     narrator,
+    openingVariants,
+    openingMode,
   ]);
   const savedConfigSnapshot = useRef(configSnapshot);
   useEffect(() => {
@@ -410,6 +434,8 @@ export function SceneEditor({
             drive,
             openingNarration,
             narrator,
+            openingVariants,
+            openingMode,
           }}
           rosterCount={roster.length}
           addableCharacters={addableCharacters}
@@ -426,6 +452,8 @@ export function SceneEditor({
             setDrive,
             setOpeningNarration,
             setNarrator,
+            setOpeningVariants,
+            setOpeningMode,
           }}
           onAddCharacter={addCharacter}
           onAddAudio={addAudio}
@@ -949,6 +977,8 @@ function SceneInspector({
     drive: "gentle" | "balanced" | "insistent";
     openingNarration: string;
     narrator: "off" | "minimal" | "scenic";
+    openingVariants: string;
+    openingMode: "authored" | "generated" | "off";
   };
   rosterCount: number;
   addableCharacters: SceneLibraryCharacter[];
@@ -965,6 +995,8 @@ function SceneInspector({
     setDrive: (next: "gentle" | "balanced" | "insistent") => void;
     setOpeningNarration: (next: string) => void;
     setNarrator: (next: "off" | "minimal" | "scenic") => void;
+    setOpeningVariants: (next: string) => void;
+    setOpeningMode: (next: "authored" | "generated" | "off") => void;
   };
   onAddCharacter: (characterId: string) => void;
   onAddAudio: (input: {
@@ -1050,6 +1082,8 @@ function SceneSettingsInspector({
     drive: "gentle" | "balanced" | "insistent";
     openingNarration: string;
     narrator: "off" | "minimal" | "scenic";
+    openingVariants: string;
+    openingMode: "authored" | "generated" | "off";
   };
   rosterCount: number;
   addableCharacters: SceneLibraryCharacter[];
@@ -1066,6 +1100,8 @@ function SceneSettingsInspector({
     setDrive: (next: "gentle" | "balanced" | "insistent") => void;
     setOpeningNarration: (next: string) => void;
     setNarrator: (next: "off" | "minimal" | "scenic") => void;
+    setOpeningVariants: (next: string) => void;
+    setOpeningMode: (next: "authored" | "generated" | "off") => void;
   };
   onAddCharacter: (characterId: string) => void;
   onAddAudio: (input: {
@@ -1201,16 +1237,57 @@ function SceneSettingsInspector({
                   </option>
                 </select>
               </Field>
-              <Field label="Opening narration">
-                <textarea
-                  value={scene.openingNarration}
-                  onChange={(event) => onSceneChange.setOpeningNarration(event.target.value)}
-                  rows={4}
+              <Field label="Opening">
+                <select
+                  value={scene.openingMode}
+                  onChange={(event) =>
+                    onSceneChange.setOpeningMode(
+                      event.target.value as "authored" | "generated" | "off",
+                    )
+                  }
                   disabled={scene.narrator === "off"}
-                  placeholder="What the narrator says the moment the user arrives — before anyone speaks. Present tense, sensory, 2-4 sentences."
-                  style={textareaStyle}
-                />
+                  style={{ ...inputStyle, cursor: "pointer" }}
+                >
+                  <option value="authored">authored — play what you write, every time</option>
+                  <option value="generated">
+                    generated — the narrator writes it fresh each session
+                  </option>
+                  <option value="off">off — the scene opens in silence</option>
+                </select>
               </Field>
+              {scene.narrator !== "off" && scene.openingMode !== "off" && (
+                <Field
+                  label={
+                    scene.openingMode === "generated"
+                      ? "Opening narration (fallback)"
+                      : "Opening narration"
+                  }
+                >
+                  <textarea
+                    value={scene.openingNarration}
+                    onChange={(event) => onSceneChange.setOpeningNarration(event.target.value)}
+                    rows={4}
+                    placeholder="What the narrator says the moment the user arrives — before anyone speaks. Present tense, sensory, 2-4 sentences."
+                    style={textareaStyle}
+                  />
+                  <p style={fieldHintStyle}>
+                    {scene.openingMode === "generated"
+                      ? "Generated openings are written from the premise, cast, and opening beat — and fenced off from arc beats so the scene still earns them. This line plays if generation is unavailable."
+                      : "Played verbatim on arrival."}
+                  </p>
+                </Field>
+              )}
+              {scene.narrator !== "off" && scene.openingMode === "authored" && (
+                <Field label="Alternate openings">
+                  <textarea
+                    value={scene.openingVariants}
+                    onChange={(event) => onSceneChange.setOpeningVariants(event.target.value)}
+                    rows={4}
+                    placeholder="Optional. One per line — a session picks at random, so repeat visits don't replay the same words."
+                    style={textareaStyle}
+                  />
+                </Field>
+              )}
             </InspectorSection>
             <InspectorSection title="Status">
               <Field label="Status">
@@ -2358,6 +2435,14 @@ const textareaStyle: CSSProperties = {
   padding: "10px 12px",
   resize: "vertical",
   lineHeight: "20px",
+};
+
+const fieldHintStyle: CSSProperties = {
+  margin: 0,
+  color: "var(--text-tertiary)",
+  fontFamily: T.fontBody,
+  fontSize: "var(--font-size-xs)",
+  lineHeight: "16px",
 };
 
 const fieldLabelStyle: CSSProperties = {

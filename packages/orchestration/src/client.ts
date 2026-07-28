@@ -98,6 +98,111 @@ export function narratorMode(scene: Scene): "off" | "minimal" | "scenic" {
   return scene.narrator ?? "minimal";
 }
 
+/**
+ * How this scene opens. Explicit `openingMode` wins; otherwise a scene with
+ * authored lines opens `authored`, and one without opens `off` — so scenes
+ * predating the setting behave exactly as before.
+ */
+export function openingMode(scene: Scene): "authored" | "generated" | "off" {
+  if (narratorMode(scene) === "off") return "off";
+  if (scene.openingMode) return scene.openingMode;
+  return authoredOpenings(scene).length > 0 ? "authored" : "off";
+}
+
+/** Every authored opening, primary first. */
+export function authoredOpenings(scene: Scene): string[] {
+  return [scene.openingNarration, ...(scene.openingNarrationVariants ?? [])]
+    .map((line) => line?.trim())
+    .filter((line): line is string => Boolean(line));
+}
+
+/**
+ * Pick the authored opening for one session. Variants exist so a scene
+ * doesn't replay identical words on every visit while staying fully
+ * authored — the caller supplies the randomness (a driver passes
+ * Math.random()) so this stays pure and testable.
+ */
+export function selectAuthoredOpening(
+  scene: Scene,
+  roll = 0,
+): string | null {
+  const options = authoredOpenings(scene);
+  if (options.length === 0) return null;
+  const index = Math.min(options.length - 1, Math.floor(roll * options.length));
+  return options[Math.max(0, index)] ?? null;
+}
+
+/**
+ * Prompt for a GENERATED opening: the narrator writes the scene's first
+ * lines from its premise. Deliberately fenced — the opening must not spend
+ * arc beats the scene is meant to earn (observed authoring failure: an
+ * opening that announced the promise the arc wanted revealed), nor put
+ * words in a character's mouth.
+ */
+export function buildOpeningNarrationMessages(scene: Scene): {
+  system: string;
+  user: string;
+} {
+  const cast = scene.characters
+    .map((c) => `- ${c.displayName}: ${c.blurb}`)
+    .join("\n");
+  const system = [
+    "You are the NARRATOR of a voice scene: an unseen presence that renders",
+    "the world, never a character in it. Write the opening the listener hears",
+    "the moment they arrive, before anyone speaks.",
+    "",
+    "Rules:",
+    "- 2-4 sentences. Present tense. Concrete and sensory - light, sound,",
+    "  smell, small movement. Spoken aloud, so no lists and no headings.",
+    "- Address the listener as \"you\" only for their arrival; never invent",
+    "  what they do, say, feel, or want.",
+    "- NO dialogue. Never put words in a character's mouth.",
+    "- Place the cast in the world (a figure rising, a shadow at the tent",
+    "  flap) without introducing them by biography.",
+    ...(scene.arc?.length
+      ? [
+          "- The scene's arc beats below have NOT happened yet. Do not state,",
+          "  reveal, or foreshadow them - the scene must earn them. Set the",
+          "  conditions, nothing more.",
+        ]
+      : []),
+    "Plain prose only: no quotes around the whole thing, no preamble, no",
+    "stage-direction brackets. Output only the narration.",
+  ].join("\n");
+
+  const user = [
+    `Scene: "${scene.title}"`,
+    scene.description,
+    "",
+    "Present:",
+    cast,
+    ...(scene.openingBeat ? ["", `The situation as it opens: ${scene.openingBeat}`] : []),
+    ...(scene.arc?.length
+      ? ["", "Arc beats still to be earned (do NOT reveal):", ...scene.arc.map((b) => `- ${b.label}`)]
+      : []),
+    "",
+    "Write the opening narration:",
+  ].join("\n");
+
+  return { system, user };
+}
+
+/** Normalize a generated opening: strip fences/quotes/labels, collapse
+ *  whitespace, cap length. Null when nothing usable remains. */
+export function sanitizeOpeningNarration(raw: string): string | null {
+  let text = raw.trim();
+  const fence = text.match(/^```[a-z]*\n?([\s\S]*?)\n?```$/i);
+  if (fence) text = fence[1]!.trim();
+  text = text.replace(/^(opening narration|narration|narrator)\s*[:\-–]\s*/i, "");
+  text = text.replace(/^["'“]+/, "").replace(/["'”]+$/, "");
+  // A model that wraps the whole thing in stage brackets — the runtime adds
+  // its own convention downstream, so strip them here.
+  text = text.replace(/^\[([\s\S]*)\]$/, "$1");
+  text = text.replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  return text.length > 600 ? `${text.slice(0, 597).trimEnd()}...` : text;
+}
+
 /** Pseudo-entity for addressee detection — lets isVocativeUse recognize the
  *  user turning to the narrator ("Narrator, what do I see?"). */
 const NARRATOR_PSEUDO = {

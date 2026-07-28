@@ -105,6 +105,26 @@ const speakDecision = (speakerId: string, beat?: string): OrchestratorDecision =
   ...(beat ? { beat } : {}),
 });
 
+/** A ChatProvider whose `complete` returns fixed text — for the dramaturg
+ *  and the generated-opening path. */
+function fakeChatProvider(text: string): ChatProvider {
+  return {
+    complete: async (): Promise<ChatResponse> => ({
+      text,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      cacheState: "off",
+      model: "fake",
+      latencyMs: 1,
+    }),
+    stream: async function* () {
+      throw new Error("not used");
+    },
+  } as unknown as ChatProvider;
+}
+
 /** The director-facing dialogue block of the LAST captured request. */
 function lastDialogue(requests: SceneDecisionRequest[]): string {
   return requests[requests.length - 1]!.messages[1]!.content;
@@ -194,6 +214,47 @@ describe("SceneDriver — speaker turns", () => {
     await driver.drive("Hello?", speak);
     expect(cues[0]).toEqual([{ id: "fire-crackle", at: "now" }]);
     expect(order).toEqual(["sfx", "speak"]);
+  });
+});
+
+describe("SceneDriver — opening", () => {
+  const OPENING: Scene = {
+    ...TENT,
+    id: "test-opening",
+    openingNarration: "Evening settles over the camp.",
+  };
+
+  it("plays the authored opening, and none when the scene opens in silence", async () => {
+    const authored = SceneDriver.fromScene(OPENING, { resolveExecutor: fakeExecutor([]).resolveExecutor });
+    expect(await authored.resolveOpening()).toBe("Evening settles over the camp.");
+
+    const silent = SceneDriver.fromScene(TENT, { resolveExecutor: fakeExecutor([]).resolveExecutor });
+    expect(await silent.resolveOpening()).toBeNull();
+  });
+
+  it("generates an opening when asked, sanitized", async () => {
+    const provider = fakeChatProvider('```\n"The oaks throw long shadows."\n```');
+    const driver = SceneDriver.fromScene(
+      { ...OPENING, openingMode: "generated" },
+      { resolveExecutor: fakeExecutor([]).resolveExecutor, dramaturgProvider: provider },
+    );
+    expect(await driver.resolveOpening()).toBe("The oaks throw long shadows.");
+  });
+
+  it("falls back to the authored line when generation fails — never a broken open", async () => {
+    const provider = {
+      complete: async () => {
+        throw new Error("provider down");
+      },
+      stream: async function* () {
+        throw new Error("not used");
+      },
+    } as unknown as ChatProvider;
+    const driver = SceneDriver.fromScene(
+      { ...OPENING, openingMode: "generated" },
+      { resolveExecutor: fakeExecutor([]).resolveExecutor, dramaturgProvider: provider },
+    );
+    expect(await driver.resolveOpening()).toBe("Evening settles over the camp.");
   });
 });
 
