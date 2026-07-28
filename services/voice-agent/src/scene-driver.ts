@@ -16,6 +16,7 @@ import {
   createInitialSceneState,
   defaultSceneDecision,
   getScene,
+  declaresUserAction,
   isNarratorAddressed,
   NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
@@ -592,10 +593,13 @@ export class SceneDriver {
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
       const voiced = await this.#narrate(resolution.decision.narration.trim(), userText);
       if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
-      // A narration that ANSWERED the user ("Narrator, what do I see?") is
-      // complete in itself — hold for them rather than chaining a character
-      // turn that would only restate it.
-      if (isNarratorAddressed(userText)) {
+      // A narration that ANSWERED a narrator QUESTION ("Narrator, what do I
+      // see?") is complete in itself — hold for the user rather than chaining
+      // a character turn that would only restate it. But addressing the
+      // narrator while DECLARING AN ACTION ("Narrator, I take Sarah hostage")
+      // is an event, not a question: somebody must react, or the scene
+      // freezes until the idle timer fires (observed: 4.6s of dead air).
+      if (isNarratorAddressed(userText) && !declaresUserAction(userText)) {
         return { action: "narrate", spoke: voiced };
       }
       // EVENT CHAINING: a reactive narration otherwise renders something that
@@ -765,7 +769,33 @@ export class SceneDriver {
         `[voice-agent] generated opening failed (${(err as Error).message}) — using authored`,
       );
     }
+    // FAIL LOUDLY: with no authored fallback the scene would open in silence,
+    // indistinguishable from `openingMode: "off"` — the author asked for an
+    // opening and got nothing, with nothing in the logs saying why (observed
+    // live: a `generated` scene opened straight onto a character turn).
+    if (!authored) {
+      console.error(
+        `[voice-agent] scene "${this.scene.id}": openingMode="generated" produced nothing and the scene has no authored opening to fall back on — opening in SILENCE. Set an opening narration as a fallback, or switch the mode to "off" if silence is intended.`,
+      );
+    }
     return authored;
+  }
+
+  /** Seed a character line into the running transcript without driving a
+   *  turn — for callers that voiced a line themselves (a greet) and for
+   *  tests that need a scene mid-flight. */
+  recordTurn(speakerSlug: string, text: string, speakerName?: string): void {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const display =
+      speakerName ??
+      this.scene.characters.find((c) => c.characterSlug === speakerSlug)?.displayName;
+    this.#recentTurns.push({
+      speakerSlug,
+      ...(display ? { speakerName: display } : {}),
+      text: trimmed,
+    });
+    this.#trim();
   }
 
   /** Record an externally voiced narration (the authored opening) into the
@@ -807,10 +837,27 @@ export class SceneDriver {
       console.log("[voice-agent] proactive: superseded before decision applied");
       return false;
     }
-    const resolution = resolveSceneDecision(
+    let resolution = resolveSceneDecision(
       { scene: this.scene, sceneState: this.#sceneState },
       decision,
     );
+    // UNANSWERED EVENT: the narrator rendered something (a seizure, a blow)
+    // and a present character still hasn't responded to it. Holding here is
+    // the failure observed live — Sarah was seized, answered for herself, and
+    // Abraham simply never moved across the rest of the scene. Give the
+    // silent witness the turn instead of going quiet.
+    if (resolution.decision.action === "wait-for-user") {
+      const witness = this.#silentWitnessToEvent();
+      if (witness) {
+        console.log(
+          `[voice-agent] proactive: unanswered event — ${witness} responds instead of holding`,
+        );
+        resolution = resolveSceneDecision(
+          { scene: this.scene, sceneState: this.#sceneState },
+          { action: "speak", speakerId: witness },
+        );
+      }
+    }
     this.#sceneState = resolution.sceneState;
     this.#persistState();
     this.#emitSfx(resolution.decision.sfx);
@@ -917,6 +964,21 @@ export class SceneDriver {
     return this.#sceneState.presentCharacterSlugs.filter((slug) =>
       this.scene.characters.some((c) => c.characterSlug === slug),
     );
+  }
+
+  /** A present character who has NOT spoken since the last narrated event —
+   *  i.e. someone the event happened around who never responded to it. Null
+   *  when there's no recent narration, or everyone present has already had
+   *  their say. Bounded to the last few turns so an old event doesn't keep
+   *  conscripting speakers forever. */
+  #silentWitnessToEvent(): string | null {
+    const window = this.#recentTurns.slice(-4);
+    const lastNarrationIdx = window.map((t) => t.speakerSlug).lastIndexOf("narrator");
+    if (lastNarrationIdx === -1) return null;
+    const spokenSince = new Set(
+      window.slice(lastNarrationIdx + 1).map((t) => t.speakerSlug),
+    );
+    return this.#presentRoster().find((slug) => !spokenSince.has(slug)) ?? null;
   }
 
   /** Who absorbs a failed decision after a real user message: whoever the

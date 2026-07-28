@@ -398,8 +398,13 @@ export function SceneEditor({
         soundById={soundById}
         voiceOptions={voiceOptions}
         onSelectionChange={(id) => {
+          // Deselecting returns to the SCENE settings (premise, direction,
+          // narrator, status) rather than closing the rail. Closing it on an
+          // empty-canvas click hid scene-level config behind an interaction
+          // nobody guesses — observed: narrator settings unreachable because
+          // a node happened to be selected.
           setSelectedNodeId(id);
-          setSidebarOpen(Boolean(id));
+          setSidebarOpen(true);
         }}
         onNodePositionChange={(nodeId, position) => {
           updateLocalNode(nodeId, { position });

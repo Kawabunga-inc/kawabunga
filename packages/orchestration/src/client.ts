@@ -217,6 +217,33 @@ export function isNarratorAddressed(message: string): boolean {
   return isVocativeUse(message, NARRATOR_PSEUDO);
 }
 
+/**
+ * Does the user's message DECLARE AN ACTION they take in the world ("I punch
+ * Abraham", "I take Sarah hostage", "I hand her the waterskin")?
+ *
+ * The distinction matters for chaining: a question to the narrator is
+ * complete once answered, but an action is an EVENT — somebody has to react,
+ * or the scene freezes. Observed live: "Narrator, I take Sarah hostage" was
+ * treated as a narrator question, so nothing chained and Sarah's reaction
+ * arrived 4.6s later from the idle timer.
+ *
+ * First-person present-tense verb, optionally after a narrator vocative.
+ * Deliberately narrow: a false positive only costs one extra decision, but
+ * missing an action costs the scene its momentum.
+ */
+export function declaresUserAction(message: string): boolean {
+  const text = message
+    .trim()
+    .replace(/^\s*(?:hey\s+|ok(?:ay)?\s+)?narrator\s*[,:.\-–—]?\s*/i, "")
+    .trim();
+  // "I <verb>" / "I'm <verb>ing" / "I am <verb>ing" — but not "I think",
+  // "I wonder", "I want to know", which are speech, not action.
+  const speechVerbs =
+    /^i(?:'m| am)?\s+(?:think|wonder|believe|guess|suppose|feel|hope|know|see|hear|understand|want to know|would like to know|ask|say|said|mean|meant)\b/i;
+  if (speechVerbs.test(text)) return false;
+  return /^i(?:'m|'ll| am| will| would)?\s+[a-z]+(?:e|s)?\b/i.test(text);
+}
+
 export function createInitialSceneState(scene: Scene): SceneState {
   return {
     sceneId: scene.id,
@@ -858,6 +885,17 @@ function buildOrchestratorSystemPrompt(
     "  (see end-scene below); never re-open business they are walking away from.",
     ...(present.length > 1
       ? [
+          "- STAKES OVERRIDE ADDRESSING. When something in the scene puts a",
+          "  character in danger, indignity, or grief - they are seized, struck,",
+          "  threatened, or someone they love is - the person who would ACT is the",
+          "  speaker, whoever was being addressed. A husband whose wife is grabbed",
+          "  does not wait his turn. Honor the continuity rules below only while",
+          "  the scene is a conversation; the moment it stops being one, the",
+          "  strongest move belongs to whoever has the most at stake.",
+          "  While such a situation is UNRESOLVED - a hold still held, a blow not",
+          "  yet answered - do not `wait-for-user` and do not treat a question in",
+          "  the last line as an invitation to pause. Nobody stands still while",
+          "  someone is being held; the scene advances until the moment resolves.",
           "- ADDRESSEE CONTINUITY: the user replies to whoever last spoke to them.",
           "  An unaddressed user message (no name, no clear turn to someone else) is",
           "  FOR the last character to speak - that character answers. Do not rotate",

@@ -71,6 +71,17 @@ Decision rules:
   Pick the speaker whose move makes the scene move. The default assumes an
   engaged user - a user who is taking their leave is not a scene to advance
   (see end-scene below); never re-open business they are walking away from.
+- STAKES OVERRIDE ADDRESSING. When something in the scene puts a
+  character in danger, indignity, or grief - they are seized, struck,
+  threatened, or someone they love is - the person who would ACT is the
+  speaker, whoever was being addressed. A husband whose wife is grabbed
+  does not wait his turn. Honor the continuity rules below only while
+  the scene is a conversation; the moment it stops being one, the
+  strongest move belongs to whoever has the most at stake.
+  While such a situation is UNRESOLVED - a hold still held, a blow not
+  yet answered - do not \`wait-for-user\` and do not treat a question in
+  the last line as an invitation to pause. Nobody stands still while
+  someone is being held; the scene advances until the moment resolves.
 - ADDRESSEE CONTINUITY: the user replies to whoever last spoke to them.
   An unaddressed user message (no name, no clear turn to someone else) is
   FOR the last character to speak - that character answers. Do not rotate
