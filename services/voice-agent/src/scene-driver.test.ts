@@ -264,7 +264,10 @@ describe("SceneDriver — narration", () => {
     expect(inputs).toHaveLength(0);
   });
 
-  it("chains into a hold when the director wants the user to react", async () => {
+  it("never leaves dead air: a chained hold after an event becomes a reaction", async () => {
+    // Observed live: the director answered the chain with wait-for-user after
+    // narrating a punch, so the scene sat silent until the idle timer fired
+    // 4.1s later. Something that just HAPPENED always gets a reaction.
     const exec = fakeExecutor([
       { action: "narrate", narration: "Dust rises on the Sodom road." },
       { action: "wait-for-user" },
@@ -274,11 +277,53 @@ describe("SceneDriver — narration", () => {
       resolveCharacter: fakeCharacters(),
     });
     driver.onNarrate(async () => undefined);
-    const { speak, inputs } = fakeSpeak(["unused"]);
+    const { speak, inputs } = fakeSpeak(["I see it too."]);
 
     const outcome = await driver.drive("I point at the dust rising on the road.", speak);
-    expect(outcome).toEqual({ action: "wait-for-user", spoke: true });
-    expect(inputs).toHaveLength(0);
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(inputs).toHaveLength(1);
+    // No prior addressee in this scene → the first present character reacts.
+    expect(inputs[0]!.characterId).toBe("id-abraham");
+  });
+
+  it("frames the chain step as an event needing a reaction", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "The lamp gutters out." },
+      speakDecision("sarah", "React to the dark"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(async () => undefined);
+    const { speak } = fakeSpeak(["Who blew out the lamp?"]);
+
+    await driver.drive("I pinch the wick.", speak);
+    const chainPrompt = exec.requests[1]!.messages[1]!.content;
+    expect(chainPrompt).toContain("something just HAPPENED");
+    expect(chainPrompt).toContain("Do NOT `wait-for-user`");
+  });
+
+  it("records the utterance that triggered a narration", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "Your fist finds his jaw." },
+      speakDecision("abraham", "Reel from the blow"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const seen: Array<{ text: string; userText?: string }> = [];
+    driver.onNarrate(async (text, meta) => {
+      seen.push({ text, userText: meta.userText });
+    });
+    const { speak } = fakeSpeak(["My jaw!"]);
+
+    await driver.drive("I punch Abraham in the face.", speak);
+    expect(seen[0]).toEqual({
+      text: "Your fist finds his jaw.",
+      userText: "I punch Abraham in the face.",
+    });
   });
 
   it("records but reports unvoiced narration when no sink is wired", async () => {

@@ -16,6 +16,7 @@ import {
   defaultSceneDecision,
   getScene,
   isNarratorAddressed,
+  NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
   RECENT_TURNS_LIMIT,
   expandLandedBeats,
@@ -159,7 +160,9 @@ export class SceneDriver {
   #onSfx: ((cues: SfxCue[]) => void) | null = null;
   // Voices a `narrate` decision. Optional — unset = narration is recorded in
   // the transcript (so the director keeps continuity) but not spoken.
-  #onNarrate: ((text: string) => Promise<void> | void) | null = null;
+  #onNarrate:
+    | ((text: string, meta: { userText?: string }) => Promise<void> | void)
+    | null = null;
   #warnedUnvoicedNarration = false;
   // Turn epoch — bumped at the start of every drive()/driveProactive(). An
   // in-flight turn that observes a newer epoch after an await is SUPERSEDED
@@ -300,12 +303,16 @@ export class SceneDriver {
    *  director chooses `action:"narrate"`. The narrator turn is recorded in the
    *  running transcript either way, so the director keeps continuity — without
    *  a sink the line is silent (logged once). */
-  onNarrate(cb: (text: string) => Promise<void> | void): void {
+  onNarrate(
+    cb: (text: string, meta: { userText?: string }) => Promise<void> | void,
+  ): void {
     this.#onNarrate = cb;
   }
 
-  /** Voice + record a narrate decision. Returns true when audio was produced. */
-  async #narrate(text: string): Promise<boolean> {
+  /** Voice + record a narrate decision. `userText` is the utterance that
+   *  prompted it (absent on proactive/chained narration) — recorded with the
+   *  turn so the input that caused an event isn't lost from the session. */
+  async #narrate(text: string, userText?: string): Promise<boolean> {
     this.#recentTurns.push({ speakerSlug: "narrator", speakerName: "Narrator", text });
     this.#trim();
     if (!this.#onNarrate) {
@@ -318,7 +325,7 @@ export class SceneDriver {
       return false;
     }
     try {
-      await this.#onNarrate(text);
+      await this.#onNarrate(text, { userText });
       return true;
     } catch (err) {
       console.warn(`[voice-agent] narration failed: ${(err as Error).message}`);
@@ -576,7 +583,7 @@ export class SceneDriver {
     this.#emitSfx(resolution.decision.sfx);
 
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
-      const voiced = await this.#narrate(resolution.decision.narration.trim());
+      const voiced = await this.#narrate(resolution.decision.narration.trim(), userText);
       if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
       // A narration that ANSWERED the user ("Narrator, what do I see?") is
       // complete in itself — hold for them rather than chaining a character
@@ -588,11 +595,25 @@ export class SceneDriver {
       // just HAPPENED (the user's declared action, an unfolding event) — give
       // the director ONE immediate follow-up so a character can react to it.
       // Bounded: a chained narrate is applied but never chains again.
-      const chain = await this.#decide(null, "chain");
+      const chain = await this.#decide(NARRATED_EVENT_MARKER, "chain");
       if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
+      // A `wait-for-user` here is the dead-air failure: something just happened
+      // in the world and the scene would sit silent until the idle timer fired
+      // (observed: 4.1s after a narrated punch, the reaction arriving as a
+      // proactive turn). The prompt asks for a reaction; this guarantees one.
+      let chainDecision = chain.decision;
+      if (chainDecision.action === "wait-for-user") {
+        const reactor = this.#fallbackSpeaker();
+        if (reactor) {
+          console.log(
+            `[voice-agent] scene: chain returned wait after an event — ${reactor} reacts instead`,
+          );
+          chainDecision = { action: "speak", speakerId: reactor };
+        }
+      }
       const chainResolution = resolveSceneDecision(
         { scene: this.scene, sceneState: this.#sceneState },
-        chain.decision,
+        chainDecision,
       );
       this.#sceneState = chainResolution.sceneState;
       this.#persistState();

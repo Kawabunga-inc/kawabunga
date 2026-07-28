@@ -16,7 +16,11 @@
  * why these live here and not in the live scenes table).
  */
 import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
-import { PROACTIVE_SILENCE_MARKER, type SceneTurnForPlanning } from "@kawabunga/orchestration";
+import {
+  NARRATED_EVENT_MARKER,
+  PROACTIVE_SILENCE_MARKER,
+  type SceneTurnForPlanning,
+} from "@kawabunga/orchestration";
 
 export type ProbeExpectation = {
   /** Allowed actions. Omit = any action passes (validity checks still run). */
@@ -401,6 +405,37 @@ export const SCENE_PROBES: SceneProbe[] = [
     ],
     lastUserMessage: "I punch Abraham in the face.",
     expect: { action: ["narrate"] },
+    threshold: 0.6,
+  },
+  {
+    id: "narrator-event-chain-reaction",
+    family: "narrator",
+    description: "CHAIN STEP: the narrator has just rendered the user's punch — a character must react NOW, never wait-for-user (observed live as 4.1s of dead air).",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "You speak of promises while my people starve on the road."),
+      t("abraham", "Then eat, friend — anger travels lighter on a full stomach.", "Abraham"),
+      t("narrator", "Your fist snaps into Abraham's cheek; he staggers, the fire spitting sparks.", "Narrator"),
+    ],
+    lastUserMessage: NARRATED_EVENT_MARKER,
+    expect: { action: ["speak"], speaker: ["abraham", "sarah", "eliezer"] },
+  },
+  {
+    id: "narrator-event-chain-affected",
+    family: "narrator",
+    description: "The character the event happened TO is the strongest reactor after a narrated blow.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "You speak of promises while my people starve on the road."),
+      t("abraham", "Then eat, friend — anger travels lighter on a full stomach.", "Abraham"),
+      t("narrator", "Your fist snaps into Abraham's cheek; he staggers, the fire spitting sparks.", "Narrator"),
+    ],
+    lastUserMessage: NARRATED_EVENT_MARKER,
+    expect: { action: ["speak"], speaker: ["abraham"] },
     threshold: 0.6,
   },
   {
