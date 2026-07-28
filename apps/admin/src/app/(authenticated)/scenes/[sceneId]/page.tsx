@@ -109,6 +109,8 @@ export default async function SceneDetailPage({
         narratorVoiceId: scene.definition.narratorVoiceId,
         objective: scene.definition.objective,
         drive: scene.definition.drive,
+        openingNarration: scene.definition.openingNarration,
+        narrator: scene.definition.narrator,
       }}
       roster={roster}
       graph={graph}

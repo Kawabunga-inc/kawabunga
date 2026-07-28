@@ -467,6 +467,11 @@ function neonStore(): SceneStore {
 
       const objective = record.definition.objective?.trim() || undefined;
       const drive = record.definition.drive ?? undefined;
+      // The unseen narrator: authored opening lines + presence dial. Absent
+      // in pre-narrator definitions, where `narrator` undefined means the
+      // "minimal" default (see narratorMode in @kawabunga/orchestration).
+      const openingNarration = record.definition.openingNarration?.trim() || undefined;
+      const narrator = record.definition.narrator ?? undefined;
 
       // The authored arc: every `event` node is a beat, ordered by
       // data.timeIndex (fallback: creation order). Label = the beat's
@@ -501,6 +506,8 @@ function neonStore(): SceneStore {
         ...(effectiveSounds.length > 0 ? { sounds: effectiveSounds } : {}),
         ...(objective ? { objective } : {}),
         ...(drive ? { drive } : {}),
+        ...(openingNarration ? { openingNarration } : {}),
+        ...(narrator ? { narrator } : {}),
         ...(arc.length > 0 ? { arc } : {}),
         ...(soloCharacterId ? { solo: true } : {}),
       };

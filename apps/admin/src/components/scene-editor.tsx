@@ -79,6 +79,8 @@ type SceneEditorProps = {
     narratorVoiceId: string | null;
     objective: string | null;
     drive: "gentle" | "balanced" | "insistent" | null;
+    openingNarration: string | null;
+    narrator: "off" | "minimal" | "scenic" | null;
   };
   roster: SceneRosterEntry[];
   graph: SceneGraphPayload;
@@ -130,6 +132,10 @@ export function SceneEditor({
   const [defaultAmbience, setDefaultAmbience] = useState(scene.defaultAmbience ?? "");
   const [narratorVoiceId, setNarratorVoiceId] = useState(scene.narratorVoiceId);
   const [objective, setObjective] = useState(scene.objective ?? "");
+  const [openingNarration, setOpeningNarration] = useState(scene.openingNarration ?? "");
+  const [narrator, setNarrator] = useState<"off" | "minimal" | "scenic">(
+    scene.narrator ?? "minimal",
+  );
   const [drive, setDrive] = useState<"gentle" | "balanced" | "insistent">(
     scene.drive ?? "balanced",
   );
@@ -189,6 +195,8 @@ export function SceneEditor({
         narratorVoiceId,
         objective: objective.trim() || null,
         drive: drive === "balanced" ? null : drive,
+        openingNarration: openingNarration.trim() || null,
+        narrator: narrator === "minimal" ? null : narrator,
       });
       if (res.ok) setSavedAt(Date.now());
       router.refresh();
@@ -199,6 +207,8 @@ export function SceneEditor({
     openingBeat,
     objective,
     drive,
+    openingNarration,
+    narrator,
     prompt,
     router,
     scene.id,
@@ -219,6 +229,8 @@ export function SceneEditor({
     narratorVoiceId,
     objective,
     drive,
+    openingNarration,
+    narrator,
   ]);
   const savedConfigSnapshot = useRef(configSnapshot);
   useEffect(() => {
@@ -396,6 +408,8 @@ export function SceneEditor({
             narratorVoiceId,
             objective,
             drive,
+            openingNarration,
+            narrator,
           }}
           rosterCount={roster.length}
           addableCharacters={addableCharacters}
@@ -410,6 +424,8 @@ export function SceneEditor({
             setNarratorVoiceId,
             setObjective,
             setDrive,
+            setOpeningNarration,
+            setNarrator,
           }}
           onAddCharacter={addCharacter}
           onAddAudio={addAudio}
@@ -931,6 +947,8 @@ function SceneInspector({
     narratorVoiceId: string | null;
     objective: string;
     drive: "gentle" | "balanced" | "insistent";
+    openingNarration: string;
+    narrator: "off" | "minimal" | "scenic";
   };
   rosterCount: number;
   addableCharacters: SceneLibraryCharacter[];
@@ -945,6 +963,8 @@ function SceneInspector({
     setNarratorVoiceId: (next: string | null) => void;
     setObjective: (next: string) => void;
     setDrive: (next: "gentle" | "balanced" | "insistent") => void;
+    setOpeningNarration: (next: string) => void;
+    setNarrator: (next: "off" | "minimal" | "scenic") => void;
   };
   onAddCharacter: (characterId: string) => void;
   onAddAudio: (input: {
@@ -1028,6 +1048,8 @@ function SceneSettingsInspector({
     narratorVoiceId: string | null;
     objective: string;
     drive: "gentle" | "balanced" | "insistent";
+    openingNarration: string;
+    narrator: "off" | "minimal" | "scenic";
   };
   rosterCount: number;
   addableCharacters: SceneLibraryCharacter[];
@@ -1042,6 +1064,8 @@ function SceneSettingsInspector({
     setNarratorVoiceId: (next: string | null) => void;
     setObjective: (next: string) => void;
     setDrive: (next: "gentle" | "balanced" | "insistent") => void;
+    setOpeningNarration: (next: string) => void;
+    setNarrator: (next: "off" | "minimal" | "scenic") => void;
   };
   onAddCharacter: (characterId: string) => void;
   onAddAudio: (input: {
@@ -1147,6 +1171,47 @@ function SceneSettingsInspector({
                 </select>
               </Field>
             </InspectorSection>
+            <InspectorSection
+              title="Narrator"
+              hint="The unseen presence: sets the scene on entry, answers the user, and renders what they do."
+            >
+              <Field label="Narrator voice">
+                <VoiceLibraryPicker
+                  currentVoiceId={scene.narratorVoiceId}
+                  voices={voiceOptions}
+                  onChange={onSceneChange.setNarratorVoiceId}
+                />
+              </Field>
+              <Field label="Presence">
+                <select
+                  value={scene.narrator}
+                  onChange={(event) =>
+                    onSceneChange.setNarrator(
+                      event.target.value as "off" | "minimal" | "scenic",
+                    )
+                  }
+                  style={{ ...inputStyle, cursor: "pointer" }}
+                >
+                  <option value="off">off — no narrator in this scene</option>
+                  <option value="minimal">
+                    minimal — opening, answers the user, renders their actions
+                  </option>
+                  <option value="scenic">
+                    scenic — also grounds the space and unfolds events
+                  </option>
+                </select>
+              </Field>
+              <Field label="Opening narration">
+                <textarea
+                  value={scene.openingNarration}
+                  onChange={(event) => onSceneChange.setOpeningNarration(event.target.value)}
+                  rows={4}
+                  disabled={scene.narrator === "off"}
+                  placeholder="What the narrator says the moment the user arrives — before anyone speaks. Present tense, sensory, 2-4 sentences."
+                  style={textareaStyle}
+                />
+              </Field>
+            </InspectorSection>
             <InspectorSection title="Status">
               <Field label="Status">
                 <select
@@ -1194,13 +1259,6 @@ function SceneSettingsInspector({
                     </option>
                   ))}
                 </select>
-              </Field>
-              <Field label="Narrator voice">
-                <VoiceLibraryPicker
-                  currentVoiceId={scene.narratorVoiceId}
-                  voices={voiceOptions}
-                  onChange={onSceneChange.setNarratorVoiceId}
-                />
               </Field>
             </InspectorSection>
             <InspectorSection

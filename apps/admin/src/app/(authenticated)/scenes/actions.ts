@@ -40,6 +40,10 @@ export async function updateSceneConfig(
     objective?: string | null;
     /** How hard the director presses toward goals. null = balanced. */
     drive?: "gentle" | "balanced" | "insistent" | null;
+    /** The unseen narrator's authored opening lines, played on entry. */
+    openingNarration?: string | null;
+    /** Narrator presence. null = minimal (the default). */
+    narrator?: "off" | "minimal" | "scenic" | null;
   },
 ): Promise<ActionResult> {
   const {
@@ -51,6 +55,8 @@ export async function updateSceneConfig(
     narratorVoiceId,
     objective,
     drive,
+    openingNarration,
+    narrator,
   } = updates;
 
   const definitionPatch: Record<string, unknown> = {};
@@ -59,6 +65,8 @@ export async function updateSceneConfig(
   if (narratorVoiceId !== undefined) definitionPatch.narratorVoiceId = narratorVoiceId;
   if (objective !== undefined) definitionPatch.objective = objective;
   if (drive !== undefined) definitionPatch.drive = drive;
+  if (openingNarration !== undefined) definitionPatch.openingNarration = openingNarration;
+  if (narrator !== undefined) definitionPatch.narrator = narrator;
 
   const updated = await getSceneStore().updateScene(id, {
     title,
