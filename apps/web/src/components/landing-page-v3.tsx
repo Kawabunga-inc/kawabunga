@@ -583,26 +583,58 @@ function ExperienceArtworkDialog({
 
 export function LandingPageV3() {
   useLayoutEffect(() => {
-    const previousScrollRestoration = window.history.scrollRestoration;
+    const navigation = window.performance.getEntriesByType(
+      "navigation",
+    )[0] as PerformanceNavigationTiming | undefined;
+    const isReload =
+      navigation?.type === "reload" || window.performance.navigation?.type === 1;
     const sectionId = window.location.hash.slice(1);
-    let frame: number;
+    const shouldResetScroll = isReload || !sectionId;
+    const frames: number[] = [];
+    const timers: number[] = [];
 
-    if (sectionId) {
+    if (!shouldResetScroll) {
       window.history.scrollRestoration = "auto";
-      frame = window.requestAnimationFrame(() => {
+      frames.push(window.requestAnimationFrame(() => {
         document.getElementById(sectionId)?.scrollIntoView({ block: "start" });
-      });
-    } else {
-      window.history.scrollRestoration = "manual";
+      }));
 
-      const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      resetScroll();
-      frame = window.requestAnimationFrame(resetScroll);
+      return () => frames.forEach(window.cancelAnimationFrame);
     }
 
+    window.history.scrollRestoration = "manual";
+
+    if (isReload && window.location.hash) {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    }
+
+    const resetScroll = () => {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    };
+
+    const resetAfterLayout = () => {
+      resetScroll();
+      frames.push(window.requestAnimationFrame(resetScroll));
+    };
+
+    resetScroll();
+    frames.push(window.requestAnimationFrame(resetAfterLayout));
+    timers.push(window.setTimeout(resetScroll, 100));
+    timers.push(window.setTimeout(resetScroll, 300));
+    window.addEventListener("pageshow", resetAfterLayout);
+    window.addEventListener("load", resetAfterLayout);
+
     return () => {
-      window.cancelAnimationFrame(frame);
-      window.history.scrollRestoration = previousScrollRestoration;
+      frames.forEach(window.cancelAnimationFrame);
+      timers.forEach(window.clearTimeout);
+      window.removeEventListener("pageshow", resetAfterLayout);
+      window.removeEventListener("load", resetAfterLayout);
     };
   }, []);
 
