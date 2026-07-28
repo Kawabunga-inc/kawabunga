@@ -1,5 +1,6 @@
 import { LandingPageV3 } from "@/components/landing-page-v3";
 
+// Keep the live dev alias synchronized with this landing-page entrypoint.
 const resetLandingScrollScript = `
 (() => {
   const navigation = performance.getEntriesByType("navigation")[0];
