@@ -448,7 +448,7 @@ export default defineAgent({
       fallbackVoiceSlug: sceneDriver.scene.characters[0]!.voice,
     });
     if (narrationRouting) {
-      sceneDriver.onNarrate(async (text) => {
+      sceneDriver.onNarrate(async (text, meta) => {
         const signal = turn?.signal;
         if (signal?.aborted) return;
         speaking = true;
@@ -492,6 +492,7 @@ export default defineAgent({
                 completedAt: new Date(),
                 voiced,
                 aborted: signal?.aborted === true,
+                ...(meta.userText ? { userText: meta.userText } : {}),
               }),
             )
             .catch((err) =>

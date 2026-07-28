@@ -93,12 +93,18 @@ export function buildNarrationTurnRecord(input: {
   completedAt: Date;
   voiced: boolean;
   aborted?: boolean;
+  /** The utterance that prompted this narration (absent on proactive or
+   *  chained narration) — recorded so the input that caused an event isn't
+   *  lost from the session (observed: a user's declared punch existed
+   *  nowhere in the data, only its narrated outcome). */
+  userText?: string;
 }) {
   return {
     id: input.turnId,
     sessionId: input.sessionId,
     inputMode: "narration",
     speakerSlug: "narrator",
+    ...(input.userText ? { userText: input.userText } : {}),
     assistantText: input.text,
     provider: input.provider ?? null,
     status: input.aborted ? "aborted" : "completed",

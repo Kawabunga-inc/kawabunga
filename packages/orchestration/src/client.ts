@@ -675,6 +675,9 @@ function buildOrchestratorSystemPrompt(
           "  or answered as if it were words. `narrate` its outcome as an event in",
           "  the world; HOW it lands is your dramatic choice (the blow connects, or",
           "  a hand catches the wrist mid-swing) - then a character reacts next.",
+          "  Render an action in ONE short sentence - the act, its immediate mark,",
+          "  and stop. The reaction belongs to the character, not to you; a long",
+          "  narration steals the moment and stalls the scene.",
           "- Never narrate twice in a row unless the user asked the narrator again.",
           "- After a narration that merely ANSWERED the user, hold for them - a",
           "  character speaks next only to genuinely react, never to restate what",
@@ -876,6 +879,14 @@ function buildSoundsBlock(scene: Scene): string[] {
  *  not respond to a message. */
 export const PROACTIVE_SILENCE_MARKER = "(the user has gone quiet)";
 
+/** Sentinel passed as `lastUserMessage` on a narrate→react CHAIN step: the
+ *  narrator just rendered something that happened, and the scene needs a
+ *  character to react to it now. Without this framing the director reads the
+ *  narration as "a turn already landed" and answers `wait-for-user` —
+ *  observed live as 4s of dead air after a punch was narrated, with the
+ *  reaction arriving only when the idle timer fired. */
+export const NARRATED_EVENT_MARKER = "(the narrator has just rendered an event)";
+
 function buildOrchestratorUserPrompt(
   recentTurns: SceneTurnForPlanning[],
   lastUserMessage?: string,
@@ -892,7 +903,16 @@ function buildOrchestratorUserPrompt(
       lines.push(`  ${who}: ${turn.text}`);
     }
   }
-  if (lastUserMessage === PROACTIVE_SILENCE_MARKER) {
+  if (lastUserMessage === NARRATED_EVENT_MARKER) {
+    lines.push("");
+    lines.push("The last line above is the NARRATOR: something just HAPPENED in the");
+    lines.push("scene - the user's declared action, or an event unfolding. Someone");
+    lines.push("must react to it NOW, in the same breath. Choose `speak` and pick the");
+    lines.push("character it happened TO, or the one who would move first; write a");
+    lines.push("`beat` that reacts to the event itself, not to anything said.");
+    lines.push("Do NOT `wait-for-user` here - the moment demands a response, and a");
+    lines.push("pause after an event reads as the scene freezing.");
+  } else if (lastUserMessage === PROACTIVE_SILENCE_MARKER) {
     lines.push("");
     lines.push("The user has gone quiet - no new message. Decide whether the scene");
     lines.push("should advance NOW (a character follows up, re-engages, or presses)");
