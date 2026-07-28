@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  declaresUserAction,
   buildOpeningNarrationMessages,
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
@@ -585,6 +586,36 @@ describe("narrator — game-master surface", () => {
     const off = system({ ...scene, narrator: "off" });
     expect(off).not.toContain("THE NARRATOR");
     expect(off).toContain("without a narrator");
+  });
+});
+
+describe("declaresUserAction", () => {
+  it("recognizes a declared action, with or without the narrator vocative", () => {
+    expect(declaresUserAction("I punch Abraham in the face")).toBe(true);
+    expect(declaresUserAction("Narrator, I take Sarah hostage.")).toBe(true);
+    expect(declaresUserAction("narrator: I hand her the waterskin")).toBe(true);
+    expect(declaresUserAction("I'm drawing my knife")).toBe(true);
+  });
+
+  it("does not mistake speech or questions for action", () => {
+    // These are the narrator-question case, which is complete once answered.
+    expect(declaresUserAction("Narrator, what do I see around the camp?")).toBe(false);
+    expect(declaresUserAction("What does this place smell like?")).toBe(false);
+    expect(declaresUserAction("I think you are lying")).toBe(false);
+    expect(declaresUserAction("I want to know what the strangers said")).toBe(false);
+    expect(declaresUserAction("Sarah, did you laugh?")).toBe(false);
+  });
+});
+
+describe("stakes rule", () => {
+  it("tells the director that danger outranks whose turn it is", () => {
+    const prompt = buildSceneDecisionRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: [{ speakerSlug: "user", text: "hello" }],
+    }).messages[0]!.content;
+    expect(prompt).toContain("STAKES OVERRIDE ADDRESSING");
+    expect(prompt).toContain("does not wait his turn");
   });
 });
 

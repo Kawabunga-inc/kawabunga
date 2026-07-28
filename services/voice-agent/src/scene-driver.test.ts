@@ -413,7 +413,43 @@ describe("SceneDriver — narration", () => {
     await driver.drive("Peace to this camp.", speak);
     expect(lastDialogue(exec.requests)).toContain("Narrator: Evening settles over the oaks.");
   });
+
+  it("chains after a narrator-addressed ACTION, but not after a question", async () => {
+    // "Narrator, I take Sarah hostage" is an event: somebody must react.
+    const actionExec = fakeExecutor([
+      { action: "narrate", narration: "You seize Sarah by the arm." },
+      speakDecision("abraham", "Move on the stranger"),
+    ]);
+    const actionDriver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: actionExec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    actionDriver.onNarrate(async () => {});
+    const action = fakeSpeak(["Take your hand off her."]);
+    const actionOutcome = await actionDriver.drive(
+      "Narrator, I take Sarah hostage.",
+      action.speak,
+    );
+    expect(actionOutcome.spoke).toBe(true);
+    expect(action.inputs).toHaveLength(1);
+    expect(action.inputs[0]!.characterId).toBe("id-abraham");
+
+    // "Narrator, what do I see?" is answered and complete — no chain.
+    const askExec = fakeExecutor([
+      { action: "narrate", narration: "Oaks, a banked fire, a tent flap stirring." },
+      speakDecision("abraham"),
+    ]);
+    const askDriver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: askExec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    askDriver.onNarrate(async () => {});
+    const ask = fakeSpeak(["unused"]);
+    await askDriver.drive("Narrator, what do I see around the camp?", ask.speak);
+    expect(ask.inputs).toHaveLength(0);
+  });
 });
+
 
 describe("SceneDriver — supersession", () => {
   it("a newer drive supersedes an in-flight one before its decision applies", async () => {
@@ -590,6 +626,55 @@ describe("SceneDriver — proactive turns", () => {
     const spoke = await driver.driveProactive(speak);
     expect(spoke).toBe(false);
     expect(exec.calls).toBe(callsBefore); // held without consulting the director
+  });
+});
+
+describe("SceneDriver — unanswered events", () => {
+  it("a silent witness responds instead of the scene holding after an event", async () => {
+    // The director says hold; but Sarah was seized, answered for herself, and
+    // Abraham has said nothing since — he gets the turn.
+    const exec = fakeExecutor([{ action: "wait-for-user" }]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(async () => {});
+    driver.recordNarration("You seize Sarah by the arm.");
+    driver.recordTurn("sarah", "Ha — you think a grip loosens my resolve?");
+    const { speak, inputs } = fakeSpeak(["Take your hand off her."]);
+
+    const spoke = await driver.driveProactive(speak);
+    expect(spoke).toBe(true);
+    expect(inputs[0]!.characterId).toBe("id-abraham");
+  });
+
+  it("still holds when everyone present has already answered the event", async () => {
+    const exec = fakeExecutor([{ action: "wait-for-user" }]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(async () => {});
+    driver.recordNarration("You seize Sarah by the arm.");
+    driver.recordTurn("sarah", "Ha — you think a grip loosens my resolve?");
+    driver.recordTurn("abraham", "Take your hand off her.");
+    const { speak, inputs } = fakeSpeak(["unused"]);
+
+    expect(await driver.driveProactive(speak)).toBe(false);
+    expect(inputs).toHaveLength(0);
+  });
+
+  it("does not conscript a speaker when no event was narrated", async () => {
+    const exec = fakeExecutor([{ action: "wait-for-user" }]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.recordTurn("abraham", "Sit by the fire, friend.");
+    const { speak, inputs } = fakeSpeak(["unused"]);
+
+    expect(await driver.driveProactive(speak)).toBe(false);
+    expect(inputs).toHaveLength(0);
   });
 });
 
