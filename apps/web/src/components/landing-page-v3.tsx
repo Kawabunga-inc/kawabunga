@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MeshGradient } from "./mesh-gradient";
 import { RootFooter } from "./root-footer";
@@ -582,6 +582,30 @@ function ExperienceArtworkDialog({
 }
 
 export function LandingPageV3() {
+  useLayoutEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    const sectionId = window.location.hash.slice(1);
+    let frame: number;
+
+    if (sectionId) {
+      window.history.scrollRestoration = "auto";
+      frame = window.requestAnimationFrame(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ block: "start" });
+      });
+    } else {
+      window.history.scrollRestoration = "manual";
+
+      const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      resetScroll();
+      frame = window.requestAnimationFrame(resetScroll);
+    }
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
+
   useEffect(() => {
     document.documentElement.classList.add("motion-ready");
     return () => document.documentElement.classList.remove("motion-ready");
