@@ -610,6 +610,47 @@ export default defineAgent({
       ctx.addShutdownCallback(() => worldAudio.close());
     }
 
+    // The authored OPENING NARRATION — the unseen narrator sets the scene the
+    // moment the user arrives, before any character speaks. Recorded into the
+    // driver's transcript so the director and the characters know it was said.
+    // Barge-in wins: the user speaking aborts it like any turn.
+    const openingNarration = sceneDriver.scene.openingNarration?.trim();
+    if (
+      openingNarration &&
+      narrationRouting &&
+      (sceneDriver.scene.narrator ?? "minimal") !== "off"
+    ) {
+      turn = new AbortController();
+      const openingSignal = turn.signal;
+      speaking = true;
+      worldAudio?.setDucked(true);
+      publishTurn({
+        role: "agent",
+        id: `n${Date.now()}`,
+        text: openingNarration,
+        final: true,
+        speaker: { slug: "narrator", name: "Narrator" },
+      });
+      sceneDriver.recordNarration(openingNarration);
+      void streamNarration({
+        routing: narrationRouting,
+        text: openingNarration,
+        audioSource,
+        signal: openingSignal,
+        onFirstAudio: () => worldAudio?.flushSpeakerCues(),
+      })
+        .catch((err) => {
+          if (!openingSignal.aborted) {
+            console.warn(`[voice-agent] opening narration failed: ${(err as Error).message}`);
+          }
+        })
+        .finally(() => {
+          speaking = false;
+          worldAudio?.setDucked(false);
+          armIdle(); // a proactive tick may follow the opening if the user stays quiet
+        });
+    }
+
     // DIAGNOSTIC (gated): on join, drive ONE turn from a canned user message so the
     // smoke client can verify the loop WITHOUT STT — a scene room exercises the full
     // orchestrate→speaker→brain path; a single-character room just runs the brain.

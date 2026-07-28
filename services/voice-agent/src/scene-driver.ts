@@ -15,6 +15,7 @@ import {
   createInitialSceneState,
   defaultSceneDecision,
   getScene,
+  isNarratorAddressed,
   PROACTIVE_SILENCE_MARKER,
   RECENT_TURNS_LIMIT,
   expandLandedBeats,
@@ -576,7 +577,40 @@ export class SceneDriver {
 
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
       const voiced = await this.#narrate(resolution.decision.narration.trim());
-      return { action: "narrate", spoke: voiced };
+      if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
+      // A narration that ANSWERED the user ("Narrator, what do I see?") is
+      // complete in itself — hold for them rather than chaining a character
+      // turn that would only restate it.
+      if (isNarratorAddressed(userText)) {
+        return { action: "narrate", spoke: voiced };
+      }
+      // EVENT CHAINING: a reactive narration otherwise renders something that
+      // just HAPPENED (the user's declared action, an unfolding event) — give
+      // the director ONE immediate follow-up so a character can react to it.
+      // Bounded: a chained narrate is applied but never chains again.
+      const chain = await this.#decide(null, "chain");
+      if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
+      const chainResolution = resolveSceneDecision(
+        { scene: this.scene, sceneState: this.#sceneState },
+        chain.decision,
+      );
+      this.#sceneState = chainResolution.sceneState;
+      this.#persistState();
+      this.#emitSfx(chainResolution.decision.sfx);
+      if (
+        chainResolution.decision.action === "narrate" &&
+        chainResolution.decision.narration?.trim()
+      ) {
+        const voicedAgain = await this.#narrate(chainResolution.decision.narration.trim());
+        return { action: "narrate", spoke: voiced || voicedAgain };
+      }
+      if (chainResolution.decision.action === "speak" && chainResolution.speakerSlug) {
+        const spoke = await this.#speakTurn(chainResolution, speak, superseded);
+        if (spoke === "superseded") return { action: "speak", spoke: voiced, superseded: true };
+        return { action: "speak", spoke: voiced || spoke };
+      }
+      console.log(`[voice-agent] scene: narrate chain → ${chainResolution.decision.action}`);
+      return { action: chainResolution.decision.action, spoke: voiced };
     }
 
     if (resolution.decision.action !== "speak" || !resolution.speakerSlug) {
@@ -584,12 +618,27 @@ export class SceneDriver {
       return { action: resolution.decision.action, spoke: false };
     }
 
+    const spoke = await this.#speakTurn(resolution, speak, superseded);
+    if (spoke === "superseded") return { action: "speak", spoke: false, superseded: true };
+    return { action: "speak", spoke };
+  }
+
+  /** Voice one resolved speak decision: resolve the character, build the turn
+   *  request, run `speak`, and record the reply. Shared by the reactive path
+   *  and the narrate→react chain. Returns whether a (non-empty) reply landed,
+   *  or "superseded" when a newer turn took the scene mid-speak. */
+  async #speakTurn(
+    resolution: ReturnType<typeof resolveSceneDecision>,
+    speak: SceneSpeakFn,
+    superseded: () => boolean,
+  ): Promise<boolean | "superseded"> {
+    if (!resolution.speakerSlug) return false;
     const character = await this.#resolveCharacter(resolution.speakerSlug);
     if (!character) {
       console.warn(
         `[voice-agent] scene: speaker "${resolution.speakerSlug}" did not resolve — skipping turn`,
       );
-      return { action: "speak", spoke: false };
+      return false;
     }
 
     const turn = buildSpeakerTurnRequest({
@@ -598,7 +647,7 @@ export class SceneDriver {
       decision: resolution.decision,
       recentTurns: this.#recentTurns,
     });
-    if (!turn) return { action: "speak", spoke: false };
+    if (!turn) return false;
 
     const speakerCharacter = this.scene.characters.find(
       (c) => c.characterSlug === resolution.speakerSlug,
@@ -631,9 +680,7 @@ export class SceneDriver {
     // Superseded mid-speak (barge-in): the new turn's user text is already in
     // the transcript, so appending this (cut-off) reply would land AFTER it —
     // out of order. Drop it, matching the browser player's behavior.
-    if (superseded()) {
-      return { action: "speak", spoke: Boolean(replyText), superseded: true };
-    }
+    if (superseded()) return "superseded";
     // An aborted/failed speak resolves to "" — never record an empty turn.
     if (replyText) {
       this.#recentTurns.push({
@@ -644,7 +691,16 @@ export class SceneDriver {
       this.#trim();
       this.#maybeReflect();
     }
-    return { action: "speak", spoke: Boolean(replyText) };
+    return Boolean(replyText);
+  }
+
+  /** Record an externally voiced narration (the authored opening) into the
+   *  running transcript so the director and the characters know it was said. */
+  recordNarration(text: string): void {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    this.#recentTurns.push({ speakerSlug: "narrator", speakerName: "Narrator", text: trimmed });
+    this.#trim();
   }
 
   /**
@@ -813,8 +869,11 @@ export class SceneDriver {
    *  SOLO_CUE_ON_MISS forces an inline call. The phase tag distinguishes a speculative
    *  pre-call (under the hold) from a final-turn call. */
   async #decide(
-    userText: string,
-    phase: "final" | "speculate" | "proactive" = "final",
+    // null = no fresh user utterance (a narrate→react chain step): the
+    // director decides off the transcript alone, whose last line is the
+    // narration just voiced.
+    userText: string | null,
+    phase: "final" | "speculate" | "proactive" | "chain" = "final",
     signal?: AbortSignal,
   ): Promise<DecideResult> {
     const present = this.#presentRoster();
@@ -840,6 +899,9 @@ export class SceneDriver {
       if (phase === "final" && (!SOLO_CUE_ENABLED || !SOLO_CUE_ON_MISS)) {
         return { decision: soloFloor! };
       }
+      // Chain step in a solo scene: the lone character reacts to the
+      // narration — the floor already says exactly that, no LLM needed.
+      if (phase === "chain") return { decision: soloFloor! };
     }
 
     const request = buildSceneDecisionRequest({
@@ -848,7 +910,7 @@ export class SceneDriver {
       recentTurns: this.#recentTurns,
       sceneMemory: this.#sceneMemory,
       sceneFacts: this.#sceneFacts,
-      lastUserMessage: userText,
+      lastUserMessage: userText ?? undefined,
     });
 
     const startedAt = Date.now();
