@@ -1,8 +1,17 @@
 import type { Scene } from "@kawabunga/types";
 
-// Static scene registry. For this phase, scenes are authored in code.
-// The orchestration package owns scene meaning and turn planning; later
-// this registry can be backed by persisted scene definitions.
+// Static scene registry — code-authored scenes that exist without a DB row.
+//
+// Current role: stable fixtures for benchmarks and headless runs (sonar's
+// scene-roster-baseline, simulate-scene, the LiveKit smoke path) — places
+// where a canvas-editable DB scene would make results drift under edits.
+// Authored production scenes live in the scenes table.
+//
+// ORDERING CAVEAT: every resolver (SceneDriver.load, admin resolveScene)
+// checks this registry BEFORE the DB, so a registry id shadows any DB scene
+// with the same id. DB ids are UUIDs and registry ids are slugs, so a
+// collision takes deliberate effort — but never add a registry id that
+// could collide with an authored scene's id or slug.
 
 const ABRAHAMS_TENT: Scene = {
   id: "abrahams-tent",
@@ -18,6 +27,8 @@ const ABRAHAMS_TENT: Scene = {
       voice: "abraham",
       blurb:
         "Old shepherd-patriarch. Plainspoken. Just heard from three strangers that Sarah will bear a son. Caught between awe and the embarrassment of his wife's laughter.",
+      motivations:
+        "Wants the traveler to understand what the strangers' promise means — and to steady his own shaken faith in it.",
     },
     {
       characterSlug: "sarah",
@@ -25,6 +36,8 @@ const ABRAHAMS_TENT: Scene = {
       voice: "sarah",
       blurb:
         "Sarah, ninety years old, barren her whole life. She laughed inside the tent when she overheard the promise. Now denying she laughed — afraid, defensive, sharp-tongued.",
+      motivations:
+        "Wants to deny the laugh without admitting the hope underneath it — she yields only when denial starts to cost more than the truth.",
     },
   ],
   openingBeat:
@@ -32,6 +45,39 @@ const ABRAHAMS_TENT: Scene = {
   defaultAmbience: "tent-evening",
   // Routed through OpenAI TTS in the current scene runner.
   narratorVoice: "fable",
+  // The unseen narrator: authored opening, scenic presence (sensory
+  // grounding + unfolding events are in the director's move rotation).
+  openingNarration:
+    "Evening settles over the oaks at Mamre. Smoke from a hurried meal still hangs between the tents, and on the road toward Sodom the dust of three departed strangers has not yet fallen. From inside the tent, a woman's laughter — quickly stifled. An old man stands at the flap, watching you approach.",
+  narrator: "scenic",
+  // Authored intention: what the scene drives toward, and the ordered beats
+  // the dramaturg judges. Sarah's denial is the scene's tension — the arc
+  // makes the director EARN the admission instead of spending it on turn 2
+  // (observed before authoring: she admitted immediately).
+  objective:
+    "Sarah's laughter is admitted aloud — and the hope underneath it finally spoken.",
+  drive: "balanced",
+  arc: [
+    {
+      label: "The welcome",
+      summary: "The traveler is received into the camp with shade and water.",
+    },
+    {
+      label: "The laugh is named",
+      summary:
+        "Someone says aloud that the laughter from the tent was Sarah's, laughing at the strangers' promise.",
+    },
+    {
+      label: "The denial breaks",
+      summary:
+        "Sarah stops insisting she did not laugh and admits it — and why: the promise touches the one hope she buried.",
+    },
+    {
+      label: "The promise stands",
+      summary:
+        "Abraham and Sarah, in front of the traveler, let the promise stand over the laughter — wonder outweighing fear.",
+    },
+  ],
 };
 
 const SCENES: Record<string, Scene> = {

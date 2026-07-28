@@ -39,7 +39,6 @@ import {
   voice,
 } from "@livekit/agents";
 import {
-  AudioFrame,
   AudioSource,
   LocalAudioTrack,
   TrackPublishOptions,
@@ -48,6 +47,8 @@ import {
 import { BackgroundVoiceCancellation } from "@livekit/noise-cancellation-node";
 import { type CharacterRecord, getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
 import { runVoiceStream } from "@kawabunga/voice-pipeline";
+import { toAudioFrame } from "./audio-frame";
+import { resolveNarrationRouting, streamNarration } from "./narration";
 import { SceneDriver } from "./scene-driver";
 import { WorldAudioChannel } from "./world-audio";
 
@@ -90,10 +91,13 @@ const STT_MODEL = process.env.VOICE_AGENT_STT ?? "deepgram/nova-3";
 // the endpoint hold so the multi-character speaker is usually already chosen when
 // the turn completes (hiding the ~0.5s orchestrate gap). Kill-switch: =0.
 const SPECULATE_ENABLED = process.env.VOICE_AGENT_SPECULATE !== "0";
-// Phase 4: the proactive director loop. Ships DARK (default off). When on, the
-// director may take a turn on its own after the user goes quiet for IDLE_MS, bounded
-// to MAX_PROACTIVE consecutive turns so it never monologues. Barge-in always wins.
-const PROACTIVE_ENABLED = process.env.VOICE_AGENT_PROACTIVE === "1";
+// Phase 4: the proactive director loop — ON by default. After the user goes
+// quiet for IDLE_MS the director may take a turn (a character re-engages or
+// presses), bounded to MAX_PROACTIVE consecutive turns so it never
+// monologues; barge-in always wins. The silence brakes are probe-verified
+// (hold family, evals/scenes) — the director reliably chooses wait-for-user
+// when the last turn already put a question to the user. Kill-switch: =0.
+const PROACTIVE_ENABLED = process.env.VOICE_AGENT_PROACTIVE !== "0";
 const MAX_PROACTIVE = Number(process.env.VOICE_AGENT_MAX_PROACTIVE ?? 2);
 const IDLE_MS = Number(process.env.VOICE_AGENT_IDLE_MS ?? 3500);
 // Persist the live SceneState snapshot after each decision (visible/resumable in
@@ -106,21 +110,6 @@ const PERSIST_SCENE = process.env.VOICE_AGENT_PERSIST_SCENE === "1";
 const WORLD_AUDIO_ENABLED = process.env.VOICE_AGENT_WORLD_AUDIO !== "0";
 const WORLD_GAIN_DB = Number(process.env.VOICE_AGENT_WORLD_GAIN_DB ?? -12);
 const WORLD_DUCK_DB = Number(process.env.VOICE_AGENT_WORLD_DUCK_DB ?? -12);
-
-/** base64 Float32 LE PCM (one TTS chunk) → an Int16 mono AudioFrame for the room. */
-function toAudioFrame(pcmBase64: string, sampleRate: number): AudioFrame {
-  const buf = Buffer.from(pcmBase64, "base64");
-  // Copy into a fresh, 4-byte-aligned ArrayBuffer — Buffer pooling can hand back
-  // an unaligned byteOffset, which would make the Float32Array view throw.
-  const aligned = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-  const f32 = new Float32Array(aligned);
-  const i16 = new Int16Array(f32.length);
-  for (let i = 0; i < f32.length; i++) {
-    const s = Math.max(-1, Math.min(1, f32[i] ?? 0));
-    i16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-  }
-  return new AudioFrame(i16, sampleRate, 1, i16.length);
-}
 
 /** LEGACY shim: `char-<characterId>-<sessionId>` rooms, minted by pre-unification
  *  token routes. The characterId resolves to the character's SOLO scene via
@@ -429,6 +418,42 @@ export default defineAgent({
       return replyText;
     };
 
+    // Narration sink: voice `narrate` decisions on the same output track the
+    // characters use. Routing resolves once (library voice by id/slug, else the
+    // first roster character's voice); a null routing leaves narration recorded
+    // in the driver's transcript but unvoiced (the driver logs that once).
+    const narrationRouting = await resolveNarrationRouting({
+      narratorVoice: sceneDriver.scene.narratorVoice,
+      fallbackVoiceSlug: sceneDriver.scene.characters[0]!.voice,
+    });
+    if (narrationRouting) {
+      sceneDriver.onNarrate(async (text) => {
+        const signal = turn?.signal;
+        if (signal?.aborted) return;
+        speaking = true;
+        worldAudio?.setDucked(true);
+        publishTurn({
+          role: "agent",
+          id: `n${Date.now()}`,
+          text,
+          final: true,
+          speaker: { slug: "narrator", name: "Narrator" },
+        });
+        try {
+          await streamNarration({
+            routing: narrationRouting,
+            text,
+            audioSource,
+            signal,
+            onFirstAudio: () => worldAudio?.flushSpeakerCues(),
+          });
+        } finally {
+          speaking = false;
+          worldAudio?.setDucked(false);
+        }
+      });
+    }
+
     // B4: accumulate the user's finalized STT segments so we can orchestrate off the
     // running transcript while the turn is still being held open. Reset each turn.
     let userSegments: string[] = [];
@@ -464,15 +489,18 @@ export default defineAgent({
       proactiveCount += 1;
       console.log(`[voice-agent] proactive tick #${proactiveCount}`);
       void sceneDriver
-        .driveProactive((input, replyId) => {
-          if (signal.aborted) return Promise.resolve("");
-          speaking = true;
-          worldAudio?.setDucked(true);
-          return speak(input, signal, replyId).finally(() => {
-            speaking = false;
-            worldAudio?.setDucked(false);
-          });
-        })
+        .driveProactive(
+          (input, replyId) => {
+            if (signal.aborted) return Promise.resolve("");
+            speaking = true;
+            worldAudio?.setDucked(true);
+            return speak(input, signal, replyId).finally(() => {
+              speaking = false;
+              worldAudio?.setDucked(false);
+            });
+          },
+          { signal },
+        )
         .then((spoke) => {
           if (spoke) armIdle(); // chain another bounded follow-up
         });
@@ -502,17 +530,24 @@ export default defineAgent({
       console.log(`[voice-agent] user: ${text}`);
       publishTurn({ role: "user", id: `u${Date.now()}`, text, final: true });
       void sceneDriver
-        .drive(text, (input, replyId) => {
-          speaking = true;
-          worldAudio?.setDucked(true);
-          return speak(input, signal, replyId).finally(() => {
-            speaking = false;
-            worldAudio?.setDucked(false);
-            armIdle();
-          });
-        })
+        .drive(
+          text,
+          (input, replyId) => {
+            speaking = true;
+            worldAudio?.setDucked(true);
+            return speak(input, signal, replyId).finally(() => {
+              speaking = false;
+              worldAudio?.setDucked(false);
+              armIdle();
+            });
+          },
+          { signal },
+        )
         .then((outcome) => {
-          if (outcome.action === "end-scene") endScene();
+          if (outcome.action === "end-scene" && !outcome.superseded) endScene();
+          // A narrated bridge hands the floor back — arm a bounded follow-up so
+          // the director can continue (speak turns arm via speak's finally).
+          if (outcome.action === "narrate" && outcome.spoke && !outcome.superseded) armIdle();
         });
       userSegments = []; // next turn starts a fresh speculation accumulation
     };
@@ -573,6 +608,47 @@ export default defineAgent({
         gainDb: openingBed ? soundBySlug.get(openingBed)?.gainDb : undefined,
       });
       ctx.addShutdownCallback(() => worldAudio.close());
+    }
+
+    // The authored OPENING NARRATION — the unseen narrator sets the scene the
+    // moment the user arrives, before any character speaks. Recorded into the
+    // driver's transcript so the director and the characters know it was said.
+    // Barge-in wins: the user speaking aborts it like any turn.
+    const openingNarration = sceneDriver.scene.openingNarration?.trim();
+    if (
+      openingNarration &&
+      narrationRouting &&
+      (sceneDriver.scene.narrator ?? "minimal") !== "off"
+    ) {
+      turn = new AbortController();
+      const openingSignal = turn.signal;
+      speaking = true;
+      worldAudio?.setDucked(true);
+      publishTurn({
+        role: "agent",
+        id: `n${Date.now()}`,
+        text: openingNarration,
+        final: true,
+        speaker: { slug: "narrator", name: "Narrator" },
+      });
+      sceneDriver.recordNarration(openingNarration);
+      void streamNarration({
+        routing: narrationRouting,
+        text: openingNarration,
+        audioSource,
+        signal: openingSignal,
+        onFirstAudio: () => worldAudio?.flushSpeakerCues(),
+      })
+        .catch((err) => {
+          if (!openingSignal.aborted) {
+            console.warn(`[voice-agent] opening narration failed: ${(err as Error).message}`);
+          }
+        })
+        .finally(() => {
+          speaking = false;
+          worldAudio?.setDucked(false);
+          armIdle(); // a proactive tick may follow the opening if the user stays quiet
+        });
     }
 
     // DIAGNOSTIC (gated): on join, drive ONE turn from a canned user message so the

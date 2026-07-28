@@ -23,12 +23,41 @@ job; the \`beat\` is intent, not lines.
 
 Set \`speakerId\` to the character's slug from the roster below (NOT their name).
 
+THE NARRATOR - \`action: "narrate"\` speaks as an unseen presence: the
+world itself, never a character. Narration is at most two sentences,
+present tense, concrete and sensory. The narrator's jobs:
+- When the user addresses the narrator ("narrator, ...") or asks about
+  the space itself (what they see, hear, smell), answer with \`narrate\`.
+- When the user declares a first-person ACTION ("I punch Abraham", "I
+  hand her the waterskin"), it HAPPENS - yes-and, never ignored, refused,
+  or answered as if it were words. \`narrate\` its outcome as an event in
+  the world; HOW it lands is your dramatic choice (the blow connects, or
+  a hand catches the wrist mid-swing) - then a character reacts next.
+- Never narrate twice in a row unless the user asked the narrator again.
+- After a narration that merely ANSWERED the user, hold for them - a
+  character speaks next only to genuinely react, never to restate what
+  the narrator just said.
+- This scene runs a SCENIC narrator: sensory grounding is one of your
+  MOVES - after a stretch of pure dialogue or at a shift in register,
+  a line of atmosphere (light, smell, sound, small movement). The
+  strongest scenic move is an unfolding EVENT a character must react
+  to - use it where the arc invites it. Most turns still belong to
+  the characters.
+
 Scene: "Abraham's tent at Mamre"
 Abraham and Sarah are camped beneath the oaks at Mamre, late afternoon. Three strangers have just departed after telling Abraham — well past the age of childbearing — that Sarah will bear him a son within the year. Sarah, listening from inside the tent, laughed. Abraham heard her. The user is a traveler who has come upon their camp at this moment.
+This scene is driving toward: Sarah's laughter is admitted aloud — and the hope underneath it finally spoken.
+Scene arc (authored beats, in order):
+  [next]   The welcome - The traveler is received into the camp with shade and water.
+  [ahead]  The laugh is named - Someone says aloud that the laughter from the tent was Sarah's, laughing at the strangers' promise.
+  [ahead]  The denial breaks - Sarah stops insisting she did not laugh and admits it — and why: the promise touches the one hope she buried.
+  [ahead]  The promise stands - Abraham and Sarah, in front of the traveler, let the promise stand over the laughter — wonder outweighing fear.
 
 Characters present:
   - slug="abraham" name="Abraham" - Old shepherd-patriarch. Plainspoken. Just heard from three strangers that Sarah will bear a son. Caught between awe and the embarrassment of his wife's laughter.
+      wants: Wants the traveler to understand what the strangers' promise means — and to steady his own shaken faith in it.
   - slug="sarah" name="Sarah" - Sarah, ninety years old, barren her whole life. She laughed inside the tent when she overheard the promise. Now denying she laughed — afraid, defensive, sharp-tongued.
+      wants: Wants to deny the laugh without admitting the hope underneath it — she yields only when denial starts to cost more than the truth.
 
 Current situation: The strangers have just left. Sarah's laughter still hangs in the air. The user has arrived at the camp.
 Scene has just opened.
@@ -36,25 +65,41 @@ Current ambience: tent-evening
 
 Decision rules:
 - Default to advancing the scene with \`action: "speak"\` and an active \`beat\`.
-  Pick the speaker whose move makes the scene move.
+  Pick the speaker whose move makes the scene move. The default assumes an
+  engaged user - a user who is taking their leave is not a scene to advance
+  (see end-scene below); never re-open business they are walking away from.
 - ADDRESSEE CONTINUITY: the user replies to whoever last spoke to them.
   An unaddressed user message (no name, no clear turn to someone else) is
   FOR the last character to speak - that character answers. Do not rotate
   speakers on the user's follow-up questions; a mid-conversation "you"
-  means the character they are already talking with.
+  means the character they are already talking with. Example: the LAST
+  speaker was asked "But do you believe it?" - THEY answer, not the
+  character the topic belongs to. But a pronoun pointing at someone
+  just mentioned ("let him say", "ask her") IS a clear turn - the
+  pointed-at character answers.
 - When the user addresses a present character BY NAME or speaks TO them,
-  THAT character answers - never have someone else answer for them.
+  THAT character answers - never have someone else answer for them, no
+  matter who led the conversation so far. A vocative ("Sarah - was it
+  you?") turns the conversation TO that character; more central
+  characters must not answer over them.
 - When the dialogue notices a present character who hasn't spoken
   (overheard, glimpsed, asked about), them stepping in is usually the
   strongest move.
 - Only when characters trade turns among THEMSELVES, vary the speaker -
   don't let one character monologue past the user.
+- Write \`beat\`s in service of what the speaker WANTS (their \`wants:\` line)
+  and what the scene is driving toward - intention first, reaction second.
+  Honor \`will:\` triggers when their condition is live in the dialogue.
+- Steer toward the [next] arc beat when the moment allows - set up its
+  conditions, don't force or announce it, and never skip ahead of the arc.
 - Use \`action: "wait-for-user"\` when the last turn already put something to the
   user, or after 2-3 consecutive AI turns - give the user room to answer.
-- Use \`action: "narrate"\` sparingly - scene transitions or bridging beats only.
-  Keep narration under two sentences.
+- Use \`action: "narrate"\` for the narrator's jobs (see THE NARRATOR
+  above). Keep narration under two sentences.
 - Use \`action: "end-scene"\` only when the situation has clearly resolved or the
-  user has indicated they want to leave.
+  user has indicated they want to leave. A clear goodbye from the user IS that
+  indication: if farewells have already been exchanged, end the scene rather
+  than sending another line after them.
 - Change \`ambience\` only when the emotional register shifts. Don't churn it.
 - Update \`beatLabel\` only when the scene's situation has materially advanced
   (distinct from \`beat\`, which is this turn's direction for the speaker).
@@ -68,6 +113,9 @@ Return your decision as JSON matching the provided schema.",
 
 The user just said: "Sarah, why did you laugh?"
 Bias your decision toward whoever the user is addressing.
+The user's message turns TO Sarah (slug: sarah) -
+the name sits where spoken language puts a direct address (transcripts
+often drop the comma). Sarah answers, themselves.
 
 What happens next?",
     "role": "user",

@@ -4,9 +4,11 @@ import {
   buildSceneSessionSnapshot,
   buildSpeakerTurnRequest,
   createInitialSceneState,
+  readSceneFactsFromSnapshot,
   readSceneMemoryFromSnapshot,
   readSceneStateFromSnapshot,
   resolveSceneDecision,
+  updateSceneFacts,
   updateSceneMemory,
   type Scene,
   getScene,
@@ -371,12 +373,20 @@ describe("@kawabunga/orchestration client", () => {
         "Direction: Deflect, then probe.",
         "Match your reply's shape to the direction - if it says to pause, land,",
         "concede, or act, end there; do not tack a question onto the end.",
+        "Also in this scene: Turing. In the conversation,",
+        'a line starting with a name ("Turing: ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        "as if it were words.",
         "Your agenda in this scene: protect the lab's secret while learning what the user knows",
         "When the machine is mentioned: deflect with a question",
       ].join("\n"),
     );
 
-    // No authored intention → directive is direction + shape rule only.
+    // No authored intention → directive is direction + shape rule + the
+    // multi-party attribution convention (this scene has two characters).
     const plainRequest = buildSpeakerTurnRequest({
       scene,
       sceneState: createInitialSceneState(scene),
@@ -388,6 +398,13 @@ describe("@kawabunga/orchestration client", () => {
         "Direction: Answer plainly.",
         "Match your reply's shape to the direction - if it says to pause, land,",
         "concede, or act, end there; do not tack a question onto the end.",
+        "Also in this scene: Turing. In the conversation,",
+        'a line starting with a name ("Turing: ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        "as if it were words.",
       ].join("\n"),
     );
   });
@@ -461,15 +478,25 @@ describe("@kawabunga/orchestration client", () => {
     expect(request).toEqual({
       characterSlug: "ada",
       speakerName: "Ada",
-      message: "Ask Ada.",
+      // Another character's line is name-prefixed so Ada can tell Turing's
+      // words from the real user's (both arrive as role "user").
+      message: "Turing: Ask Ada.",
       // History excludes the turn lifted into `message` ("Ask Ada.") so it isn't fed
       // twice (here AND as the appended user message downstream).
       history: [{ role: "user", content: "What happened here?" }],
-      // Director `beat` framed as "Direction:"; `sceneCue` is the optional scene note.
+      // Director `beat` framed as "Direction:"; the attribution convention is
+      // declared before the optional scene note.
       promptChunk: [
         "Direction: Ada responds to the visitor.",
         "Match your reply's shape to the direction - if it says to pause, land,",
         "concede, or act, end there; do not tack a question onto the end.",
+        "Also in this scene: Turing. In the conversation,",
+        'a line starting with a name ("Turing: ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        "as if it were words.",
         "Scene note: Keep it quiet.",
       ].join("\n"),
       voiceSlug: "ada-voice",
@@ -515,5 +542,152 @@ describe("@kawabunga/orchestration client", () => {
     });
 
     expect(request.messages).toMatchSnapshot("abrahams-tent-orchestrator-prompt");
+  });
+});
+
+describe("narrator — game-master surface", () => {
+  it("renders narrator turns as bracketed stage directions in speaker context", () => {
+    const request = buildSpeakerTurnRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      decision: { action: "speak", speakerId: "ada", beat: "React to the crash" },
+      recentTurns: [
+        { speakerSlug: "user", text: "I knock the engine model off the table." },
+        { speakerSlug: "narrator", speakerName: "Narrator", text: "Brass gears scatter across the floor." },
+      ],
+    });
+    expect(request?.message).toBe("[Brass gears scatter across the floor.]");
+    expect(request?.promptChunk).toContain("A line in [brackets] is something HAPPENING");
+  });
+
+  it("flags a narrator-addressed message for a narrate decision", () => {
+    const request = buildSceneDecisionRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: [{ speakerSlug: "user", text: "earlier" }],
+      lastUserMessage: "Narrator, what do I see in this room?",
+    });
+    expect(request.messages[1]!.content).toContain("addressing the NARRATOR");
+  });
+
+  it("renders the narrator block per mode — and forbids narration when off", () => {
+    const base = createInitialSceneState(scene);
+    const system = (s: typeof scene) =>
+      buildSceneDecisionRequest({ scene: s, sceneState: { ...base, sceneId: s.id }, recentTurns: [] })
+        .messages[0]!.content;
+    expect(system(scene)).toContain("THE NARRATOR"); // default = minimal
+    expect(system(scene)).toContain("Keep the narrator minimal");
+    expect(system({ ...scene, narrator: "scenic" })).toContain("SCENIC narrator");
+    const off = system({ ...scene, narrator: "off" });
+    expect(off).not.toContain("THE NARRATOR");
+    expect(off).toContain("without a narrator");
+  });
+});
+
+describe("addressee hint — vocative vs mention", () => {
+  const request = (lastUserMessage: string) =>
+    buildSceneDecisionRequest({
+      scene,
+      sceneState: { ...createInitialSceneState(scene), lastSpeakerSlug: "turing" },
+      recentTurns: [{ speakerSlug: "user", text: "earlier" }],
+      lastUserMessage,
+    }).messages[1]!.content;
+
+  it("reads a trailing name as a vocative even without the comma (STT)", () => {
+    const prompt = request("And do you believe what the machine showed Ada?");
+    expect(prompt).toContain("turns TO Ada");
+    expect(prompt).not.toContain("mid-sentence");
+  });
+
+  it("reads a leading or you-preceded name as a vocative", () => {
+    expect(request("Ada - was it you at the machine?")).toContain("turns TO Ada");
+    expect(request("and you Ada what did you see")).toContain("turns TO Ada");
+  });
+
+  it("reads an embedded name as a mention that must not steal the turn", () => {
+    const prompt = request("What Ada told the committee - do you believe it?");
+    expect(prompt).toContain("Ada is named mid-sentence");
+    expect(prompt).not.toContain("turns TO Ada");
+  });
+
+  it("emits no hint when nobody present is named", () => {
+    const prompt = request("What happens next in this room?");
+    expect(prompt).not.toContain("turns TO");
+    expect(prompt).not.toContain("mid-sentence");
+  });
+});
+
+describe("scene facts (durable memory)", () => {
+  it("merges, dedupes case-insensitively, and caps the facts store", () => {
+    const merged = updateSceneFacts({
+      previousFacts: ["Sarah admitted she laughed.", "  Eliezer   watched the road. "],
+      newFacts: ["sarah ADMITTED she laughed.", "Abraham named the child Isaac."],
+    });
+    expect(merged).toEqual([
+      "Sarah admitted she laughed.",
+      "Eliezer watched the road.",
+      "Abraham named the child Isaac.",
+    ]);
+
+    const capped = updateSceneFacts({
+      previousFacts: Array.from({ length: 5 }, (_, i) => `Fact number ${i}.`),
+      newFacts: ["The newest fact."],
+      maxEntries: 3,
+    });
+    expect(capped).toEqual(["Fact number 3.", "Fact number 4.", "The newest fact."]);
+  });
+
+  it("round-trips facts through the session snapshot", () => {
+    const state = createInitialSceneState(scene);
+    const snapshot = buildSceneSessionSnapshot(state, {
+      sceneMemory: ["Ada: I saw it."],
+      sceneFacts: ["Ada saw the machine run."],
+    });
+    expect(readSceneFactsFromSnapshot(snapshot, scene.id)).toEqual([
+      "Ada saw the machine run.",
+    ]);
+    // Wrong scene / legacy snapshots (no facts field) read as empty.
+    expect(readSceneFactsFromSnapshot(snapshot, "other-scene")).toEqual([]);
+    expect(
+      readSceneFactsFromSnapshot(buildSceneSessionSnapshot(state, {}), scene.id),
+    ).toEqual([]);
+  });
+
+  it("renders the facts block in the director prompt, before scene memory", () => {
+    const request = buildSceneDecisionRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: [{ speakerSlug: "user", text: "Hello?" }],
+      sceneMemory: ["Ada: An old line."],
+      sceneFacts: ["Ada saw the machine run."],
+      lastUserMessage: "Hello?",
+    });
+    const system = request.messages[0]!.content;
+    expect(system).toContain("Established in this scene (durable facts");
+    expect(system).toContain("- Ada saw the machine run.");
+    expect(system.indexOf("Established in this scene")).toBeLessThan(
+      system.indexOf("Scene memory"),
+    );
+    expect(request.trace.sceneFactCount).toBe(1);
+  });
+
+  it("omits memory entries that duplicate the recent dialogue block", () => {
+    const turns = [
+      { speakerSlug: "ada", speakerName: "Ada", text: "The machine ran twice." },
+      { speakerSlug: "user", text: "Twice, you say?" },
+    ];
+    // Production fold: memory holds the same newest turns the dialogue shows.
+    const memory = updateSceneMemory({ previousMemory: ["Ada: An older line."], recentTurns: turns });
+    const request = buildSceneDecisionRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: turns,
+      sceneMemory: memory,
+      lastUserMessage: "Twice, you say?",
+    });
+    const system = request.messages[0]!.content;
+    expect(system).toContain("- Ada: An older line.");
+    expect(system).not.toContain("- Ada: The machine ran twice.");
+    expect(request.messages[1]!.content).toContain("Ada: The machine ran twice.");
   });
 });

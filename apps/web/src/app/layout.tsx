@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { RootHeader } from "@/components/root-header";
 import { SessionProvider } from "@/components/session-provider";
 import "./globals.css";
 
@@ -76,7 +77,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${bodyFont.variable} ${headingFont.variable} ${monoFont.variable}`}>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider>
+          <RootHeader />
+          {children}
+        </SessionProvider>
       </body>
     </html>
   );

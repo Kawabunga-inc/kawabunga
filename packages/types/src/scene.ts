@@ -106,6 +106,15 @@ export const sceneSchema = z.object({
   // narrator pick — clear, mid-range, distinct from any character voice.
   // Optional; if absent, narration is skipped silently.
   narratorVoice: z.string().optional(),
+  // Authored opening narration — the unseen narrator's scene-setting lines,
+  // played once when the user enters (before any character speaks). Written
+  // by the scene author; absent = the scene opens in silence as before.
+  openingNarration: z.string().min(1).max(600).optional(),
+  // Narrator presence dial. "minimal" (default) = opening + answering the
+  // user's narrator-questions + rendering the user's declared actions;
+  // "scenic" adds proactive sensory narration and unfolding events to the
+  // director's move rotation; "off" = no narrator at all.
+  narrator: z.enum(["off", "minimal", "scenic"]).optional(),
   // The scene's placed sounds (ready library assets only). Optional —
   // static registry scenes and character sandboxes carry none; the
   // director's "Sounds available" block and ambience/sfx validation only
@@ -165,6 +174,10 @@ export const sceneDefinitionSchema = z.object({
   openingBeat: z.string().default(""),
   defaultAmbience: z.string().nullable().default(null),
   narratorVoiceId: z.string().nullable().default(null),
+  // Narrator authoring (see sceneSchema.openingNarration/narrator). Nullable
+  // defaults keep pre-narrator definitions parsing unchanged.
+  openingNarration: z.string().nullable().default(null),
+  narrator: z.enum(["off", "minimal", "scenic"]).nullable().default(null),
   // Authored intention on the scene root (see sceneSchema.objective/drive).
   objective: z.string().nullable().default(null),
   drive: z.enum(["gentle", "balanced", "insistent"]).nullable().default(null),

@@ -1,5 +1,14 @@
 # Eval Harness — Backend Schema
 
+> **Status: SHIPPED.** This document was the design proposal; the schema and
+> API have since been implemented. The five tables live in
+> `packages/db/src/schema.ts` (`eval_suites`, `eval_runs`,
+> `eval_probe_results`, `eval_sweeps` + linkage), the routes under
+> `apps/admin/src/app/api/characters/[id]/evals/` (including the v2
+> fork/publish endpoints), and the Abraham suite seed in
+> `scripts/seed-abraham-eval-suite.ts`. Kept as design rationale — the
+> "Open questions" and estimates below are historical.
+
 Spec for the persistence + API layer behind the new **Evals** page in the
 character harness (Paper artboards: `Admin — Character Harness · Evals`
 and `Admin — Character Harness · Sweep Detail`).

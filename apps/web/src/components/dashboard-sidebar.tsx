@@ -236,12 +236,12 @@ function MobileTopBar() {
     <div className="flex items-center justify-between px-5 py-4 md:hidden">
       <Link href="/" className="flex items-center gap-2">
         <Image
-          src="/kawabunga_wordmark.svg"
+          src="/brand/kawabunga-wavefield-logo.png"
           alt="Kawabunga"
-          width={178}
-          height={24}
+          width={756}
+          height={303}
           priority
-          className="h-5 w-auto"
+          className="h-10 w-auto"
         />
       </Link>
       {session?.user?.image ? (
@@ -289,12 +289,12 @@ export function DashboardSidebar() {
         <div className="flex flex-col gap-8">
           <Link href="/" className="flex items-center gap-2 px-1">
             <Image
-              src="/kawabunga_wordmark.svg"
+              src="/brand/kawabunga-wavefield-logo.png"
               alt="Kawabunga"
-              width={178}
-              height={24}
+              width={756}
+              height={303}
               priority
-              className="h-5 w-auto"
+              className="h-10 w-auto"
             />
           </Link>
 

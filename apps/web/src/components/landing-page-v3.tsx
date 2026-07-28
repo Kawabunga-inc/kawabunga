@@ -2,599 +2,876 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { GoogleAuthButton } from "./google-auth-button";
+import type { ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MeshGradient } from "./mesh-gradient";
-
-const HERO_TIERS = [
-  { src: "/landing-hero-placeholder.jpg", minWidth: 0 },
-  { src: "/landing-hero-sm.jpg", minWidth: 0 },
-  { src: "/landing-hero-md.jpg", minWidth: 0 },
-  { src: "/landing-hero-lg.jpg", minWidth: 1280 },
-  { src: "/landing-hero.jpg", minWidth: 2560 },
-] as const;
-
-function useProgressiveHero() {
-  const [tierIndex, setTierIndex] = useState(0);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const vw = window.innerWidth * (window.devicePixelRatio ?? 1);
-    let maxTier = HERO_TIERS.length - 1;
-    for (let i = HERO_TIERS.length - 1; i > 0; i--) {
-      if (vw < HERO_TIERS[i].minWidth) {
-        maxTier = i - 1;
-      }
-    }
-
-    let cancelled = false;
-    let current = 0;
-
-    function advance() {
-      if (cancelled || current >= maxTier) return;
-      const next = current + 1;
-      const img = new window.Image();
-      img.src = HERO_TIERS[next].src;
-      img.onload = () => {
-        if (cancelled) return;
-        current = next;
-        setTierIndex(next);
-        setTimeout(advance, 80);
-      };
-      img.onerror = () => {};
-    }
-
-    const kickoff = requestAnimationFrame(() => {
-      setReady(true);
-      advance();
-    });
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(kickoff);
-    };
-  }, []);
-
-  return { src: HERO_TIERS[tierIndex].src, ready, isPlaceholder: tierIndex === 0 };
-}
+import { RootFooter } from "./root-footer";
+import { ScrollStoryShowcase } from "./scroll-story-showcase";
 
 const heading = "var(--font-heading)";
 const mono = "var(--font-mono)";
 
-const PILLARS = [
+type ExperienceCategory = {
+  label: string;
+  body: string;
+  tags: string[];
+  artwork: string;
+  artworkAlt: string;
+};
+
+const EXPERIENCE_CATEGORIES: ExperienceCategory[] = [
   {
-    num: "01",
-    title: "Voice-First Immersion",
-    body: "Speak naturally and the world responds. Real-time speech recognition and expressive AI voices create conversations that feel alive — not scripted.",
+    label: "Education",
+    body: "The best way to learn is Socratically. Study for a test or step into history through conversation — like an audio time machine.",
+    tags: ["Einstein", "Shakespeare", "George Washington"],
+    artwork: "/experience/education-audio-time-machine-v2.webp",
+    artworkAlt: "A learner speaking with Einstein, Shakespeare, and George Washington through a luminous audio wave",
   },
   {
-    num: "02",
-    title: "Persistent Memory",
-    body: "Every character tracks trust, fear, loyalty, and history. Betray an ally and they remember. Win someone over and the relationship deepens across turns.",
+    label: "Creation",
+    body: "Turn your ideas and source material into original characters, stories, and responsive worlds.",
+    tags: ["Original personalities", "Living casts", "Custom worlds"],
+    artwork: "/experience/creation-shakespeare-knowledge-graph-v4.webp",
+    artworkAlt: "Shakespeare source documents and audio becoming a living character connected to a knowledge graph",
   },
   {
-    num: "03",
-    title: "Real Consequences",
-    body: "Stability, morale, resources, pressure — every decision shifts the balance. Groups react. The world state evolves around you.",
+    label: "Entertainment",
+    body: "Enter fantasy adventures and mysteries that remember your choices and change around you.",
+    tags: ["Fantasy quests", "Mysteries & roleplay", "Play with friends"],
+    artwork: "/experience/entertainment-oz-building-variant-v4.webp",
+    artworkAlt: "The road to the Emerald City materializing from Kawabunga’s teal wavefield",
   },
 ];
 
-const PIPELINE = [
-  { label: "Policy Guard", desc: "Safety & constraint validation" },
-  { label: "Event Selector", desc: "Contextual scenario matching" },
-  { label: "State Reducer", desc: "Consequence propagation" },
-  { label: "Memory Summarizer", desc: "Relationship history tracking" },
-  { label: "AI Generator", desc: "Narration, dialogue, choices" },
-];
-
-const USE_CASES = [
+const FEATURES = [
   {
-    abbr: "EX",
-    title: "Experiential Understanding",
-    body: "Learn by living. Step into a historical crisis, a corporate boardroom, or a first-contact scenario. Understanding comes from experience, not explanation.",
+    title: "Living AI Characters",
+    body: "Speak naturally and they answer in kind. Characters remember what happened, relationships evolve, and an entire cast can share the same scene.",
+    context: "Entertainment",
   },
   {
-    abbr: "DP",
-    title: "Deliberate Practice",
-    body: "Train for interviews, negotiations, presentations, and difficult conversations. Consequence-safe but psychologically real. Practice at the speed of reality.",
+    title: "Historically Accurate Characters",
+    body: "Bring any historical character back to life — from Einstein and Shakespeare to George Washington. Speak with them, question their ideas, and learn like never before.",
+    context: "Education",
   },
   {
-    abbr: "NM",
-    title: "New Media",
-    body: "A frontier for creators and storytellers. Worlds that respond to agency in ways books, games, and films cannot. The most powerful technology disappears — what remains is the experience.",
+    title: "Transparent Sources",
+    body: "Historical characters are grounded in curated source material. Each character’s Sources page shows where their knowledge comes from, so exploration stays credible.",
+    context: "Education",
+  },
+  {
+    title: "Create Your Own Characters",
+    body: "Turn notes, documents, and research into a living personality with a voice, memory, worldview, and relationships of its own.",
+    context: "Creation",
+  },
+  {
+    title: "Build Your Own Worlds",
+    body: "Build a fantasy kingdom, a mystery, a pirate ship, or a universe entirely your own. Every choice can move the story somewhere new — the possibilities are endless.",
+    context: "Creation · Entertainment",
   },
 ];
 
-const PHASES = [
-  { phase: "Phase 1", title: "Audio Practice Engine", desc: "Voice-first simulation for high-stakes communication practice", active: true },
-  { phase: "Phase 2", title: "Immersive Stories", desc: "Wellness, meditations, branching narratives", active: false },
-  { phase: "Phase 3", title: "Multimedia Worlds", desc: "2D/3D scene generation, video rendering", active: false },
-  { phase: "Phase 4", title: "Full Immersion", desc: "Real-time 3D, spatial audio, persistent worlds", active: false },
+const KAWABUNGA_PRINCIPLES = [
+  {
+    title: "Speak naturally",
+    body: "The world listens, understands, and answers in real time.",
+  },
+  {
+    title: "Shape what happens",
+    body: "Every choice can redirect relationships, scenes, and stories.",
+  },
+  {
+    title: "Return to something living",
+    body: "Characters remember the conversation, so the experience carries its own continuity.",
+  },
 ];
 
-function AudioWaveBars() {
-  const barsRef = useRef<(HTMLDivElement | null)[]>([]);
-  const BAR_COUNT = 7;
-  const BASE_HEIGHTS = [12, 20, 8, 24, 14, 18, 10];
-  const BASE_OPACITIES = [0.5, 0.7, 0.4, 1, 0.6, 0.8, 0.45];
+const HOW_IT_WORKS = [
+  {
+    title: "Relevant Context",
+    body: "The knowledge graph finds the people, events, places, and ideas that matter for this exact moment, giving every response focused understanding.",
+  },
+  {
+    title: "Scene Direction",
+    body: "The orchestrator chooses who speaks, advances the story, and cues narration, ambience, and sound — keeping the experience coherent and alive.",
+  },
+];
+
+const TECHNOLOGY_SLIDES = [
+  {
+    title: "Knowledge Graph Architecture",
+    body: "Thousands of facts become connected people, events, places, and ideas. The right context surfaces for each question instead of loading an entire library at once.",
+  },
+  {
+    title: "Source Ingestion Pipeline",
+    body: "Documents, books, and research are mapped into structured pages, relationships, timelines, and source-backed passages a character can actually use.",
+  },
+  {
+    title: "Provenance & Citations",
+    body: "Knowledge keeps its connection to the original passage and citation, so important claims can be inspected instead of taken on faith.",
+  },
+  {
+    title: "Real-Time Orchestration",
+    body: "A real-time director selects the next speaker, gives the scene its next beat, and coordinates narration, ambience, and sound effects.",
+  },
+  {
+    title: "Adaptive Environmental Audio",
+    body: "Ambient sound changes with the setting while precisely timed effects land with the action, letting every room and world feel present.",
+  },
+  {
+    title: "Audio Wave Field",
+    body: "Voice and atmosphere become a living visual field that moves with every word, giving the scene a pulse you can see as well as hear.",
+  },
+];
+
+type RevealVariant = "up" | "left" | "right" | "scale" | "fade";
+
+function Reveal({
+  children,
+  className = "",
+  delay = 0,
+  variant = "up",
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  variant?: RevealVariant;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    let frame: number;
-    const animate = () => {
-      const t = performance.now() / 1000;
-      barsRef.current.forEach((bar, i) => {
-        if (!bar) return;
-        const phase = i * 0.9;
-        const wave = Math.sin(t * 2.5 + phase) * 0.4 + 0.6;
-        const h = BASE_HEIGHTS[i] * wave;
-        const o = BASE_OPACITIES[i] * (0.5 + wave * 0.5);
-        bar.style.height = `${h}px`;
-        bar.style.opacity = `${o}`;
-      });
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
+    const element = ref.current;
+    if (!element) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion || !("IntersectionObserver" in window)) {
+      const frame = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setVisible(true);
+        observer.unobserve(entry.target);
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
   }, []);
 
   return (
-    <div className="flex items-end gap-[3px]" style={{ height: 24 }}>
-      {Array.from({ length: BAR_COUNT }, (_, i) => (
-        <div
-          key={i}
-          ref={(el) => { barsRef.current[i] = el; }}
-          className="w-[3px] rounded-full bg-[#8fd1cb]"
-          style={{
-            height: BASE_HEIGHTS[i],
-            opacity: BASE_OPACITIES[i],
-            transition: "height 0.15s ease, opacity 0.15s ease",
-          }}
-        />
-      ))}
+    <div
+      ref={ref}
+      className={`motion-reveal ${className}`}
+      data-reveal-state={visible ? "visible" : "hidden"}
+      data-reveal-variant={variant}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
     </div>
   );
 }
 
-export function LandingPageV3() {
-  const hero = useProgressiveHero();
+function ParallaxLayer({
+  children,
+  className = "",
+  speed = 0.06,
+  maxOffset = 48,
+}: {
+  children: ReactNode;
+  className?: string;
+  speed?: number;
+  maxOffset?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const rect = element.getBoundingClientRect();
+      const viewportCenter = window.innerHeight / 2;
+      const elementCenter = rect.top + rect.height / 2;
+      const offset = Math.max(-maxOffset, Math.min(maxOffset, (viewportCenter - elementCenter) * speed));
+      element.style.setProperty("--parallax-y", `${offset.toFixed(2)}px`);
+    };
+
+    const requestUpdate = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener("scroll", requestUpdate, { passive: true });
+    window.addEventListener("resize", requestUpdate);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", requestUpdate);
+      window.removeEventListener("resize", requestUpdate);
+    };
+  }, [maxOffset, speed]);
 
   return (
-    <main className="w-full bg-[#0a0a0a] text-white" style={{ fontFamily: "var(--font-body)" }}>
-      {/* ── Hero ── */}
-      <section className="relative h-screen w-full overflow-hidden">
-        <div className="absolute inset-0">
-          <Image
-            src={hero.src}
-            alt="Immersive digital forest — streams of light and data flowing through ancient trees"
-            fill
-            className={`object-cover transition-[filter] duration-700 ${hero.isPlaceholder ? "blur-xl scale-105" : ""}`}
-            priority
-            quality={90}
-            sizes="100vw"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-black/20 to-black/40" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent" />
-        </div>
+    <div ref={ref} className={`motion-parallax ${className}`}>
+      {children}
+    </div>
+  );
+}
 
-        <div className="relative z-10 flex h-full flex-col">
-          <header className="flex items-center justify-between px-6 py-5 sm:px-10 lg:px-20">
-            <Link href="/" className="flex items-center gap-2">
-              <Image
-                src="/kawabunga_wordmark.svg"
-                alt="Kawabunga"
-                width={178}
-                height={24}
-                priority
-                className="h-6 w-auto"
-              />
-            </Link>
-            <div className="flex items-center gap-2">
-              <GoogleAuthButton />
-            </div>
-          </header>
+function ImageCarousel({
+  slides,
+  initialIndex = 0,
+}: {
+  slides: Array<{ title: string; body: string }>;
+  initialIndex?: number;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(initialIndex);
 
-          <div className="flex flex-1 flex-col justify-end px-6 pb-12 sm:px-10 lg:px-20 lg:pb-16">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-xl space-y-6">
-                <h1
-                  className="text-4xl font-semibold leading-[1.1] sm:text-5xl lg:text-[64px]"
-                  style={{ fontFamily: heading, letterSpacing: "-0.04em" }}
-                >
-                  <span className="text-[#8fd1cb]">Step into any world</span>
-                  <br />
-                  you can imagine
-                </h1>
-                <div className="flex flex-wrap gap-3 pt-2">
-                  <Link
-                    href="/about"
-                    className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-6 py-2.5 text-sm backdrop-blur-lg transition-all hover:scale-[1.03] hover:border-white/40 hover:bg-white/25"
-                    style={{ fontFamily: mono }}
-                  >
-                    Explore Worlds
-                    <span className="text-white/60">&rarr;</span>
-                  </Link>
-                  <Link
-                    href="/about"
-                    className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-6 py-2.5 text-sm backdrop-blur-md transition-all hover:scale-[1.03] hover:border-white/30 hover:bg-white/15"
-                    style={{ fontFamily: mono }}
-                  >
-                    Learn More
-                    <span className="text-white/60">&rarr;</span>
-                  </Link>
-                </div>
-              </div>
+  const scrollToSlide = (index: number) => {
+    const card = trackRef.current?.children[index] as HTMLElement | undefined;
+    card?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  };
 
-              <div className="flex flex-col items-start gap-4">
-                <AudioWaveBars />
-                <p
-                  className="max-w-md text-sm leading-relaxed text-white/60 lg:text-[15px] lg:leading-6"
-                  style={{ fontFamily: mono }}
-                >
-                  A voice-first immersive reality engine where you inhabit
-                  characters, shape narratives, and experience worlds that respond
-                  to every choice you make.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+  // Start centered on `initialIndex` so its neighbors peek on load, rather
+  // than always opening on the first card. A direct `scrollLeft` write
+  // keeps this instant, with no scroll animation on first paint.
+  useEffect(() => {
+    const track = trackRef.current;
+    const card = track?.children[initialIndex] as HTMLElement | undefined;
+    if (!track || !card) return;
+    const cardRect = card.getBoundingClientRect();
+    const trackRect = track.getBoundingClientRect();
+    track.scrollLeft += cardRect.left - trackRect.left + cardRect.width / 2 - track.clientWidth / 2;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-      {/* ── Statement ── */}
-      <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-20 lg:py-36">
-        <p
-          className="text-[10px] uppercase tracking-[0.2em] text-white/40"
-          style={{ fontFamily: mono }}
-        >
-          The Platform
-        </p>
-        <p
-          className="mt-10 max-w-[960px] text-2xl font-medium leading-snug text-white/85 sm:text-3xl sm:leading-snug lg:text-[42px] lg:leading-[1.3]"
-          style={{ fontFamily: heading, letterSpacing: "-0.03em" }}
-        >
-          Kawabunga is a reality engine that generates living, adaptive
-          worlds — where every character remembers, every choice echoes, and the
-          story belongs entirely to you.
-        </p>
-      </section>
+  const handleScroll = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const viewportCenter = track.getBoundingClientRect().left + track.clientWidth / 2;
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+    Array.from(track.children).forEach((child, idx) => {
+      const rect = (child as HTMLElement).getBoundingClientRect();
+      const distance = Math.abs(rect.left + rect.width / 2 - viewportCenter);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = idx;
+      }
+    });
+    setActive(closestIndex);
+  };
 
-      {/* ── Three Pillars ── */}
-      <section className="px-6 pb-24 sm:px-10 sm:pb-32 lg:px-20 lg:pb-36">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {PILLARS.map((p) => (
-            <div
-              key={p.num}
-              className="rounded-2xl border border-white/6 bg-white/[0.04] p-7 sm:p-8 lg:p-10"
-            >
+  return (
+    <div className="relative">
+      <div
+        ref={trackRef}
+        onScroll={handleScroll}
+        className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto px-[6%] sm:gap-6 sm:px-[13%] lg:px-[20%]"
+      >
+        {slides.map((slide, i) => (
+          <div
+            key={slide.title}
+            className="relative flex aspect-square w-full flex-shrink-0 snap-center overflow-hidden rounded-2xl border border-[#0b3732]/10 bg-[#f1f7f5] sm:aspect-[16/10]"
+          >
+            {/* Image placeholder — becomes the card's background once real art is dropped in. */}
+            <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-[#e8f1ef]">
               <span
-                className="text-4xl font-bold text-[#8fd1cb] lg:text-5xl"
-                style={{ fontFamily: heading, letterSpacing: "-0.04em", lineHeight: 1 }}
+                className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/20"
+                style={{ fontFamily: mono }}
               >
-                {p.num}
+                Image
               </span>
-              <h3
-                className="mt-4 text-lg font-semibold lg:text-xl"
-                style={{ fontFamily: heading }}
-              >
-                {p.title}
-              </h3>
-              <p className="mt-3 text-sm leading-relaxed text-white/45">
-                {p.body}
-              </p>
             </div>
-          ))}
-        </div>
-      </section>
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/45 to-transparent" />
 
-      {/* ── The Engine ── */}
-      <section className="px-6 pb-24 sm:px-10 sm:pb-32 lg:px-20 lg:pb-36">
-        <div className="flex flex-col gap-8 lg:flex-row lg:gap-16">
-          <div className="flex flex-1 flex-col gap-6 lg:pt-4">
-            <p
-              className="text-[10px] uppercase tracking-[0.2em] text-white/40"
+            <span
+              className="absolute left-5 top-5 rounded-full border border-[#0b3732]/15 bg-white/70 px-3 py-1 text-[10px] uppercase tracking-[0.15em] text-[#07110f]/65 backdrop-blur-sm"
               style={{ fontFamily: mono }}
             >
-              The Engine
-            </p>
-            <h2
-              className="text-2xl font-semibold leading-snug sm:text-3xl lg:text-4xl lg:leading-snug"
-              style={{ fontFamily: heading, letterSpacing: "-0.03em" }}
-            >
-              Five-stage pipeline that turns your words into living narrative
-            </h2>
-            <p className="max-w-md text-sm leading-relaxed text-white/45 lg:text-[15px] lg:leading-6">
-              Every turn flows through policy validation, event selection, state
-              reduction, memory summarization, and AI generation — producing
-              narration, dialogue, and world-state changes in real time.
+              {String(i + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
+            </span>
+
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              <h3 className="text-2xl font-semibold sm:text-3xl" style={{ fontFamily: heading }}>
+                {slide.title}
+              </h3>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-[#07110f]/65 sm:text-base">
+                {slide.body}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 flex items-center justify-center gap-2">
+        {slides.map((slide, i) => (
+          <button
+            key={slide.title}
+            type="button"
+            onClick={() => scrollToSlide(i)}
+            aria-label={`Go to ${slide.title}`}
+            className={`h-1.5 rounded-full transition-all ${
+              i === active ? "w-6 bg-[#14877e]" : "w-1.5 bg-[#07110f]/15 hover:bg-[#07110f]/30"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExperienceConnector() {
+  return (
+    <div className="flex h-10 items-center justify-center lg:h-auto lg:w-10" aria-hidden="true">
+      <svg
+        width="40"
+        height="40"
+        viewBox="0 0 40 40"
+        fill="none"
+        className="rotate-90 text-[#14877e]/45 lg:rotate-0"
+      >
+        <line x1="3" y1="20" x2="34" y2="20" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 5" />
+        <path d="M29 14l7 6-7 6" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    </div>
+  );
+}
+
+/**
+ * A hybrid of the two reference layouts: three connected square cards set up
+ * the kinds of worlds Kawabunga can become, then alternating editorial rows
+ * create a zigzag down the page. The category illustrations translate each
+ * path into the same living wavefield language used across the landing page.
+ */
+function ExperienceCanvas({
+  categories,
+  features,
+}: {
+  categories: ExperienceCategory[];
+  features: Array<{ title: string; body: string; context: string }>;
+}) {
+  const [selectedCategory, setSelectedCategory] = useState<ExperienceCategory | null>(null);
+
+  useEffect(() => {
+    if (!selectedCategory) return;
+
+    const preventScroll = (event: Event) => event.preventDefault();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedCategory(null);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("wheel", preventScroll, { passive: false });
+    window.addEventListener("touchmove", preventScroll, { passive: false });
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("wheel", preventScroll);
+      window.removeEventListener("touchmove", preventScroll);
+    };
+  }, [selectedCategory]);
+
+  return (
+    <div className="px-6 sm:px-10 lg:px-20">
+      <Reveal>
+        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <p
+            className="text-[11px] uppercase tracking-[0.2em] text-[#0f756d]"
+            style={{ fontFamily: mono }}
+          >
+            Choose the kind of world
+          </p>
+          <p className="max-w-sm text-sm leading-relaxed text-[#07110f]/55 sm:text-right">
+            Learn inside it. Create it from scratch. Or enter it purely for the experience.
+          </p>
+        </div>
+      </Reveal>
+
+      <div className="grid items-center lg:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)_40px_minmax(0,1fr)]">
+        {categories.map((category, i) => (
+          <Fragment key={category.label}>
+            <Reveal delay={i * 110} variant="scale" className="h-full">
+              <article
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-label={`View ${category.label} illustration`}
+                onClick={() => setSelectedCategory(category)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedCategory(category);
+                  }
+                }}
+                className="group flex min-h-[380px] cursor-zoom-in flex-col overflow-hidden rounded-3xl border border-[#0b3732]/10 bg-[#f1f7f5] text-left shadow-[0_24px_70px_-48px_rgba(4,38,34,0.55)] outline-none transition-[transform,box-shadow] duration-300 hover:-translate-y-1 hover:shadow-[0_30px_75px_-44px_rgba(4,38,34,0.65)] focus-visible:ring-2 focus-visible:ring-[#14877e] focus-visible:ring-offset-4 lg:aspect-square lg:min-h-0"
+              >
+                <div className="cinematic-surface relative min-h-40 flex-1 overflow-hidden bg-[#061310]">
+                  <Image
+                    src={category.artwork}
+                    alt={category.artworkAlt}
+                    fill
+                    sizes="(min-width: 1024px) 29vw, (min-width: 640px) 80vw, 100vw"
+                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+                  />
+                  <div
+                    className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(6,19,16,0.04)_35%,rgba(6,19,16,0.42)_100%)]"
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#7de3dc]/45 to-transparent"
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="border-t border-[#0b3732]/10 p-5 sm:p-6">
+                  <span
+                    className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/35"
+                    style={{ fontFamily: mono }}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3
+                    className="mt-2 text-xl font-semibold text-[#0f756d] sm:text-2xl"
+                    style={{ fontFamily: heading }}
+                  >
+                    {category.label}
+                  </h3>
+                  <p className="mt-2 text-[13px] leading-relaxed text-[#07110f]/60 sm:text-sm">{category.body}</p>
+                  <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5">
+                    {category.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[9px] uppercase tracking-[0.09em] text-[#07110f]/38"
+                        style={{ fontFamily: mono }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            </Reveal>
+            {i < categories.length - 1 && (
+              <Reveal delay={i * 110 + 140} variant="fade">
+                <ExperienceConnector />
+              </Reveal>
+            )}
+          </Fragment>
+        ))}
+      </div>
+
+      <div className="mt-24 border-t border-[#0b3732]/10 pt-10 sm:mt-32 sm:pt-12">
+        <Reveal>
+          <div className="mb-14 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <h3 className="text-2xl font-semibold sm:text-3xl" style={{ fontFamily: heading }}>
+              What makes it feel alive
+            </h3>
+            <p className="max-w-sm text-sm leading-relaxed text-[#07110f]/55 sm:text-right">
+              Five connected capabilities, each with room to become its own visual story.
             </p>
           </div>
+        </Reveal>
 
-          <div className="flex-1 overflow-hidden rounded-2xl border border-white/8">
-            {PIPELINE.map((step, i) => (
-              <div
-                key={step.label}
-                className={`flex items-center gap-3 px-5 py-4 sm:gap-4 sm:px-6 ${
-                  i === 0
-                    ? "bg-[#8fd1cb]/8"
-                    : "bg-white/[0.02]"
-                } ${i < PIPELINE.length - 1 ? "border-b border-white/6" : ""}`}
-              >
-                <span
-                  className={`h-2 w-2 flex-shrink-0 rounded-full ${
-                    i === 0 ? "bg-[#8fd1cb]" : "bg-[#8fd1cb]/60"
+        <div className="space-y-20 sm:space-y-28 lg:space-y-32">
+          {features.map((feature, i) => {
+            const canvasOnRight = i % 2 === 0;
+
+            return (
+              <article key={feature.title} className="grid items-center gap-8 lg:grid-cols-12 lg:gap-0">
+                <Reveal
+                  className={`lg:row-start-1 lg:col-span-4 ${
+                    canvasOnRight ? "lg:col-start-1" : "lg:col-start-9"
                   }`}
-                />
-                <span
-                  className={`text-xs font-medium flex-shrink-0 ${
-                    i === 0 ? "text-[#8fd1cb]" : "text-[#8fd1cb]/60"
-                  }`}
-                  style={{ fontFamily: mono }}
+                  variant={canvasOnRight ? "left" : "right"}
                 >
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="text-sm font-medium">{step.label}</span>
-                <span className="ml-auto hidden text-xs text-white/35 sm:block">
-                  {step.desc}
-                </span>
-              </div>
+                  <div>
+                    <p
+                      className="text-[10px] uppercase tracking-[0.2em] text-[#0f756d]"
+                      style={{ fontFamily: mono }}
+                    >
+                      {String(i + 1).padStart(2, "0")} — {feature.context}
+                    </p>
+                    <h4
+                      className="mt-4 max-w-md text-2xl font-semibold leading-tight sm:text-3xl"
+                      style={{ fontFamily: heading, letterSpacing: "-0.025em" }}
+                    >
+                      {feature.title}
+                    </h4>
+                    <p className="mt-4 max-w-md text-sm leading-relaxed text-[#07110f]/60 sm:text-base sm:leading-7">
+                      {feature.body}
+                    </p>
+                  </div>
+                </Reveal>
+
+                <Reveal
+                  delay={100}
+                  variant="scale"
+                  className={`aspect-[16/10] rounded-3xl border border-[#0b3732]/10 bg-[#f1f7f5] lg:row-start-1 lg:col-span-7 ${
+                    canvasOnRight ? "lg:col-start-6" : "lg:col-start-1"
+                  }`}
+                >
+                  <div className="cinematic-surface h-full w-full rounded-3xl" aria-hidden="true" />
+                </Reveal>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedCategory && (
+        <ExperienceArtworkDialog
+          category={selectedCategory}
+          onClose={() => setSelectedCategory(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ExperienceArtworkDialog({
+  category,
+  onClose,
+}: {
+  category: ExperienceCategory;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${category.label} illustration enlarged view`}
+      className="card-dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center px-5 py-10"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[#03110e]/30 backdrop-blur-[16px] backdrop-saturate-150" />
+      <div className="card-dialog-enter relative aspect-[4/3] w-[min(92vw,1080px,104vh)]">
+        <div className="relative h-full w-full overflow-hidden rounded-[24px] border border-white/15 bg-[#061310] shadow-[0_38px_100px_rgba(0,0,0,0.42)]">
+          <Image
+            src={category.artwork}
+            alt={category.artworkAlt}
+            fill
+            priority
+            sizes="(min-width: 1200px) 1080px, 92vw"
+            className="object-contain"
+          />
+        </div>
+        <button
+          type="button"
+          autoFocus
+          aria-label="Close enlarged illustration"
+          onClick={onClose}
+          className="absolute -right-3 -top-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-[#07110f] text-xl text-white shadow-[0_12px_30px_rgba(0,0,0,0.35)] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55ddd1]"
+        >
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+export function LandingPageV3() {
+  useLayoutEffect(() => {
+    const navigation = window.performance.getEntriesByType(
+      "navigation",
+    )[0] as PerformanceNavigationTiming | undefined;
+    const isReload =
+      navigation?.type === "reload" || window.performance.navigation?.type === 1;
+    const sectionId = window.location.hash.slice(1);
+    const shouldResetScroll = isReload || !sectionId;
+    const frames: number[] = [];
+    const timers: number[] = [];
+
+    if (!shouldResetScroll) {
+      window.history.scrollRestoration = "auto";
+      frames.push(window.requestAnimationFrame(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ block: "start" });
+      }));
+
+      return () => frames.forEach(window.cancelAnimationFrame);
+    }
+
+    window.history.scrollRestoration = "manual";
+
+    if (isReload && window.location.hash) {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    }
+
+    const resetScroll = () => {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    };
+
+    const resetAfterLayout = () => {
+      resetScroll();
+      frames.push(window.requestAnimationFrame(resetScroll));
+    };
+
+    resetScroll();
+    frames.push(window.requestAnimationFrame(resetAfterLayout));
+    timers.push(window.setTimeout(resetScroll, 100));
+    timers.push(window.setTimeout(resetScroll, 300));
+    window.addEventListener("pageshow", resetAfterLayout);
+    window.addEventListener("load", resetAfterLayout);
+
+    return () => {
+      frames.forEach(window.cancelAnimationFrame);
+      timers.forEach(window.clearTimeout);
+      window.removeEventListener("pageshow", resetAfterLayout);
+      window.removeEventListener("load", resetAfterLayout);
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.add("motion-ready");
+    return () => document.documentElement.classList.remove("motion-ready");
+  }, []);
+
+  return (
+    <>
+      <main
+        className="relative z-10 flex w-full flex-col text-[#07110f]"
+        style={{ fontFamily: "var(--font-body)" }}
+      >
+        <ScrollStoryShowcase embedded />
+
+      {/* ── What is Kawabunga ── */}
+      <section
+        id="what-is-kawabunga"
+        className="relative bg-white px-6 py-24 sm:px-10 sm:py-28 lg:px-20 lg:py-32"
+      >
+        <div className="relative z-10 grid gap-14 lg:grid-cols-12 lg:items-start lg:gap-8">
+          <Reveal className="lg:col-span-5">
+            <div>
+              <p
+                className="text-[10px] uppercase tracking-[0.2em] text-[#0f756d]"
+                style={{ fontFamily: mono }}
+              >
+                A new kind of medium
+              </p>
+              <h2
+                className="mt-4 max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl lg:leading-tight"
+                style={{ fontFamily: heading, letterSpacing: "-0.03em" }}
+              >
+                What is Kawabunga
+              </h2>
+              <p className="mt-5 max-w-lg text-lg leading-relaxed text-[#07110f]/80 sm:text-xl">
+                Not a chatbot. <span className="text-[#0f756d]">A world that becomes whatever you need it to be.</span>
+              </p>
+              <p className="mt-4 max-w-lg text-sm leading-relaxed text-[#07110f]/55 lg:text-base lg:leading-7">
+                Living audio worlds where voices, characters, and stories respond to you in real time.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="border-y border-[#0b3732]/10 lg:col-span-6 lg:col-start-7">
+            {KAWABUNGA_PRINCIPLES.map((principle, i) => (
+              <Reveal
+                key={principle.title}
+                delay={i * 100}
+                variant="right"
+                className="border-b border-[#0b3732]/10 last:border-b-0"
+              >
+                <div className="grid grid-cols-[32px_minmax(0,1fr)] gap-4 py-6 sm:grid-cols-[40px_minmax(0,1fr)] sm:gap-6 sm:py-7">
+                  <span
+                    className="pt-1 text-[10px] tracking-[0.18em] text-[#07110f]/35"
+                    style={{ fontFamily: mono }}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <h3 className="text-xl font-semibold sm:text-2xl" style={{ fontFamily: heading }}>
+                      {principle.title}
+                    </h3>
+                    <p className="mt-2 max-w-md text-sm leading-relaxed text-[#07110f]/55 sm:text-base">
+                      {principle.body}
+                    </p>
+                  </div>
+                </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── World Builder ── */}
-      <section className="px-6 pb-24 sm:px-10 sm:pb-32 lg:px-20 lg:pb-36">
-        <div className="flex flex-col gap-8 lg:flex-row-reverse lg:gap-16">
-          <div className="flex flex-1 flex-col gap-6 lg:pt-4">
-            <p
-              className="text-[10px] uppercase tracking-[0.2em] text-white/40"
-              style={{ fontFamily: mono }}
-            >
-              World Builder
-            </p>
+      {/* ── Features ── */}
+      <section id="features" className="bg-white pb-24 pt-12 sm:pb-32 sm:pt-16 lg:pb-36">
+        <div className="px-6 sm:px-10 lg:px-20">
+          <Reveal>
             <h2
-              className="text-2xl font-semibold leading-snug sm:text-3xl lg:text-4xl lg:leading-snug"
+              className="max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl lg:leading-tight"
               style={{ fontFamily: heading, letterSpacing: "-0.03em" }}
             >
-              Describe any world. We&rsquo;ll build it for you.
+              The Kawabunga Experience
             </h2>
-            <p className="max-w-md text-sm leading-relaxed text-white/45 lg:text-[15px] lg:leading-6">
-              Write a prompt in plain language. The AI generates a complete world
-              definition — characters with voices and emotional baselines,
-              groups with influence scores, event triggers, and a full initial
-              state.
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#0f756d] lg:text-base lg:leading-7">
+              Everything that makes a world feel alive.
             </p>
-          </div>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#07110f]/60 lg:text-base lg:leading-7">
+              Browse what&rsquo;s possible.
+            </p>
+          </Reveal>
+        </div>
 
-          <div className="flex-1 overflow-hidden rounded-2xl border border-white/8">
-            <div className="flex items-center gap-1.5 border-b border-white/6 bg-white/[0.04] px-5 py-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-white/15" />
-              <span className="h-2.5 w-2.5 rounded-full bg-white/15" />
-              <span className="h-2.5 w-2.5 rounded-full bg-white/15" />
-              <span
-                className="ml-3 text-[11px] text-white/30"
-                style={{ fontFamily: mono }}
-              >
-                world-builder
-              </span>
-            </div>
-            <div className="flex flex-col gap-4 bg-white/[0.02] p-5 sm:p-6">
-              <p className="rounded-lg border border-white/6 bg-white/[0.04] p-4 text-sm leading-relaxed text-white/60">
-                A pirate captain navigating the golden age of Caribbean piracy.
-                Manage your crew&rsquo;s loyalty, negotiate with colonial powers,
-                and decide whether to pursue freedom or fortune...
-              </p>
-              <div>
-                <span
-                  className="inline-block rounded-lg bg-[#8fd1cb] px-5 py-2.5 text-xs font-semibold text-[#0a0a0a]"
-                  style={{ fontFamily: mono }}
-                >
-                  Build World
-                </span>
-              </div>
-              <div className="border-t border-white/6 pt-4">
-                <p
-                  className="text-[9px] uppercase tracking-[0.15em] text-white/30"
-                  style={{ fontFamily: mono }}
-                >
-                  Generated
-                </p>
-                <p
-                  className="mt-2 text-lg font-semibold"
-                  style={{ fontFamily: heading }}
-                >
-                  The Buccaneer&rsquo;s Gambit
-                </p>
-                <p className="mt-1 text-xs text-white/40">
-                  4 characters &middot; 3 groups &middot; 5 events &middot; 1
-                  role
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="mt-16 sm:mt-20">
+          <ExperienceCanvas categories={EXPERIENCE_CATEGORIES} features={FEATURES} />
         </div>
       </section>
 
-      {/* ── Use Cases ── */}
-      <section className="px-6 pb-24 sm:px-10 sm:pb-32 lg:px-20 lg:pb-36">
-        <p
-          className="text-[10px] uppercase tracking-[0.2em] text-white/40"
-          style={{ fontFamily: mono }}
-        >
-          The Opportunity
-        </p>
-        <h2
-          className="mt-4 text-2xl font-semibold leading-snug sm:text-3xl lg:text-4xl lg:leading-snug"
-          style={{ fontFamily: heading, letterSpacing: "-0.03em" }}
-        >
-          Three dimensions of immersion
-        </h2>
+      {/* ── How It Works · Technology ── */}
+      <section id="how-it-works" className="bg-white px-6 py-24 sm:px-10 sm:py-32 lg:px-20 lg:py-36">
+        <Reveal>
+          <h2
+            className="max-w-2xl text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl lg:leading-tight"
+            style={{ fontFamily: heading, letterSpacing: "-0.03em" }}
+          >
+            How It Works
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#0f756d] lg:text-base lg:leading-7">
+            Three systems, working together in real time.
+          </p>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#07110f]/55 lg:text-base lg:leading-7">
+            Source material becomes a character&rsquo;s mind. Relevant knowledge surfaces for each turn, and an invisible director turns it into a responsive scene.
+          </p>
+        </Reveal>
 
-        <div className="mt-12 grid gap-4 sm:grid-cols-3 lg:mt-16">
-          {USE_CASES.map((uc, i) => (
-            <div
-              key={uc.abbr}
-              className="flex flex-col overflow-hidden rounded-2xl border border-white/6"
-            >
-              <div
-                className="flex h-32 flex-shrink-0 items-center justify-center sm:h-44 lg:h-52"
-                style={{
-                  background: `linear-gradient(135deg, rgba(143,209,203,${0.12 - i * 0.03}) 0%, rgba(143,209,203,${0.03 - i * 0.01}) 100%)`,
-                }}
+        {/* Character Brain — the signature graphic, given the most room. */}
+        <Reveal className="mt-14" variant="scale">
+          <div className="relative flex aspect-square w-full overflow-hidden rounded-2xl border border-[#0b3732]/10 bg-[#f1f7f5] sm:aspect-[21/9]">
+            <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-[#e8f1ef]">
+              <span
+                className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/20"
+                style={{ fontFamily: mono }}
               >
-                <span
-                  className="text-5xl font-light text-[#8fd1cb]/30 lg:text-6xl"
-                  style={{ fontFamily: heading }}
-                >
-                  {uc.abbr}
-                </span>
-              </div>
-              <div className="flex flex-1 flex-col justify-between bg-white/[0.03] p-6 sm:p-7">
-                <div>
-                  <h3
-                    className="text-lg font-semibold lg:text-xl"
-                    style={{ fontFamily: heading }}
+                Diagram
+              </span>
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-t from-white via-white/45 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              <h3 className="text-2xl font-semibold sm:text-3xl" style={{ fontFamily: heading }}>
+                Character Brain
+              </h3>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-[#07110f]/65 sm:text-base">
+                Sources become structured knowledge, and structured knowledge becomes a character with a distinct identity, perspective, and understanding of its world.
+              </p>
+            </div>
+          </div>
+        </Reveal>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 sm:gap-6">
+          {HOW_IT_WORKS.map((item, i) => (
+            <Reveal key={item.title} delay={i * 120} variant="scale">
+              <div className="relative flex aspect-square w-full overflow-hidden rounded-2xl border border-[#0b3732]/10 bg-[#f1f7f5] sm:aspect-video">
+                <div className="cinematic-surface absolute inset-0 flex items-center justify-center bg-[#e8f1ef]">
+                  <span
+                    className="text-[10px] uppercase tracking-[0.2em] text-[#07110f]/20"
+                    style={{ fontFamily: mono }}
                   >
-                    {uc.title}
+                    Diagram
+                  </span>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-white via-white/45 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+                  <h3 className="text-xl font-semibold sm:text-2xl" style={{ fontFamily: heading }}>
+                    {item.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-white/45">
-                    {uc.body}
+                  <p className="mt-2 text-sm leading-relaxed text-[#07110f]/65 sm:text-base">
+                    {item.body}
                   </p>
                 </div>
               </div>
-            </div>
+            </Reveal>
           ))}
         </div>
-      </section>
 
-      {/* ── Vision + Roadmap ── */}
-      <section className="px-6 py-24 sm:px-10 sm:py-32 lg:px-20 lg:py-36">
-        <p
-          className="text-[10px] uppercase tracking-[0.2em] text-white/40"
-          style={{ fontFamily: mono }}
-        >
-          The Vision
-        </p>
-        <p
-          className="mt-6 max-w-[800px] text-2xl font-medium leading-snug text-white/85 sm:text-3xl sm:leading-snug lg:text-4xl lg:leading-snug"
-          style={{ fontFamily: heading, letterSpacing: "-0.03em" }}
-        >
-          The most fluid, immersive world engine that allows anyone to be fully
-          engaged in a complex and dynamic space.
-        </p>
-
-        <div className="mt-16 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 lg:gap-6">
-          {PHASES.map((ph) => (
-            <div
-              key={ph.phase}
-              className={`rounded-xl p-5 lg:p-7 ${
-                ph.active
-                  ? "border-l-2 border-l-[#8fd1cb] bg-[#8fd1cb]/[0.04]"
-                  : "border-l-2 border-l-white/10 bg-white/[0.02]"
-              }`}
-            >
-              <span
-                className={`inline-block rounded-full px-2.5 py-0.5 text-[9px] font-medium uppercase tracking-widest ${
-                  ph.active
-                    ? "bg-[#8fd1cb]/15 text-[#8fd1cb]"
-                    : "bg-white/6 text-white/35"
-                }`}
-                style={{ fontFamily: mono }}
-              >
-                {ph.active ? "Active" : "Upcoming"}
-              </span>
-              <p
-                className={`mt-3 text-base font-semibold lg:text-lg ${
-                  ph.active ? "text-white" : "text-white/50"
-                }`}
-                style={{ fontFamily: heading }}
-              >
-                {ph.phase}
-              </p>
-              <p
-                className={`mt-1 text-sm font-medium ${
-                  ph.active ? "text-white/70" : "text-white/40"
-                }`}
-              >
-                {ph.title}
-              </p>
-              <p
-                className={`mt-2 text-xs leading-relaxed ${
-                  ph.active ? "text-white/45" : "text-white/30"
-                }`}
-              >
-                {ph.desc}
+        {/* Same "How It Works" category, more of the technology — kept as a
+            distinct carousel design within this section rather than a
+            separate section with its own header. */}
+        <div className="mt-16">
+          <Reveal>
+            <div className="mb-8 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p
+                  className="text-[10px] uppercase tracking-[0.2em] text-[#0f756d]"
+                  style={{ fontFamily: mono }}
+                >
+                  Inside the engine
+                </p>
+                <h3 className="mt-3 text-2xl font-semibold sm:text-3xl" style={{ fontFamily: heading }}>
+                  Technology that disappears into the experience
+                </h3>
+              </div>
+              <p className="max-w-md text-sm leading-relaxed text-[#07110f]/55 lg:text-right">
+                Each layer handles one part of the work, so the person inside the world only has to speak, listen, and choose what happens next.
               </p>
             </div>
-          ))}
+          </Reveal>
+          <Reveal delay={120} variant="scale">
+            <ImageCarousel slides={TECHNOLOGY_SLIDES} initialIndex={3} />
+          </Reveal>
         </div>
       </section>
 
       {/* ── CTA ── */}
-      <section className="relative overflow-hidden border-t border-white/6 px-6 py-20 text-center sm:px-10 sm:py-28 lg:px-20">
-        <div className="absolute inset-0">
+      <section className="relative overflow-hidden rounded-b-4xl border-t border-[#0b3732]/10 bg-white px-6 py-20 text-center sm:px-10 sm:py-28 lg:px-20">
+        <ParallaxLayer className="absolute -inset-y-12 inset-x-0" speed={0.04} maxOffset={24}>
           <MeshGradient />
-        </div>
-        <div className="relative z-10">
-          <h2
-            className="text-3xl font-bold sm:text-4xl lg:text-5xl"
-            style={{ fontFamily: heading, letterSpacing: "-0.04em" }}
-          >
-            Your next world is waiting
-          </h2>
-          <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-white/50 sm:text-base">
-            Choose a world, step inside, and discover what happens when every
-            choice matters.
-          </p>
-          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <Link
-              href="/about"
-              className="inline-flex items-center justify-center rounded-full bg-[#8fd1cb] px-8 py-3.5 text-sm font-semibold text-[#0a0a0a] transition-all hover:scale-[1.03] hover:brightness-110"
-              style={{ fontFamily: mono }}
+        </ParallaxLayer>
+        <Reveal className="relative z-10" variant="scale">
+          <div>
+            <h2
+              className="text-3xl font-bold sm:text-4xl lg:text-5xl"
+              style={{ fontFamily: heading, letterSpacing: "-0.04em" }}
             >
-              Explore Worlds
-            </Link>
-            <Link
-              href="/about"
-              className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/8 px-8 py-3.5 text-sm text-white/80 transition-all hover:scale-[1.03] hover:border-white/30 hover:bg-white/15"
-              style={{ fontFamily: mono }}
-            >
-              Read the About
-            </Link>
+              Welcome to Kawabunga
+            </h2>
+            <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-[#07110f]/60 sm:text-base">
+              Choose a world, step inside, and discover what happens when every
+              choice matters.
+            </p>
+            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/about"
+                className="inline-flex items-center justify-center rounded-full bg-[#14877e] px-8 py-3.5 text-sm font-semibold text-white transition-all hover:scale-[1.03] hover:brightness-95"
+                style={{ fontFamily: mono }}
+              >
+                Explore Worlds
+              </Link>
+              <Link
+                href="/about"
+                className="inline-flex items-center justify-center rounded-full border border-[#0b3732]/15 bg-white/70 px-8 py-3.5 text-sm text-[#07110f]/80 transition-all hover:scale-[1.03] hover:border-[#0b3732]/30 hover:bg-white"
+                style={{ fontFamily: mono }}
+              >
+                Read the About
+              </Link>
+            </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-white/6 px-6 py-8 sm:px-10 lg:px-20">
-        <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
-          <Image
-            src="/kawabunga_wordmark.svg"
-            alt="Kawabunga"
-            width={178}
-            height={24}
-            className="h-5 w-auto opacity-50"
-          />
-          <div className="flex gap-6 sm:gap-8">
-            {["About", "Builder", "Engine", "Roadmap"].map((label) => (
-              <Link
-                key={label}
-                href={
-                  label === "About"
-                    ? "/about"
-                    : `http://localhost:3001/${label.toLowerCase()}`
-                }
-                className="text-xs text-white/30 transition-colors hover:text-white/60"
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
-          <span className="text-[11px] text-white/20">
-            Built with conviction, not permission.
-          </span>
-        </div>
-      </footer>
-    </main>
+      </main>
+      <div
+        data-footer-reveal-sentinel
+        aria-hidden="true"
+        className="h-[75svh] w-full"
+      />
+      <RootFooter />
+    </>
   );
 }

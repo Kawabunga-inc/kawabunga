@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { GoogleAuthButton } from "@/components/google-auth-button";
 
 export const metadata: Metadata = {
   title: "About — Kawabunga",
@@ -30,22 +29,6 @@ export default function AboutPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/90 via-black/30 to-black/45" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent" />
         </div>
-
-        <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10 lg:px-20">
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/kawabunga_wordmark.svg"
-              alt="Kawabunga"
-              width={178}
-              height={24}
-              priority
-              className="h-6 w-auto"
-            />
-          </Link>
-          <div className="flex items-center gap-2">
-            <GoogleAuthButton />
-          </div>
-        </header>
 
         <div className="relative z-10 flex min-h-[75vh] flex-col justify-end px-6 pb-16 sm:px-10 lg:px-20">
           <div className="max-w-2xl space-y-5">
@@ -456,11 +439,11 @@ export default function AboutPage() {
         {/* Footer */}
         <footer className="mx-auto mt-[120px] flex max-w-[1280px] items-center justify-between border-t border-white/8 px-6 py-12 sm:px-10 lg:px-20">
           <Image
-            src="/kawabunga_wordmark.svg"
+            src="/brand/kawabunga-wavefield-logo.png"
             alt="Kawabunga"
-            width={178}
-            height={24}
-            className="h-5 w-auto opacity-60"
+            width={756}
+            height={303}
+            className="h-12 w-auto opacity-60"
           />
           <span className="text-[13px] text-white/35">
             Built with conviction, not permission.

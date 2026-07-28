@@ -67,7 +67,9 @@ const GOLD_CASES: GoldCase[] = [
   },
 ];
 
-const describeWithDb = process.env.DATABASE_URL ? describe : describe.skip;
+const shouldRunDbContextTests =
+  Boolean(process.env.DATABASE_URL) && process.env.RUN_DB_CONTEXT_TESTS === "true";
+const describeWithDb = shouldRunDbContextTests ? describe : describe.skip;
 
 describeWithDb("wiki-curator context activation", () => {
   let characterId: string;

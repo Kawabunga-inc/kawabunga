@@ -6,6 +6,7 @@ import {
   buildSpeakerTurnRequest,
   createInitialSceneState,
   resolveSceneDecision,
+  RECENT_TURNS_LIMIT,
   type SpeakerTurnRequest,
 } from "@kawabunga/orchestration/client";
 import { SceneAudioBus, type SceneAudioMetrics } from "./scene-audio-bus";
@@ -18,6 +19,15 @@ export type TraceContract = Record<string, unknown>;
 
 /**
  * Scene runner — owns the orchestration loop for a multi-character scene.
+ *
+ * ⛔ FROZEN (voice): the browser-driven SSE scene loop is deprecated for
+ * voice in favor of the LiveKit path (services/voice-agent SceneDriver +
+ * `NEXT_PUBLIC_VOICE_AGENT=1`), which carries the features this loop never
+ * grew — dramaturg notes, arc landing, durable scene facts, proactive
+ * turns, speculation, sfx — and measured ~2× better felt latency
+ * (evals/sonar/ledger.jsonl, scene-roster-baseline). Do NOT add scene
+ * features here; this loop remains only as the flag-off escape hatch and a
+ * text/debug surface until removal.
  *
  * Phase 1 design choices:
  *  - Scene state lives in this hook during a run and is mirrored into
@@ -90,8 +100,11 @@ export type UseSceneRunnerResult = {
   stop: () => void;
 };
 
-const RECENT_TURNS_LIMIT = 8;
-
+/**
+ * @deprecated for VOICE scenes — use the LiveKit path (scene-voice-sandbox +
+ * services/voice-agent) instead; see the header note. Kept as the flag-off
+ * escape hatch and text/debug surface. No new scene features land here.
+ */
 export function useScenePlayer(opts: UseSceneRunnerOptions): UseSceneRunnerResult {
   const { scene, sessionId } = opts;
   const generateTurnId = opts.generateTurnId ?? (() => crypto.randomUUID());

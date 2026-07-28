@@ -29,8 +29,10 @@ export function buildDramaturgMessages(input: {
   sceneState: SceneState;
   recentTurns: SceneTurnForPlanning[];
   previousNote?: string;
+  /** Durable facts already extracted — shown so the dramaturg doesn't repeat them. */
+  sceneFacts?: string[];
 }): DramaturgRequest {
-  const { scene, sceneState, recentTurns, previousNote } = input;
+  const { scene, sceneState, recentTurns, previousNote, sceneFacts } = input;
 
   const cast = scene.characters
     .filter((c) => sceneState.presentCharacterSlugs.includes(c.characterSlug))
@@ -67,6 +69,16 @@ export function buildDramaturgMessages(input: {
     "question is still unanswered — steer back to what the stranger knows'),",
     "never generic ('keep up the good work'). Plain text only: no quotes, no",
     "markdown, no preamble.",
+    "",
+    "You are also the scene's MEMORY. The turn director only sees the last",
+    "few turns — anything older reaches it through the durable facts you",
+    "record. Before your note, emit `FACT: <fact>` lines (0-3 per review)",
+    "for concrete facts established in the dialogue that will matter after",
+    "the transcript scrolls away: who did or saw or admitted what, names",
+    "given, promises made, objects or places introduced. One short sentence",
+    "each, always naming WHO ('Sarah admitted she laughed', never 'she",
+    "laughed'). Record what characters SAID happened, not your judgment of",
+    "it. Never repeat a fact already listed as established.",
     ...(scene.arc?.length
       ? [
           "",
@@ -103,6 +115,9 @@ export function buildDramaturgMessages(input: {
     "",
     "Cast and authored intentions:",
     cast,
+    ...(sceneFacts?.length
+      ? ["", "Established facts so far (do not repeat these):", ...sceneFacts.map((f) => `  - ${f}`)]
+      : []),
     "",
     `Current situation: ${sceneState.beat}`,
     "",
@@ -119,23 +134,35 @@ export function buildDramaturgMessages(input: {
 }
 
 /**
- * Split a reflection into the director's note and any `LANDED: <label>`
- * beat declarations (case-insensitive, one per line, wherever they
- * appear). Labels are returned RAW — the caller validates them against
- * the scene's actual arc before trusting them.
+ * Split a reflection into the director's note, any `LANDED: <label>` beat
+ * declarations, and any `FACT: <fact>` durable-fact lines (all
+ * case-insensitive, one per line, wherever they appear). Labels are
+ * returned RAW — the caller validates them against the scene's actual arc
+ * before trusting them. Facts are lightly sanitized (compacted, capped);
+ * the caller merges them via updateSceneFacts.
  */
 export function parseDramaturgReflection(raw: string): {
   note: string | null;
   landed: string[];
+  facts: string[];
 } {
   const landed: string[] = [];
+  const facts: string[] = [];
   const noteLines: string[] = [];
   for (const line of raw.split("\n")) {
-    const m = line.match(/^\s*landed\s*:\s*(.+?)\s*$/i);
-    if (m) landed.push(m[1]!);
-    else noteLines.push(line);
+    const landedMatch = line.match(/^\s*landed\s*:\s*(.+?)\s*$/i);
+    if (landedMatch) {
+      landed.push(landedMatch[1]!);
+      continue;
+    }
+    const factMatch = line.match(/^\s*fact\s*:\s*(.+?)\s*$/i);
+    if (factMatch) {
+      facts.push(factMatch[1]!.replace(/\s+/g, " "));
+      continue;
+    }
+    noteLines.push(line);
   }
-  return { note: sanitizeDramaturgNote(noteLines.join("\n")), landed };
+  return { note: sanitizeDramaturgNote(noteLines.join("\n")), landed, facts };
 }
 
 /**

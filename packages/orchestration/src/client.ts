@@ -28,6 +28,7 @@ export type SceneDecisionRequest = {
     presentCharacterSlugs: string[];
     recentTurnCount: number;
     sceneMemoryCount: number;
+    sceneFactCount?: number;
     lastUserMessage?: string;
   };
 };
@@ -76,12 +77,40 @@ export type SceneSessionSnapshot = {
   sceneId: string;
   sceneState: SceneState;
   sceneMemory: string[];
+  /** Durable facts the dramaturg has extracted — survive after the verbatim
+   *  memory window scrolls past them. Optional: pre-facts snapshots lack it. */
+  sceneFacts?: string[];
   updatedAt: string;
 };
 
-const RECENT_TURNS_LIMIT = 6;
+/** How many recent turns the director's dialogue window holds. The single
+ *  source of truth — the driver, the browser player, the orchestrate route,
+ *  and sonar all size their windows from this. */
+export const RECENT_TURNS_LIMIT = 6;
 const SCENE_MEMORY_LIMIT = 12;
 const SCENE_MEMORY_ENTRY_MAX_CHARS = 280;
+const SCENE_FACTS_LIMIT = 12;
+const SCENE_FACT_MAX_CHARS = 200;
+
+/** The scene's narrator presence (see sceneSchema.narrator). Default is
+ *  "minimal": opening + answering the user + rendering declared actions. */
+export function narratorMode(scene: Scene): "off" | "minimal" | "scenic" {
+  return scene.narrator ?? "minimal";
+}
+
+/** Pseudo-entity for addressee detection — lets isVocativeUse recognize the
+ *  user turning to the narrator ("Narrator, what do I see?"). */
+const NARRATOR_PSEUDO = {
+  characterSlug: "narrator",
+  displayName: "Narrator",
+} as SceneCharacter;
+
+/** True when the user's message addresses the narrator directly. The driver
+ *  uses this to SKIP the narrate→react chain: an answer to the user is
+ *  complete in itself — chaining is for rendered events. */
+export function isNarratorAddressed(message: string): boolean {
+  return isVocativeUse(message, NARRATOR_PSEUDO);
+}
 
 export function createInitialSceneState(scene: Scene): SceneState {
   return {
@@ -106,7 +135,9 @@ export function defaultSceneDecision(
 
 export function buildSceneSessionSnapshot(
   sceneState: SceneState,
-  options: string | { updatedAt?: string; sceneMemory?: string[] } = {},
+  options:
+    | string
+    | { updatedAt?: string; sceneMemory?: string[]; sceneFacts?: string[] } = {},
 ): SceneSessionSnapshot {
   const updatedAt = typeof options === "string"
     ? options
@@ -114,11 +145,15 @@ export function buildSceneSessionSnapshot(
   const sceneMemory = typeof options === "string"
     ? []
     : sanitizeSceneMemory(options.sceneMemory ?? []);
+  const sceneFacts = typeof options === "string"
+    ? []
+    : sanitizeSceneFacts(options.sceneFacts ?? []);
   return {
     version: 1,
     sceneId: sceneState.sceneId,
     sceneState,
     sceneMemory,
+    ...(sceneFacts.length ? { sceneFacts } : {}),
     updatedAt,
   };
 }
@@ -151,6 +186,40 @@ export function readSceneMemoryFromSnapshot(
   return sanitizeSceneMemory(candidate.sceneMemory);
 }
 
+export function readSceneFactsFromSnapshot(
+  value: unknown,
+  sceneId: string,
+): string[] {
+  if (!value || typeof value !== "object") return [];
+  const candidate = value as { sceneId?: unknown; sceneFacts?: unknown };
+  if (candidate.sceneId !== sceneId || !Array.isArray(candidate.sceneFacts)) {
+    return [];
+  }
+  return sanitizeSceneFacts(candidate.sceneFacts);
+}
+
+/** Merge newly extracted facts into the durable store: sanitized, deduped
+ *  case-insensitively (first statement wins), oldest first, capped — the cap
+ *  drops the OLDEST facts, matching how scenes accrete detail. */
+export function updateSceneFacts(input: {
+  previousFacts?: string[];
+  newFacts?: string[];
+  maxEntries?: number;
+}): string[] {
+  const maxEntries = input.maxEntries ?? SCENE_FACTS_LIMIT;
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  for (const fact of [...(input.previousFacts ?? []), ...(input.newFacts ?? [])]) {
+    const clean = truncateFactEntry(typeof fact === "string" ? fact : "");
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(clean);
+  }
+  return merged.slice(-maxEntries);
+}
+
 export function updateSceneMemory(input: {
   previousMemory?: string[];
   recentTurns?: SceneTurnForPlanning[];
@@ -179,19 +248,45 @@ export function buildSceneDecisionRequest(input: {
   sceneState: SceneState;
   recentTurns?: SceneTurnForPlanning[];
   sceneMemory?: string[];
+  sceneFacts?: string[];
   lastUserMessage?: string;
 }): SceneDecisionRequest {
   const recentTurns = (input.recentTurns ?? []).slice(-RECENT_TURNS_LIMIT);
-  const sceneMemory = sanitizeSceneMemory(input.sceneMemory ?? []);
+  // The verbatim memory window overlaps the recent-dialogue block (both hold
+  // the newest turns) — render only the OLDER memory entries, so the prompt
+  // never carries the same line twice.
+  const recentRendered = new Set(
+    recentTurns.map((t) =>
+      truncateMemoryEntry(
+        `${compactWhitespace(t.speakerName ?? t.speakerSlug)}: ${compactWhitespace(t.text)}`,
+      ),
+    ),
+  );
+  const sceneMemory = sanitizeSceneMemory(input.sceneMemory ?? []).filter(
+    (entry) => !recentRendered.has(entry),
+  );
+  const sceneFacts = sanitizeSceneFacts(input.sceneFacts ?? []);
   return {
     messages: [
       {
         role: "system",
-        content: buildOrchestratorSystemPrompt(input.scene, input.sceneState, sceneMemory),
+        content: buildOrchestratorSystemPrompt(
+          input.scene,
+          input.sceneState,
+          sceneMemory,
+          sceneFacts,
+        ),
       },
       {
         role: "user",
-        content: buildOrchestratorUserPrompt(recentTurns, input.lastUserMessage),
+        content: buildOrchestratorUserPrompt(
+          recentTurns,
+          input.lastUserMessage,
+          input.scene.characters.filter((c) =>
+            input.sceneState.presentCharacterSlugs.includes(c.characterSlug),
+          ),
+          narratorMode(input.scene) !== "off",
+        ),
       },
     ],
     responseSchema: ORCHESTRATOR_JSON_SCHEMA,
@@ -201,6 +296,7 @@ export function buildSceneDecisionRequest(input: {
       presentCharacterSlugs: input.sceneState.presentCharacterSlugs,
       recentTurnCount: recentTurns.length,
       sceneMemoryCount: sceneMemory.length,
+      ...(sceneFacts.length ? { sceneFactCount: sceneFacts.length } : {}),
       ...(input.lastUserMessage ? { lastUserMessage: input.lastUserMessage } : {}),
     },
   };
@@ -284,7 +380,20 @@ export function buildSpeakerTurnRequest(input: {
     .reverse()
     .find((t) => t.speakerSlug !== speakerSlug);
   const beat = input.decision.beat ?? input.sceneState.beat;
-  const message = previousTurn?.text ?? beat;
+  // ATTRIBUTION: the speaker's history collapses everyone else into role
+  // "user", so without labels the speaker can't tell another character's line
+  // from the real user's. Prefix every non-user, non-self line with its
+  // speaker's name ("Sarah: …"); the user's own lines stay bare. Narrator
+  // turns render as bracketed STAGE DIRECTIONS ("[The fire gutters.]") so
+  // the character perceives them as events in the world, not as speech.
+  // Both conventions are declared in the directive chunk below.
+  const attribute = (turn: SceneTurnForPlanning): string =>
+    turn.speakerSlug === "narrator"
+      ? `[${turn.text}]`
+      : turn.speakerSlug === "user" || turn.speakerSlug === speakerSlug
+        ? turn.text
+        : `${turn.speakerName ?? turn.speakerSlug}: ${turn.text}`;
+  const message = previousTurn ? attribute(previousTurn) : beat;
   // History is the context BEFORE the turn we're responding to. Exclude the
   // `previousTurn` we just lifted into `message`, or it's fed twice (here AND as the
   // appended user message downstream — run-voice-stream `[...history, {message}]`).
@@ -293,7 +402,7 @@ export function buildSpeakerTurnRequest(input: {
     .slice(-RECENT_TURNS_LIMIT)
     .map((turn) => ({
       role: turn.speakerSlug === speakerSlug ? ("assistant" as const) : ("user" as const),
-      content: turn.text,
+      content: attribute(turn),
     }));
   // The orchestrator's per-turn DRIVE direction (`beat`), framed so the character
   // acts on it in their own voice; `sceneCue` is an optional scene-level note;
@@ -304,6 +413,14 @@ export function buildSpeakerTurnRequest(input: {
     beat,
     sceneCue: input.decision.sceneCue,
     speaker: character,
+    othersPresent: input.scene.characters
+      .filter(
+        (c) =>
+          c.characterSlug !== speakerSlug &&
+          input.sceneState.presentCharacterSlugs.includes(c.characterSlug),
+      )
+      .map((c) => c.displayName),
+    narratorPresent: narratorMode(input.scene) !== "off",
   });
 
   return {
@@ -369,6 +486,13 @@ export function buildDirectiveChunk(input: {
   beat: string;
   sceneCue?: string;
   speaker?: Pick<SceneCharacter, "motivations" | "behaviorTriggers" | "speakingStyle">;
+  /** Display names of the OTHER present characters — when set, declares the
+   *  multi-party transcript convention (name-prefixed lines) so the speaker
+   *  can tell the others' lines from the real user's. */
+  othersPresent?: string[];
+  /** When true, declares the stage-direction convention: bracketed lines are
+   *  events in the world (narration), reacted to but never answered. */
+  narratorPresent?: boolean;
 }): string {
   const lines = [
     `Direction: ${input.beat}`,
@@ -378,6 +502,21 @@ export function buildDirectiveChunk(input: {
     "Match your reply's shape to the direction - if it says to pause, land,",
     "concede, or act, end there; do not tack a question onto the end.",
   ];
+  if (input.othersPresent?.length) {
+    lines.push(
+      `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
+      'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
+      "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+      "only as yourself - never write the others' lines.",
+    );
+  }
+  if (input.narratorPresent) {
+    lines.push(
+      "A line in [brackets] is something HAPPENING around you - the world",
+      "itself, not anyone speaking. React to it as an event; never answer it",
+      "as if it were words.",
+    );
+  }
   if (input.sceneCue) lines.push(`Scene note: ${input.sceneCue}`);
   if (input.speaker?.motivations) {
     lines.push(`Your agenda in this scene: ${input.speaker.motivations}`);
@@ -479,6 +618,7 @@ function buildOrchestratorSystemPrompt(
   scene: Scene,
   state: SceneState,
   sceneMemory: string[],
+  sceneFacts: string[] = [],
 ): string {
   const present = scene.characters.filter((c) =>
     state.presentCharacterSlugs.includes(c.characterSlug),
@@ -522,6 +662,38 @@ function buildOrchestratorSystemPrompt(
     "job; the `beat` is intent, not lines.",
     "",
     "Set `speakerId` to the character's slug from the roster below (NOT their name).",
+    ...(narratorMode(scene) !== "off"
+      ? [
+          "",
+          "THE NARRATOR - `action: \"narrate\"` speaks as an unseen presence: the",
+          "world itself, never a character. Narration is at most two sentences,",
+          "present tense, concrete and sensory. The narrator's jobs:",
+          "- When the user addresses the narrator (\"narrator, ...\") or asks about",
+          "  the space itself (what they see, hear, smell), answer with `narrate`.",
+          "- When the user declares a first-person ACTION (\"I punch Abraham\", \"I",
+          "  hand her the waterskin\"), it HAPPENS - yes-and, never ignored, refused,",
+          "  or answered as if it were words. `narrate` its outcome as an event in",
+          "  the world; HOW it lands is your dramatic choice (the blow connects, or",
+          "  a hand catches the wrist mid-swing) - then a character reacts next.",
+          "- Never narrate twice in a row unless the user asked the narrator again.",
+          "- After a narration that merely ANSWERED the user, hold for them - a",
+          "  character speaks next only to genuinely react, never to restate what",
+          "  the narrator just said.",
+          ...(narratorMode(scene) === "scenic"
+            ? [
+                "- This scene runs a SCENIC narrator: sensory grounding is one of your",
+                "  MOVES - after a stretch of pure dialogue or at a shift in register,",
+                "  a line of atmosphere (light, smell, sound, small movement). The",
+                "  strongest scenic move is an unfolding EVENT a character must react",
+                "  to - use it where the arc invites it. Most turns still belong to",
+                "  the characters.",
+              ]
+            : [
+                "- Keep the narrator minimal: transitions, answering the user, and",
+                "  rendering the user's declared actions - not unprompted atmosphere.",
+              ]),
+        ]
+      : []),
     "",
     `Scene: "${scene.title}"`,
     scene.description,
@@ -553,27 +725,45 @@ function buildOrchestratorSystemPrompt(
     state.lastSpeakerSlug
       ? `Last to speak: ${state.lastSpeakerSlug}` +
         (present.some((c) => c.characterSlug === state.lastSpeakerSlug)
-          ? ` - the user is talking WITH ${state.lastSpeakerSlug}. Unless the user names someone else or clearly turns away, their message is for ${state.lastSpeakerSlug}, and ${state.lastSpeakerSlug} answers it.`
+          ? ` - the user is talking WITH ${state.lastSpeakerSlug}. Unless the user names someone else or clearly turns away, their message is for ${state.lastSpeakerSlug}, and ${state.lastSpeakerSlug} answers it - no other character answers in their place.`
           : "")
       : "Scene has just opened.",
     state.ambience ? `Current ambience: ${state.ambience}` : "No ambience playing.",
     ...buildSoundsBlock(scene),
+    ...(sceneFacts.length
+      ? [
+          "",
+          "Established in this scene (durable facts - the dialogue may have",
+          "scrolled past them, but they still hold; honor them when choosing",
+          "the speaker and writing the beat):",
+          ...sceneFacts.map((f) => `  - ${f}`),
+        ]
+      : []),
     ...(sceneMemory.length
       ? ["", "Scene memory (older context, oldest to newest):", ...sceneMemory.map((m) => `  - ${m}`)]
       : []),
     "",
     "Decision rules:",
     "- Default to advancing the scene with `action: \"speak\"` and an active `beat`.",
-    "  Pick the speaker whose move makes the scene move.",
+    "  Pick the speaker whose move makes the scene move. The default assumes an",
+    "  engaged user - a user who is taking their leave is not a scene to advance",
+    "  (see end-scene below); never re-open business they are walking away from.",
     ...(present.length > 1
       ? [
           "- ADDRESSEE CONTINUITY: the user replies to whoever last spoke to them.",
           "  An unaddressed user message (no name, no clear turn to someone else) is",
           "  FOR the last character to speak - that character answers. Do not rotate",
           "  speakers on the user's follow-up questions; a mid-conversation \"you\"",
-          "  means the character they are already talking with.",
+          "  means the character they are already talking with. Example: the LAST",
+          "  speaker was asked \"But do you believe it?\" - THEY answer, not the",
+          "  character the topic belongs to. But a pronoun pointing at someone",
+          "  just mentioned (\"let him say\", \"ask her\") IS a clear turn - the",
+          "  pointed-at character answers.",
           "- When the user addresses a present character BY NAME or speaks TO them,",
-          "  THAT character answers - never have someone else answer for them.",
+          "  THAT character answers - never have someone else answer for them, no",
+          "  matter who led the conversation so far. A vocative (\"Sarah - was it",
+          "  you?\") turns the conversation TO that character; more central",
+          "  characters must not answer over them.",
           "- When the dialogue notices a present character who hasn't spoken",
           "  (overheard, glimpsed, asked about), them stepping in is usually the",
           "  strongest move.",
@@ -606,10 +796,16 @@ function buildOrchestratorSystemPrompt(
       : []),
     "- Use `action: \"wait-for-user\"` when the last turn already put something to the",
     "  user, or after 2-3 consecutive AI turns - give the user room to answer.",
-    "- Use `action: \"narrate\"` sparingly - scene transitions or bridging beats only.",
-    "  Keep narration under two sentences.",
+    ...(narratorMode(scene) === "off"
+      ? ["- Do not use `action: \"narrate\"` - this scene runs without a narrator."]
+      : [
+          "- Use `action: \"narrate\"` for the narrator's jobs (see THE NARRATOR",
+          "  above). Keep narration under two sentences.",
+        ]),
     "- Use `action: \"end-scene\"` only when the situation has clearly resolved or the",
-    "  user has indicated they want to leave.",
+    "  user has indicated they want to leave. A clear goodbye from the user IS that",
+    "  indication: if farewells have already been exchanged, end the scene rather",
+    "  than sending another line after them.",
     "- Change `ambience` only when the emotional register shifts. Don't churn it.",
     ...(scene.sounds?.length
       ? [
@@ -683,6 +879,8 @@ export const PROACTIVE_SILENCE_MARKER = "(the user has gone quiet)";
 function buildOrchestratorUserPrompt(
   recentTurns: SceneTurnForPlanning[],
   lastUserMessage?: string,
+  present: SceneCharacter[] = [],
+  narratorAddressable = false,
 ): string {
   const lines: string[] = [];
   if (recentTurns.length === 0) {
@@ -704,10 +902,86 @@ function buildOrchestratorUserPrompt(
     lines.push("");
     lines.push(`The user just said: "${lastUserMessage}"`);
     lines.push("Bias your decision toward whoever the user is addressing.");
+    // Deterministic addressee scaffolding: when the message literally names
+    // present characters, classify HOW each name is used and say so. Two
+    // observed failure modes motivate the split: the model under-weights a
+    // vocative when a more central character has been carrying the
+    // conversation ("Sarah - was it you?" answered by Abraham), and it
+    // over-weights a bare mention ("What Abraham heard..." pulling Abraham
+    // away from the user's actual interlocutor). Boundary position or a
+    // preceding "you" reads as a vocative — robust to STT dropping the
+    // comma ("promised, Abraham?" arriving as "promised Abraham?").
+    if (narratorAddressable && isVocativeUse(lastUserMessage, NARRATOR_PSEUDO)) {
+      lines.push(
+        "The user is addressing the NARRATOR - answer them with",
+        '`action: "narrate"`, in the narrator\'s voice.',
+      );
+    }
+    const named = namedPresentCharacters(lastUserMessage, present);
+    const vocatives = named.filter((c) => isVocativeUse(lastUserMessage, c));
+    const mentions = named.filter((c) => !vocatives.includes(c));
+    for (const c of vocatives) {
+      lines.push(
+        `The user's message turns TO ${c.displayName} (slug: ${c.characterSlug}) -`,
+        "the name sits where spoken language puts a direct address (transcripts",
+        `often drop the comma). ${c.displayName} answers, themselves.`,
+      );
+    }
+    for (const c of mentions) {
+      lines.push(
+        `${c.displayName} is named mid-sentence - as subject matter, not as the`,
+        "addressee. Do not switch the speaker just because the name appears;",
+        "the user is still talking with whoever last spoke to them.",
+      );
+    }
   }
   lines.push("");
   lines.push("What happens next?");
   return lines.join("\n");
+}
+
+/** Present characters whose display name (or slug) appears as a whole word in
+ *  the user's message — deterministic input to the addressee hint above. */
+function namedPresentCharacters(
+  message: string,
+  present: SceneCharacter[],
+): SceneCharacter[] {
+  return present.filter((c) =>
+    [c.displayName, c.characterSlug].some((name) => {
+      const escaped = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return escaped && new RegExp(`\\b${escaped}\\b`, "i").test(message);
+    }),
+  );
+}
+
+/** Does the message use this character's name as a VOCATIVE (a turn to them)
+ *  rather than as subject matter? Punctuation-free heuristics, since STT
+ *  transcripts drop commas: the name at the message's start or end, or
+ *  directly preceded by "you" ("and you Eliezer..."), reads as an address;
+ *  a name embedded elsewhere reads as a mention. */
+function isVocativeUse(message: string, character: SceneCharacter): boolean {
+  const tokens = message
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
+    .split(" ")
+    .filter(Boolean);
+  if (tokens.length === 0) return false;
+  for (const name of [character.displayName, character.characterSlug]) {
+    const nameTokens = name
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}'’-]+/gu, " ")
+      .split(" ")
+      .filter(Boolean);
+    if (nameTokens.length === 0) continue;
+    for (let i = 0; i + nameTokens.length <= tokens.length; i += 1) {
+      if (!nameTokens.every((t, j) => tokens[i + j] === t)) continue;
+      const atStart = i === 0;
+      const atEnd = i + nameTokens.length === tokens.length;
+      const afterYou = i > 0 && tokens[i - 1] === "you";
+      if (atStart || atEnd || afterYou) return true;
+    }
+  }
+  return false;
 }
 
 function sanitizeSceneMemory(memory: unknown[]): string[] {
@@ -715,6 +989,19 @@ function sanitizeSceneMemory(memory: unknown[]): string[] {
     .map((entry) => (typeof entry === "string" ? truncateMemoryEntry(entry) : ""))
     .filter(Boolean)
     .slice(-SCENE_MEMORY_LIMIT);
+}
+
+function sanitizeSceneFacts(facts: unknown[]): string[] {
+  return facts
+    .map((entry) => (typeof entry === "string" ? truncateFactEntry(entry) : ""))
+    .filter(Boolean)
+    .slice(-SCENE_FACTS_LIMIT);
+}
+
+function truncateFactEntry(value: string): string {
+  const compact = compactWhitespace(value);
+  if (compact.length <= SCENE_FACT_MAX_CHARS) return compact;
+  return `${compact.slice(0, SCENE_FACT_MAX_CHARS - 3).trimEnd()}...`;
 }
 
 function compactWhitespace(value: string): string {

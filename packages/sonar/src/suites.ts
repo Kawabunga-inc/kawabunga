@@ -54,6 +54,33 @@ export const SCENE_BASELINE: SonarSuite = {
 };
 
 /**
+ * Multi-character roster suite — the first Sonar coverage of REAL speaker
+ * selection. Runs the registry scene "abrahams-tent" (Abraham + Sarah): each
+ * turn the orchestrator picks the speaker and the runner routes to that
+ * speaker's /voice-stream via the SAME buildSpeakerTurnRequest the browser
+ * player uses. Turns deliberately alternate addressees (by-name, follow-up
+ * continuity, open-to-either) so speaker routing actually gets exercised;
+ * non-speak decisions (wait/narrate/end) record as decision-only turns.
+ */
+export const SCENE_ROSTER_BASELINE: SonarSuite = {
+  name: "scene-roster-baseline",
+  version: "0.1.0",
+  description:
+    "Multi-character scene loop: spoken input → STT → /orchestrate speaker selection → the CHOSEN speaker's /voice-stream. Headline: voice-to-voice with real speaker routing.",
+  character: "abraham", // metadata/prewarm default; per-turn speakers come from the roster
+  sceneId: "abrahams-tent",
+  mode: "scene",
+  userVoice: "ash",
+  sessions: 2,
+  turns: [
+    "Peace be with you both. May I sit by your fire?",
+    "Sarah, I heard laughter from the tent as I came near. Was it you?",
+    "And do you believe what the strangers promised, Abraham?",
+    "Tell me, both of you — if the child truly comes, what will you name him?",
+  ],
+};
+
+/**
  * Agency suite — turn-level conversation control inside the world simulation
  * loop. This exercises whether the harness can recover from corrections,
  * engage a low-information user, choose a useful next turn, and keep world
@@ -208,6 +235,7 @@ export const REAL_ENDPOINTING: SonarSuite = {
 export const SUITES: Record<string, SonarSuite> = {
   [VOICE_BASELINE.name]: VOICE_BASELINE,
   [SCENE_BASELINE.name]: SCENE_BASELINE,
+  [SCENE_ROSTER_BASELINE.name]: SCENE_ROSTER_BASELINE,
   [AGENCY_BASELINE.name]: AGENCY_BASELINE,
   [CONTEXT_ACTIVATION_BASELINE.name]: CONTEXT_ACTIVATION_BASELINE,
   [ENDPOINTING.name]: ENDPOINTING,

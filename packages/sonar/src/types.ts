@@ -29,7 +29,10 @@ export type TimedSseFrame = {
   atMs: number;
 };
 
-export type SonarSuiteMode = "voice-stream" | "scene" | "context";
+/** "livekit" is a RUN mode, not a suite mode: the LiveKit runner replays a
+ *  scene-mode suite over WebRTC and stamps its run records with it so ledger
+ *  rows never get compared across transports by accident. */
+export type SonarSuiteMode = "voice-stream" | "scene" | "context" | "livekit";
 
 /**
  * What the user says in a turn:
@@ -54,6 +57,14 @@ export type SonarSuite = {
   description?: string;
   /** Character slug the suite speaks to (CLI can override). */
   character: string;
+  /**
+   * Registry scene id (e.g. "abrahams-tent") — runs the REAL multi-character
+   * loop: the orchestrator picks the speaker each turn and the runner routes
+   * to that speaker's /voice-stream, mirroring the browser scene player.
+   * Absent = the single-character sandbox (`character-sandbox:<character>`),
+   * whose solo fastpath skips speaker selection. Scene mode only.
+   */
+  sceneId?: string;
   /**
    * "voice-stream": audio → STT → /voice-stream (single character).
    * "scene": audio → STT → /orchestrate decision → /voice-stream (full
@@ -122,6 +133,9 @@ export const SONAR_SPANS = [
   // Scene-loop overhead (scene mode only):
   "orchestrate.total", // POST /orchestrate → JSON response (client)
   "orchestrate.llm", // orchestrate.llm.start → orchestrate.llm.done (server)
+  // LiveKit-transport runs (run-livekit) — timed at a real room client:
+  "lk.endpoint", // user speech end → the agent's user-final transcript publish (STT + v1-mini commit)
+  "lk.first-text", // user speech end → first agent transcript delta (LLM first token proxy)
   // Voice-stream leg, client-observed from the POST:
   "vs.ttft", // POST → first `token` frame
   "vs.ttfa", // POST → first `audio` frame
@@ -193,6 +207,11 @@ export type SonarTurnRecord = {
   responseText: string;
   /** Scene-loop prompt chunk derived from the orchestrator decision, when any. */
   orchestratorPrompt: string | null;
+  /** Roster suites: which character the director chose to voice this turn
+   *  (null when the decision wasn't a speak, or in sandbox suites). */
+  speakerSlug?: string | null;
+  /** Roster suites: the director's action for this turn ("speak", "wait-for-user"…). */
+  decisionAction?: string | null;
   utterance: SonarUtteranceInfo;
   stt: SonarSttInfo;
   spans: Partial<Record<SonarSpanName, number | null>>;
