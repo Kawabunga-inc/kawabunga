@@ -48,7 +48,11 @@ import { BackgroundVoiceCancellation } from "@livekit/noise-cancellation-node";
 import { type CharacterRecord, getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
 import { runVoiceStream } from "@kawabunga/voice-pipeline";
 import { toAudioFrame } from "./audio-frame";
-import { resolveNarrationRouting, streamNarration } from "./narration";
+import {
+  buildNarrationTurnRecord,
+  resolveNarrationRouting,
+  streamNarration,
+} from "./narration";
 import { SceneDriver } from "./scene-driver";
 import { buildSceneKeyterms, supportsKeyterms } from "./stt-keyterms";
 import { WorldAudioChannel } from "./world-audio";
@@ -449,9 +453,12 @@ export default defineAgent({
         if (signal?.aborted) return;
         speaking = true;
         worldAudio?.setDucked(true);
+        const turnId = crypto.randomUUID();
+        const startedAt = new Date();
+        let voiced = false;
         publishTurn({
           role: "agent",
-          id: `n${Date.now()}`,
+          id: turnId,
           text,
           final: true,
           speaker: { slug: "narrator", name: "Narrator" },
@@ -462,11 +469,34 @@ export default defineAgent({
             text,
             audioSource,
             signal,
-            onFirstAudio: () => worldAudio?.flushSpeakerCues(),
+            onFirstAudio: () => {
+              voiced = true;
+              worldAudio?.flushSpeakerCues();
+            },
           });
         } finally {
           speaking = false;
           worldAudio?.setDucked(false);
+          // Narration bypasses runVoiceStream (TTS only), so record the turn
+          // here — otherwise the narrator never appears in /sessions and its
+          // lines can't be graded. Best-effort: never disrupt the scene.
+          void sessionStore
+            .upsertTurn(
+              buildNarrationTurnRecord({
+                turnId,
+                sessionId,
+                text,
+                provider: narrationRouting.provider,
+                voiceSlug: narrationRouting.voiceContext.slug,
+                startedAt,
+                completedAt: new Date(),
+                voiced,
+                aborted: signal?.aborted === true,
+              }),
+            )
+            .catch((err) =>
+              console.warn(`[voice-agent] narration turn persist failed: ${(err as Error).message}`),
+            );
         }
       });
     }
