@@ -75,6 +75,44 @@ export async function resolveNarrationRouting(input: {
   }
 }
 
+/**
+ * The `scene_session_turns` row for one narrated line. Narration bypasses
+ * `runVoiceStream` (it is TTS-only — no retrieval, no character LLM), which
+ * is what normally writes turn rows, so without this the narrator is
+ * invisible in /sessions and ungradeable. Mirrors the browser player's
+ * `inputMode: "narration"` / `speakerSlug: "narrator"` shape so both
+ * transports produce the same record.
+ */
+export function buildNarrationTurnRecord(input: {
+  turnId: string;
+  sessionId: string;
+  text: string;
+  provider?: string | null;
+  voiceSlug?: string | null;
+  startedAt: Date;
+  completedAt: Date;
+  voiced: boolean;
+  aborted?: boolean;
+}) {
+  return {
+    id: input.turnId,
+    sessionId: input.sessionId,
+    inputMode: "narration",
+    speakerSlug: "narrator",
+    assistantText: input.text,
+    provider: input.provider ?? null,
+    status: input.aborted ? "aborted" : "completed",
+    startedAt: input.startedAt.toISOString(),
+    completedAt: input.completedAt.toISOString(),
+    latencySummary: { totalMs: input.completedAt.getTime() - input.startedAt.getTime() },
+    metadata: {
+      source: "voice-agent",
+      voiced: input.voiced,
+      ...(input.voiceSlug ? { voiceSlug: input.voiceSlug } : {}),
+    },
+  };
+}
+
 /** Stream one narration line onto the output track. Resolves when the last
  *  frame has been captured (captureFrame paces to real time). Throws on a
  *  TTS error frame so the driver can log the failure. */
