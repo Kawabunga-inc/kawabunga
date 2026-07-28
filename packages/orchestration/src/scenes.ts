@@ -49,6 +49,12 @@ const ABRAHAMS_TENT: Scene = {
   // grounding + unfolding events are in the director's move rotation).
   openingNarration:
     "Evening settles over the oaks at Mamre. Smoke from a hurried meal still hangs between the tents, and on the road toward Sodom the dust of three departed strangers has not yet fallen. From inside the tent, a woman's laughter — quickly stifled. An old man stands at the flap, watching you approach.",
+  // A second authored opening so repeat visits aren't word-identical; the
+  // session picks one. Same facts, different way in.
+  openingNarrationVariants: [
+    "The oaks at Mamre hold the last of the day's heat. A jug sweats in the shade beside a fire banked low, and the dust of three departed strangers still hangs over the Sodom road. An old man turns from the tent as you come up the path; from inside, a woman's laugh — cut short.",
+  ],
+  openingMode: "authored",
   narrator: "scenic",
   // Authored intention: what the scene drives toward, and the ordered beats
   // the dramaturg judges. Sarah's denial is the scene's tension — the arc

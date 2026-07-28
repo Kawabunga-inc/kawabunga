@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildOpeningNarrationMessages,
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
   buildSpeakerTurnRequest,
@@ -7,7 +8,10 @@ import {
   readSceneFactsFromSnapshot,
   readSceneMemoryFromSnapshot,
   readSceneStateFromSnapshot,
+  openingMode,
   resolveSceneDecision,
+  sanitizeOpeningNarration,
+  selectAuthoredOpening,
   updateSceneFacts,
   updateSceneMemory,
   type Scene,
@@ -614,6 +618,56 @@ describe("addressee hint — vocative vs mention", () => {
     const prompt = request("What happens next in this room?");
     expect(prompt).not.toContain("turns TO");
     expect(prompt).not.toContain("mid-sentence");
+  });
+});
+
+describe("opening narration", () => {
+  const base = { ...scene, openingNarration: undefined, openingMode: undefined };
+
+  it("defaults to authored when a line exists, off when none does", () => {
+    expect(openingMode({ ...base, openingNarration: "Evening settles." })).toBe("authored");
+    expect(openingMode(base)).toBe("off");
+  });
+
+  it("respects an explicit mode, and never opens when the narrator is off", () => {
+    expect(openingMode({ ...base, openingMode: "generated" })).toBe("generated");
+    expect(openingMode({ ...base, openingNarration: "x", openingMode: "off" })).toBe("off");
+    expect(
+      openingMode({ ...base, openingNarration: "x", openingMode: "generated", narrator: "off" }),
+    ).toBe("off");
+  });
+
+  it("picks among authored variants by the caller's roll", () => {
+    const withVariants = {
+      ...base,
+      openingNarration: "First.",
+      openingNarrationVariants: ["Second.", "Third."],
+    };
+    expect(selectAuthoredOpening(withVariants, 0)).toBe("First.");
+    expect(selectAuthoredOpening(withVariants, 0.5)).toBe("Second.");
+    expect(selectAuthoredOpening(withVariants, 0.99)).toBe("Third.");
+    expect(selectAuthoredOpening(base, 0.5)).toBeNull();
+  });
+
+  it("fences the generated opening off from arc beats it must not spend", () => {
+    const arcScene = {
+      ...base,
+      arc: [{ label: "The laugh is named" }, { label: "The denial breaks" }],
+    };
+    const { system, user } = buildOpeningNarrationMessages(arcScene);
+    expect(system).toContain("have NOT happened yet");
+    expect(system).toContain("NO dialogue");
+    expect(user).toContain("The laugh is named");
+    // Arc-less scenes carry no fence (nothing to protect).
+    expect(buildOpeningNarrationMessages(base).system).not.toContain("have NOT happened yet");
+  });
+
+  it("sanitizes a generated opening into speakable prose", () => {
+    expect(sanitizeOpeningNarration('```\n"Evening settles."\n```')).toBe("Evening settles.");
+    expect(sanitizeOpeningNarration("Narration: The fire ticks.")).toBe("The fire ticks.");
+    expect(sanitizeOpeningNarration("[The tent flap stirs.]")).toBe("The tent flap stirs.");
+    expect(sanitizeOpeningNarration("   ")).toBeNull();
+    expect(sanitizeOpeningNarration("a".repeat(900))!.length).toBeLessThanOrEqual(600);
   });
 });
 

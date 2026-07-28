@@ -44,6 +44,10 @@ export async function updateSceneConfig(
     openingNarration?: string | null;
     /** Narrator presence. null = minimal (the default). */
     narrator?: "off" | "minimal" | "scenic" | null;
+    /** Extra authored openings; one is chosen per session. */
+    openingNarrationVariants?: string[] | null;
+    /** How the opening is produced. null = authored when a line exists. */
+    openingMode?: "authored" | "generated" | "off" | null;
   },
 ): Promise<ActionResult> {
   const {
@@ -57,6 +61,8 @@ export async function updateSceneConfig(
     drive,
     openingNarration,
     narrator,
+    openingNarrationVariants,
+    openingMode,
   } = updates;
 
   const definitionPatch: Record<string, unknown> = {};
@@ -67,6 +73,10 @@ export async function updateSceneConfig(
   if (drive !== undefined) definitionPatch.drive = drive;
   if (openingNarration !== undefined) definitionPatch.openingNarration = openingNarration;
   if (narrator !== undefined) definitionPatch.narrator = narrator;
+  if (openingNarrationVariants !== undefined) {
+    definitionPatch.openingNarrationVariants = openingNarrationVariants;
+  }
+  if (openingMode !== undefined) definitionPatch.openingMode = openingMode;
 
   const updated = await getSceneStore().updateScene(id, {
     title,

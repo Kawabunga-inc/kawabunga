@@ -110,6 +110,8 @@ export default async function SceneDetailPage({
         objective: scene.definition.objective,
         drive: scene.definition.drive,
         openingNarration: scene.definition.openingNarration,
+        openingNarrationVariants: scene.definition.openingNarrationVariants,
+        openingMode: scene.definition.openingMode,
         narrator: scene.definition.narrator,
       }}
       roster={roster}

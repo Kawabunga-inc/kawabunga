@@ -8,6 +8,7 @@ import {
 import { getChatProviderForModel, type ChatProvider } from "@kawabunga/engine";
 import {
   buildDirectiveChunk,
+  buildOpeningNarrationMessages,
   buildDramaturgMessages,
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
@@ -21,9 +22,12 @@ import {
   RECENT_TURNS_LIMIT,
   expandLandedBeats,
   matchArcLabel,
+  openingMode,
   parseDramaturgReflection,
   resolveOrchestratorExecutor,
   resolveSceneDecision,
+  sanitizeOpeningNarration,
+  selectAuthoredOpening,
   updateSceneFacts,
   updateSceneMemory,
   type OrchestratorExecutorResolution,
@@ -61,6 +65,9 @@ const DRAMATURG_MODEL = process.env.VOICE_AGENT_DRAMATURG_MODEL ?? "claude-sonne
 /** Reflect every N completed spoken turns (1 = every turn). */
 const DRAMATURG_EVERY = Math.max(1, Number(process.env.VOICE_AGENT_DRAMATURG_EVERY ?? 2));
 const DRAMATURG_TIMEOUT_MS = 20_000;
+/** Session-open budget for a generated opening — nobody is mid-conversation,
+ *  but the listener is waiting for the scene to start. */
+const OPENING_TIMEOUT_MS = 12_000;
 
 /** Lowercase, collapse whitespace, drop trailing punctuation — for prefix matching
  *  a speculated partial against the final transcript. */
@@ -713,6 +720,52 @@ export class SceneDriver {
       this.#maybeReflect();
     }
     return Boolean(replyText);
+  }
+
+  /**
+   * The scene's opening narration, or null when it opens in silence.
+   *
+   * `authored` plays the authored line(s) — one of the variants per session,
+   * so repeat visits aren't word-identical. `generated` has the narrator
+   * write it fresh from the scene's premise (fenced so it can't spend an arc
+   * beat), falling back to the authored line if the model is unavailable or
+   * returns nothing usable — an opening should degrade, never break the
+   * session. Resolved once at session open, off the turn hot path.
+   */
+  async resolveOpening(): Promise<string | null> {
+    const mode = openingMode(this.scene);
+    if (mode === "off") return null;
+    const authored = selectAuthoredOpening(this.scene, Math.random());
+    if (mode === "authored") return authored;
+
+    let provider: ChatProvider;
+    try {
+      provider = this.#deps.dramaturgProvider ?? getChatProviderForModel(DRAMATURG_MODEL);
+    } catch (err) {
+      console.warn(
+        `[voice-agent] generated opening unavailable (${(err as Error).message}) — using authored`,
+      );
+      return authored;
+    }
+
+    const request = buildOpeningNarrationMessages(this.scene);
+    try {
+      const response = await provider.complete({
+        model: DRAMATURG_MODEL,
+        system: [{ type: "text", text: request.system }],
+        messages: [{ role: "user", content: request.user }],
+        maxTokens: 250,
+        signal: AbortSignal.timeout(OPENING_TIMEOUT_MS),
+      });
+      const text = sanitizeOpeningNarration(response.text);
+      if (text) return text;
+      console.warn("[voice-agent] generated opening was empty — using authored");
+    } catch (err) {
+      console.warn(
+        `[voice-agent] generated opening failed (${(err as Error).message}) — using authored`,
+      );
+    }
+    return authored;
   }
 
   /** Record an externally voiced narration (the authored opening) into the
