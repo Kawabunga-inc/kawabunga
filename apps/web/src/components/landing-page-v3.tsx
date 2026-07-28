@@ -18,6 +18,7 @@ type ExperienceCategory = {
   tags: string[];
   artwork: string;
   artworkAlt: string;
+  artworkPosition?: string;
 };
 
 const EXPERIENCE_CATEGORIES: ExperienceCategory[] = [
@@ -34,6 +35,7 @@ const EXPERIENCE_CATEGORIES: ExperienceCategory[] = [
     tags: ["Original personalities", "Living casts", "Custom worlds"],
     artwork: "/experience/creation-shakespeare-knowledge-graph-v4.webp",
     artworkAlt: "Shakespeare source documents and audio becoming a living character connected to a knowledge graph",
+    artworkPosition: "center 72%",
   },
   {
     label: "Entertainment",
@@ -422,6 +424,7 @@ function ExperienceCanvas({
                     fill
                     sizes="(min-width: 1024px) 29vw, (min-width: 640px) 80vw, 100vw"
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.025]"
+                    style={{ objectPosition: category.artworkPosition ?? "center" }}
                   />
                   <div
                     className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(6,19,16,0.04)_35%,rgba(6,19,16,0.42)_100%)]"
