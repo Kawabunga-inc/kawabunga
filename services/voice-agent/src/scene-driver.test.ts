@@ -198,10 +198,10 @@ describe("SceneDriver — speaker turns", () => {
 });
 
 describe("SceneDriver — narration", () => {
-  it("voices narrate decisions through the sink and records the narrator turn", async () => {
+  it("voices a narration, then CHAINS one decision so a character reacts", async () => {
     const exec = fakeExecutor([
-      { action: "narrate", narration: "The fire crackles low." },
-      speakDecision("abraham"),
+      { action: "narrate", narration: "The lamp tips; oil flares on the stones." },
+      speakDecision("sarah", "React to the sudden fire"),
     ]);
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
@@ -211,14 +211,74 @@ describe("SceneDriver — narration", () => {
     driver.onNarrate(async (text) => {
       narrated.push(text);
     });
-    const { speak } = fakeSpeak(["Peace, friend."]);
+    const { speak, inputs } = fakeSpeak(["The rugs! Stamp it out!"]);
 
-    const outcome = await driver.drive("What is this place?", speak);
+    const outcome = await driver.drive("I knock over the oil lamp.", speak);
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(narrated).toEqual(["The lamp tips; oil flares on the stones."]);
+    expect(exec.calls).toBe(2); // decision + one chained follow-up
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.characterId).toBe("id-sarah");
+    // The speaker perceives the narration as a bracketed stage direction.
+    expect(inputs[0]!.message).toBe("[The lamp tips; oil flares on the stones.]");
+
+    await driver.drive("Is everyone alright?", speak);
+    expect(lastDialogue(exec.requests)).toContain("Narrator: The lamp tips");
+  });
+
+  it("bounds the chain: a chained narrate is applied but never chains again", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "A wind rises." },
+      { action: "narrate", narration: "The fire gutters out." },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    driver.onNarrate(async (text) => {
+      narrated.push(text);
+    });
+    const { speak } = fakeSpeak([""]);
+
+    const outcome = await driver.drive("I fling the tent flap open to the night.", speak);
     expect(outcome).toEqual({ action: "narrate", spoke: true });
-    expect(narrated).toEqual(["The fire crackles low."]);
+    expect(narrated).toEqual(["A wind rises.", "The fire gutters out."]);
+    expect(exec.calls).toBe(2); // never a third decision
+  });
 
-    await driver.drive("Go on.", speak);
-    expect(lastDialogue(exec.requests)).toContain("Narrator: The fire crackles low.");
+  it("does NOT chain when the narration answered a narrator-addressed question", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "Oaks, firelight, and a watching old man." },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(async () => undefined);
+    const { speak, inputs } = fakeSpeak(["unused"]);
+
+    const outcome = await driver.drive("Narrator, what do I see?", speak);
+    expect(outcome).toEqual({ action: "narrate", spoke: true });
+    expect(exec.calls).toBe(1); // the answer is complete — no chained decision
+    expect(inputs).toHaveLength(0);
+  });
+
+  it("chains into a hold when the director wants the user to react", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "Dust rises on the Sodom road." },
+      { action: "wait-for-user" },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(async () => undefined);
+    const { speak, inputs } = fakeSpeak(["unused"]);
+
+    const outcome = await driver.drive("I point at the dust rising on the road.", speak);
+    expect(outcome).toEqual({ action: "wait-for-user", spoke: true });
+    expect(inputs).toHaveLength(0);
   });
 
   it("records but reports unvoiced narration when no sink is wired", async () => {
@@ -229,8 +289,23 @@ describe("SceneDriver — narration", () => {
     });
     const { speak } = fakeSpeak([""]);
 
+    // The queue repeats its last entry, so the chained decision narrates
+    // again — bounded, both recorded, neither voiced.
     const outcome = await driver.drive("Hello?", speak);
     expect(outcome).toEqual({ action: "narrate", spoke: false });
+  });
+
+  it("records an externally voiced opening so the next decision sees it", async () => {
+    const exec = fakeExecutor([speakDecision("abraham")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.recordNarration("Evening settles over the oaks.");
+    const { speak } = fakeSpeak(["Welcome, traveler."]);
+
+    await driver.drive("Peace to this camp.", speak);
+    expect(lastDialogue(exec.requests)).toContain("Narrator: Evening settles over the oaks.");
   });
 });
 

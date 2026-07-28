@@ -42,7 +42,8 @@ export type SceneProbe = {
     | "move-diversity"
     | "arc-steering"
     | "speaker-validity"
-    | "memory";
+    | "memory"
+    | "narrator";
   description: string;
   scene: Scene;
   /** Overlaid on createInitialSceneState(scene). */
@@ -376,6 +377,52 @@ export const SCENE_PROBES: SceneProbe[] = [
     lastUserMessage: "Tell me what happened here today.",
     expect: { action: ["speak"], beatMentionsAny: ["laugh", "sarah"] },
     threshold: 0.6,
+  },
+  {
+    id: "narrator-direct-address",
+    family: "narrator",
+    description: "The user addresses the narrator by name — the narrator answers, not a character.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: OPENING,
+    lastUserMessage: "Narrator — what do I see around this camp?",
+    expect: { action: ["narrate"] },
+  },
+  {
+    id: "narrator-action-declaration",
+    family: "narrator",
+    description: "A declared first-person action HAPPENS (yes-and): the narrator renders its outcome as an event; a character reacts next turn.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "You speak of promises while my people starve on the road."),
+      t("abraham", "Then eat, friend — anger travels lighter on a full stomach.", "Abraham"),
+    ],
+    lastUserMessage: "I punch Abraham in the face.",
+    expect: { action: ["narrate"] },
+    threshold: 0.6,
+  },
+  {
+    id: "narrator-look-around",
+    family: "narrator",
+    description: "The user surveys the space (a look-around action) — the narrator renders it. (A sensory question aimed at a character mid-conversation is deliberately NOT probed: a character answering it is good fiction too.)",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: OPENING,
+    lastUserMessage: "I look around the camp. What do I see?",
+    expect: { action: ["narrate"] },
+    threshold: 0.6,
+  },
+  {
+    id: "narrator-control-dialogue",
+    family: "narrator",
+    description: "CONTROL against over-narration: ordinary character-directed dialogue must stay a character turn.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: OPENING,
+    lastUserMessage: "Abraham, tell me of your journey from Haran.",
+    expect: { action: ["speak"], speaker: ["abraham"] },
   },
   {
     id: "memory-control-recent",

@@ -126,9 +126,11 @@ function scoreDecision(probe: SceneProbe, sceneState: SceneState, raw: unknown):
 
 /* ── Runner ───────────────────────────────────────────────────── */
 
-/** Execute with retry on provider rate limits (429): honor the provider's
- *  suggested wait when it names one, else back off linearly. Probes measure
- *  the DIRECTOR, not the free tier's TPM ceiling. */
+/** Execute with retry on transient provider failures: rate limits (429,
+ *  honoring the provider's suggested wait) and empty completions (observed
+ *  on gpt-oss-120b for violence-adjacent content — the output burns in the
+ *  reasoning/safety channel; a fresh sample usually completes). Probes
+ *  measure the DIRECTOR's decisions, not provider flakiness. */
 async function executeWithRetry(
   execute: () => Promise<unknown>,
   maxAttempts = 4,
@@ -138,7 +140,7 @@ async function executeWithRetry(
       return await execute();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const rateLimited = /\b429\b|rate limit/i.test(message);
+      const rateLimited = /\b429\b|rate limit|empty completion/i.test(message);
       if (!rateLimited || attempt >= maxAttempts) throw err;
       const suggested = message.match(/try again in (\d+(?:\.\d+)?)s/i);
       const waitMs = Math.min(

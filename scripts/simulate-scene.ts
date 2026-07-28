@@ -158,6 +158,15 @@ async function main() {
   driver.onSfx((cues) => {
     pendingSfx.push(...cues.map((c) => ({ id: c.id, at: c.at })));
   });
+  // Text-only narration sink: print the narrator's lines (no TTS headlessly).
+  driver.onNarrate((text) => {
+    console.log(`${magenta("NARRATOR:")} ${text}`);
+  });
+  // The authored opening plays on room join in the live agent — mirror it.
+  if (driver.scene.openingNarration && (driver.scene.narrator ?? "minimal") !== "off") {
+    console.log(`${magenta("NARRATOR:")} ${driver.scene.openingNarration}`);
+    driver.recordNarration(driver.scene.openingNarration);
+  }
   let latestSnapshot: SceneSessionSnapshot | null = null;
   driver.onState((snapshot) => {
     latestSnapshot = snapshot;

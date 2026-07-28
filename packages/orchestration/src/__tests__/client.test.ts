@@ -377,6 +377,9 @@ describe("@kawabunga/orchestration client", () => {
         'a line starting with a name ("Turing: ...") is that person',
         "speaking; unmarked lines are the visitor you are all speaking with. Speak",
         "only as yourself - never write the others' lines.",
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        "as if it were words.",
         "Your agenda in this scene: protect the lab's secret while learning what the user knows",
         "When the machine is mentioned: deflect with a question",
       ].join("\n"),
@@ -399,6 +402,9 @@ describe("@kawabunga/orchestration client", () => {
         'a line starting with a name ("Turing: ...") is that person',
         "speaking; unmarked lines are the visitor you are all speaking with. Speak",
         "only as yourself - never write the others' lines.",
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        "as if it were words.",
       ].join("\n"),
     );
   });
@@ -488,6 +494,9 @@ describe("@kawabunga/orchestration client", () => {
         'a line starting with a name ("Turing: ...") is that person',
         "speaking; unmarked lines are the visitor you are all speaking with. Speak",
         "only as yourself - never write the others' lines.",
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        "as if it were words.",
         "Scene note: Keep it quiet.",
       ].join("\n"),
       voiceSlug: "ada-voice",
@@ -533,6 +542,45 @@ describe("@kawabunga/orchestration client", () => {
     });
 
     expect(request.messages).toMatchSnapshot("abrahams-tent-orchestrator-prompt");
+  });
+});
+
+describe("narrator — game-master surface", () => {
+  it("renders narrator turns as bracketed stage directions in speaker context", () => {
+    const request = buildSpeakerTurnRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      decision: { action: "speak", speakerId: "ada", beat: "React to the crash" },
+      recentTurns: [
+        { speakerSlug: "user", text: "I knock the engine model off the table." },
+        { speakerSlug: "narrator", speakerName: "Narrator", text: "Brass gears scatter across the floor." },
+      ],
+    });
+    expect(request?.message).toBe("[Brass gears scatter across the floor.]");
+    expect(request?.promptChunk).toContain("A line in [brackets] is something HAPPENING");
+  });
+
+  it("flags a narrator-addressed message for a narrate decision", () => {
+    const request = buildSceneDecisionRequest({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: [{ speakerSlug: "user", text: "earlier" }],
+      lastUserMessage: "Narrator, what do I see in this room?",
+    });
+    expect(request.messages[1]!.content).toContain("addressing the NARRATOR");
+  });
+
+  it("renders the narrator block per mode — and forbids narration when off", () => {
+    const base = createInitialSceneState(scene);
+    const system = (s: typeof scene) =>
+      buildSceneDecisionRequest({ scene: s, sceneState: { ...base, sceneId: s.id }, recentTurns: [] })
+        .messages[0]!.content;
+    expect(system(scene)).toContain("THE NARRATOR"); // default = minimal
+    expect(system(scene)).toContain("Keep the narrator minimal");
+    expect(system({ ...scene, narrator: "scenic" })).toContain("SCENIC narrator");
+    const off = system({ ...scene, narrator: "off" });
+    expect(off).not.toContain("THE NARRATOR");
+    expect(off).toContain("without a narrator");
   });
 });
 

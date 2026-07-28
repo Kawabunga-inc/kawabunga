@@ -45,6 +45,11 @@ const ABRAHAMS_TENT: Scene = {
   defaultAmbience: "tent-evening",
   // Routed through OpenAI TTS in the current scene runner.
   narratorVoice: "fable",
+  // The unseen narrator: authored opening, scenic presence (sensory
+  // grounding + unfolding events are in the director's move rotation).
+  openingNarration:
+    "Evening settles over the oaks at Mamre. Smoke from a hurried meal still hangs between the tents, and on the road toward Sodom the dust of three departed strangers has not yet fallen. From inside the tent, a woman's laughter — quickly stifled. An old man stands at the flap, watching you approach.",
+  narrator: "scenic",
   // Authored intention: what the scene drives toward, and the ordered beats
   // the dramaturg judges. Sarah's denial is the scene's tension — the arc
   // makes the director EARN the admission instead of spending it on turn 2
