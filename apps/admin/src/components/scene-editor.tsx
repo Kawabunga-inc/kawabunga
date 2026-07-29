@@ -23,12 +23,14 @@ import { Pathname } from "@/components/pathname";
 import { TabBar, type TabItem } from "@/components/tab-bar";
 import { useHeaderContent } from "@/components/header-context";
 import type { PickerVoice } from "@/components/voice-library-picker";
+import type { StageConfig } from "@kawabunga/types";
+import { CanvasTab } from "@/components/scene-stage/canvas-tab";
 import { CastTab } from "@/components/scene-tabs/cast-tab";
 import { EnvironmentTab } from "@/components/scene-tabs/environment-tab";
 import { GameTab } from "@/components/scene-tabs/game-tab";
 import { NarratorTab } from "@/components/scene-tabs/narrator-tab";
 import { OverviewTab } from "@/components/scene-tabs/overview-tab";
-import { relativeTime, splitVariants, T } from "@/components/scene-tabs/shared";
+import { relativeTime, splitVariants } from "@/components/scene-tabs/shared";
 import type { SceneTab } from "@/components/scene-tabs/types";
 
 type SceneEditorProps = {
@@ -46,6 +48,7 @@ type SceneEditorProps = {
     openingNarrationVariants: string[] | null;
     openingMode: "authored" | "generated" | "off" | null;
     narrator: "off" | "minimal" | "scenic" | null;
+    stage: StageConfig | null;
   };
   roster: SceneRosterEntry[];
   graph: SceneGraphPayload;
@@ -87,6 +90,7 @@ export function SceneEditor({
   const [drive, setDrive] = useState<"gentle" | "balanced" | "insistent">(
     scene.drive ?? "balanced",
   );
+  const [stage, setStage] = useState<StageConfig | null>(scene.stage);
   const [graphNodes, setGraphNodes] = useState(graph.nodes);
 
   useEffect(() => setGraphNodes(graph.nodes), [graph.nodes]);
@@ -142,6 +146,7 @@ export function SceneEditor({
         narrator: narrator === "minimal" ? null : narrator,
         openingNarrationVariants: splitVariants(openingVariants),
         openingMode,
+        stage,
       });
       if (res.ok) setSavedAt(Date.now());
       router.refresh();
@@ -159,6 +164,7 @@ export function SceneEditor({
     prompt,
     router,
     scene.id,
+    stage,
     status,
     title,
   ]);
@@ -180,6 +186,7 @@ export function SceneEditor({
     narrator,
     openingVariants,
     openingMode,
+    stage,
   ]);
   const savedConfigSnapshot = useRef(configSnapshot);
   useEffect(() => {
@@ -374,7 +381,20 @@ export function SceneEditor({
           />
         )}
 
-        {tab === "canvas" && <CanvasTabStub />}
+        {tab === "canvas" && (
+          <CanvasTab
+            sceneId={scene.id}
+            pending={pending}
+            graphNodes={graphNodes}
+            characterById={characterById}
+            stage={stage}
+            onStageChange={setStage}
+            selectedNodeId={selectedNodeId}
+            onSelect={setSelectedNodeId}
+            onNodeSaved={updateLocalNode}
+            onRemoveNode={removeNode}
+          />
+        )}
 
         {tab === "cast" && (
           <CastTab
@@ -444,33 +464,6 @@ export function SceneEditor({
         )}
       </div>
     </AdminPageShell>
-  );
-}
-
-/* Placeholder until the overhead stage lands (Phase C of the canvas
- * rework) — keeps the tab present so the IA reads complete. */
-function CanvasTabStub() {
-  return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          color: T.muted,
-          fontFamily: T.fontBody,
-          fontSize: "var(--font-size-sm)",
-        }}
-      >
-        The overhead stage is coming — characters, props, zones, and cues placed in
-        one shared space.
-      </p>
-    </div>
   );
 }
 

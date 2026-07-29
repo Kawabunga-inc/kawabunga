@@ -113,6 +113,7 @@ export default async function SceneDetailPage({
         openingNarrationVariants: scene.definition.openingNarrationVariants,
         openingMode: scene.definition.openingMode,
         narrator: scene.definition.narrator,
+        stage: scene.definition.stage,
       }}
       roster={roster}
       graph={graph}
