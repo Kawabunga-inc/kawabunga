@@ -379,28 +379,19 @@ export function CanvasTab({
           </AdminButton>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-          <span style={kickerStyle}>
-            Artifacts · {libraryArtifacts.length}
-            {artBusyIds.size > 0 ? ` · painting ${artBusyIds.size}…` : ""}
-          </span>
-          <div style={{ flex: 1 }} />
-          <button
-            type="button"
-            onClick={generateSet}
-            disabled={generating}
-            title="Propose set pieces from the scene premise"
-            style={{
-              ...trayPlaceStyle,
-              border: "none",
-              background: "transparent",
-              cursor: generating ? "wait" : "pointer",
-              padding: 0,
-            }}
-          >
-            {generating ? "generating…" : "✦ generate set"}
-          </button>
-        </div>
+        <span style={{ ...kickerStyle, marginTop: 8 }}>
+          Artifacts · {libraryArtifacts.length}
+          {artBusyIds.size > 0 ? ` · painting ${artBusyIds.size}…` : ""}
+        </span>
+        <AdminButton
+          type="button"
+          variant="primary"
+          disabled={generating}
+          onClick={generateSet}
+          title="Propose set pieces from the scene premise"
+        >
+          {generating ? "Generating set…" : "✦ Generate set from premise"}
+        </AdminButton>
         {genError && (
           <p style={{ ...trayHintStyle, color: T.danger }}>{genError}</p>
         )}
