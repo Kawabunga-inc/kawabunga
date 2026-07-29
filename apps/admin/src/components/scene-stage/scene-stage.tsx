@@ -71,7 +71,19 @@ export function SceneStage({
   const [size, setSize] = useState<ScreenSize>({ width: 0, height: 0 });
   const [viewport, setViewport] = useState<Viewport | null>(null);
   const [dragPos, setDragPos] = useState<{ id: string; x: number; y: number } | null>(null);
+  // Mirror of dragPos for pointer-up commits — the persist callbacks
+  // must run outside the setState updater (React forbids parent
+  // setState mid-render).
+  const dragPosRef = useRef<{ id: string; x: number; y: number } | null>(null);
   const dragRef = useRef<DragState | null>(null);
+
+  const updateDragPos = useCallback(
+    (next: { id: string; x: number; y: number } | null) => {
+      dragPosRef.current = next;
+      setDragPos(next);
+    },
+    [],
+  );
 
   useEffect(() => {
     const el = containerRef.current;
@@ -170,12 +182,12 @@ export function SceneStage({
         y: snapTo(world.y, snapM),
       });
       if (drag.mode === "node") {
-        setDragPos({ id: drag.nodeId, x: snapped.x, y: snapped.y });
+        updateDragPos({ id: drag.nodeId, x: snapped.x, y: snapped.y });
       } else {
-        setDragPos({ id: "__spawn", x: snapped.x, y: snapped.y });
+        updateDragPos({ id: "__spawn", x: snapped.x, y: snapped.y });
       }
     },
-    [viewport, size, snapM, localPoint],
+    [viewport, size, snapM, localPoint, updateDragPos],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -186,14 +198,13 @@ export function SceneStage({
       if (!drag.moved) onSelect(null);
       return;
     }
-    setDragPos((current) => {
-      if (drag.moved && current) {
-        if (drag.mode === "node") onMove(current.id, { x: current.x, y: current.y });
-        else onMoveSpawn({ x: current.x, y: current.y });
-      }
-      return null;
-    });
-  }, [onSelect, onMove, onMoveSpawn]);
+    const current = dragPosRef.current;
+    if (drag.moved && current) {
+      if (drag.mode === "node") onMove(current.id, { x: current.x, y: current.y });
+      else onMoveSpawn({ x: current.x, y: current.y });
+    }
+    updateDragPos(null);
+  }, [onSelect, onMove, onMoveSpawn, updateDragPos]);
 
   const placed = useMemo(
     () =>
