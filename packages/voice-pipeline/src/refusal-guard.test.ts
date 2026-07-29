@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRefusalBoilerplate } from "./refusal-guard";
+import { containsSafetyReferral, signalsGenuineDistress, isRefusalBoilerplate } from "./refusal-guard";
 
 describe("isRefusalBoilerplate", () => {
   it.each([
@@ -43,5 +43,79 @@ describe("isRefusalBoilerplate", () => {
     "   ",
   ])("does not flag in-character lines: %s", (line) => {
     expect(isRefusalBoilerplate(line)).toBe(false);
+  });
+});
+
+/* ── Safety referrals and the genuine-distress carve-out ────────────── */
+
+describe("containsSafetyReferral", () => {
+  it("catches the observed hostage-scene referral, mid-reply", () => {
+    // Verbatim from session cd87d6d7 — an in-voice opening, then a hotline.
+    expect(
+      containsSafetyReferral(
+        "Friend. I hear the danger you have brought to Sarah's throat and the " +
+          "demand you place upon me. If you feel you cannot keep this peace, " +
+          "please call your local emergency services or a crisis line near you " +
+          "for help. I will remain here when you return.",
+      ),
+    ).toBe(true);
+  });
+
+  it("catches the common referral idioms", () => {
+    for (const line of [
+      "Please reach out to a mental health professional.",
+      "You should call 988 right away.",
+      "Contact the authorities immediately.",
+      "There is a crisis hotline that can help.",
+      "Please speak with a therapist about this.",
+      "I urge you to contact law enforcement.",
+    ]) {
+      expect(containsSafetyReferral(line)).toBe(true);
+    }
+  });
+
+  it("leaves in-world speech alone", () => {
+    for (const line of [
+      "Sit by the fire, friend, and tell me what road you have walked.",
+      "I will not raise my hand against you, but neither will I yield.",
+      "Call on the God who spoke to me under the stars — He hears.",
+      "The wells are dry and the flocks are thin; help me carry the water.",
+      "My servant Eliezer keeps watch at the edge of the camp.",
+    ]) {
+      expect(containsSafetyReferral(line)).toBe(false);
+    }
+  });
+});
+
+describe("signalsGenuineDistress — the carve-out", () => {
+  it("is TRUE for a real person talking about their own safety", () => {
+    for (const line of [
+      "I want to die",
+      "I think I want to kill myself",
+      "I'm going to hurt myself tonight",
+      "I don't want to live anymore",
+      "I've been feeling suicidal",
+      "my brother keeps talking about hurting himself",
+    ]) {
+      expect(signalsGenuineDistress(line)).toBe(true);
+    }
+  });
+
+  it("is FALSE for actions declared inside the fiction", () => {
+    for (const line of [
+      "Narrator, I take Sarah hostage and tell Abraham he must renounce his god",
+      "I punch Abraham in the face",
+      "I draw my knife on the old man",
+      "I threaten to burn the tent down",
+      "[You seize Sarah, pressing a blade against her throat.]",
+    ]) {
+      expect(signalsGenuineDistress(line)).toBe(false);
+    }
+  });
+
+  it("errs toward leaving replies alone when the wording is ambiguous", () => {
+    // Broad by design: a false positive only preserves a referral, while a
+    // false negative would strip help from someone who needs it.
+    expect(signalsGenuineDistress("I have been thinking about ending my life")).toBe(true);
   });
 });

@@ -243,6 +243,7 @@ function buildStructuredVoiceParts(
   - Mirror the user's register: small talk gets a short reply; deep questions warrant a paragraph, never more.
   - Use contractions. No bullet lists, no numbering, no preambles, no restating the question.
   - When you decline or deflect — hostility, provocation, anything outside your world or beyond what you will engage — you do it AS ${characterName}, in your own voice and idiom. Never assistant boilerplate ("I'm sorry, but I can't help with that"); your refusals are in-character lines like any other.
+  - You know nothing of the modern world's institutions. Never send anyone to a hotline, a crisis line, emergency services, the police, or "a professional" — those do not exist where you stand. When violence or danger reaches your world, meet it with what you actually have: refuse, plead, bargain, call on what you believe in, put yourself in the way, or say plainly what you will not do.
 </delivery>`;
   const cached = [identity, voiceXml, directiveXml, delivery].filter(Boolean).join("\n\n");
 
