@@ -383,10 +383,14 @@ export function SceneStage({
                   event.stopPropagation();
                   if (event.button !== 0) return;
                   onSelect(node.id);
+                  // Locked placements select but never drag.
+                  if (node.data.locked === true) return;
                   beginDrag(event, { mode: "node", nodeId: node.id, moved: false });
                 }}
                 onResizePointerDown={
-                  (node.kind === "artifact" || node.kind === "zone") && onResizeCommit
+                  (node.kind === "artifact" || node.kind === "zone") &&
+                  node.data.locked !== true &&
+                  onResizeCommit
                     ? (event) => {
                         event.stopPropagation();
                         if (event.button !== 0 || !viewport) return;
@@ -704,6 +708,7 @@ function StageToken({
         >
           zone · {node.label}
         </span>
+        {node.data.locked === true && <LockBadge />}
         {selected && onResizePointerDown && (
           <ResizeHandle onPointerDown={onResizePointerDown} />
         )}
@@ -807,6 +812,7 @@ function StageToken({
             }}
           />
           )}
+          {node.data.locked === true && <LockBadge />}
           {selected && onResizePointerDown && (
             <ResizeHandle onPointerDown={onResizePointerDown} />
           )}
@@ -881,6 +887,7 @@ function StageToken({
             }}
           />
         )}
+        {node.data.locked === true && <LockBadge />}
         {selected && onResizePointerDown && (
           <ResizeHandle onPointerDown={onResizePointerDown} />
         )}
@@ -993,6 +1000,35 @@ function StageToken({
         )}
       </div>
     </div>
+  );
+}
+
+function LockBadge() {
+  return (
+    <span
+      aria-hidden
+      title="Locked — unlock in the inspector to move or scale"
+      style={{
+        position: "absolute",
+        top: -8,
+        left: -8,
+        width: 18,
+        height: 18,
+        borderRadius: "var(--radius-pill)",
+        background: "var(--surface-2, var(--background))",
+        border: "1px solid var(--ink-line)",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--text-tertiary)",
+        zIndex: 4,
+      }}
+    >
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="11" width="16" height="10" rx="2" />
+        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      </svg>
+    </span>
   );
 }
 

@@ -146,6 +146,9 @@ export const artifactDataSchema = z
     // Marks the artifact as something sound can emanate from (fire pit,
     // waterfall) — a hint for future positional audio.
     soundSource: z.boolean().optional(),
+    // Authoring lock: drag, resize, and destructive actions are disabled
+    // on the canvas until unlocked.
+    locked: z.boolean().optional(),
   })
   .strict();
 
@@ -159,6 +162,8 @@ export const zoneDataSchema = z
     widthM: z.number().positive().max(96),
     heightM: z.number().positive().max(64),
     color: z.string().trim().min(1).optional(),
+    // Authoring lock — zones are the biggest drag targets on the stage.
+    locked: z.boolean().optional(),
   })
   .strict();
 

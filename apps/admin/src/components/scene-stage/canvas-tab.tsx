@@ -681,6 +681,7 @@ function PlacementInspector({
 }) {
   const router = useRouter();
   const position = isPlaced(node.position) ? node.position : { x: 0, y: 0 };
+  const locked = node.data.locked === true;
   const [label, setLabel] = useState(node.label);
   const [spriteBusy, setSpriteBusy] = useState(false);
   const [spriteError, setSpriteError] = useState<string | null>(null);
@@ -930,8 +931,8 @@ function PlacementInspector({
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
         <span style={fieldLabelStyle}>Position (m)</span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-6)" }}>
-          <NumberField label="x" value={String(position.x)} onCommit={(v) => savePosition({ x: v })} />
-          <NumberField label="y" value={String(position.y)} onCommit={(v) => savePosition({ y: v })} />
+          <NumberField label="x" value={String(position.x)} disabled={locked} onCommit={(v) => savePosition({ x: v })} />
+          <NumberField label="y" value={String(position.y)} disabled={locked} onCommit={(v) => savePosition({ y: v })} />
           <NumberField
             label="z"
             value={num(position.z)}
@@ -1130,11 +1131,32 @@ function PlacementInspector({
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-        <AdminButton type="button" variant="secondary" onClick={removeFromStage}>
+        {(node.kind === "artifact" || node.kind === "zone") && (
+          <AdminButton
+            type="button"
+            variant="secondary"
+            onClick={() => saveData({ locked: locked ? undefined : true })}
+          >
+            {locked ? "🔓 Unlock placement" : "🔒 Lock in place"}
+          </AdminButton>
+        )}
+        <AdminButton
+          type="button"
+          variant="secondary"
+          disabled={locked}
+          title={locked ? "Unlock first" : undefined}
+          onClick={removeFromStage}
+        >
           Remove from stage
         </AdminButton>
         {(node.kind === "artifact" || node.kind === "zone") && (
-          <AdminButton type="button" variant="danger" onClick={() => onRemoveNode(node.id)}>
+          <AdminButton
+            type="button"
+            variant="danger"
+            disabled={locked}
+            title={locked ? "Unlock first" : undefined}
+            onClick={() => onRemoveNode(node.id)}
+          >
             Delete {node.kind}
           </AdminButton>
         )}
@@ -1151,12 +1173,14 @@ function NumberField({
   label,
   value,
   placeholder,
+  disabled,
   onCommit,
   onClear,
 }: {
   label: string;
   value: string;
   placeholder?: string;
+  disabled?: boolean;
   onCommit: (value: number) => void;
   onClear?: () => void;
 }) {
@@ -1186,13 +1210,20 @@ function NumberField({
       <input
         value={draft}
         placeholder={placeholder}
+        disabled={disabled}
         inputMode="decimal"
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === "Enter") (event.target as HTMLInputElement).blur();
         }}
-        style={{ ...inputStyle, height: 32, fontFamily: T.fontMono, fontSize: "var(--font-size-sm)" }}
+        style={{
+          ...inputStyle,
+          height: 32,
+          fontFamily: T.fontMono,
+          fontSize: "var(--font-size-sm)",
+          ...(disabled ? { opacity: 0.5, cursor: "not-allowed" } : {}),
+        }}
       />
     </label>
   );
