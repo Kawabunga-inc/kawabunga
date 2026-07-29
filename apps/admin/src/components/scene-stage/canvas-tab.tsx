@@ -94,6 +94,7 @@ export function CanvasTab({
   const viewportRef = useRef<Viewport | null>(null);
   const snapM = stage?.snapM ?? WORLD.defaultSnapM;
   const artStyle = stage?.artStyle ?? null;
+  const styleDirection = stage?.styleDirection ?? null;
 
   /* ── Automatic sprite generation ──
    * With no icon fallback, renditions ARE the visuals — so placing or
@@ -117,7 +118,7 @@ export function CanvasTab({
           await fetch(`/api/artifacts/${encodeURIComponent(assetId)}/generate-image`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ style: artStyle }),
+            body: JSON.stringify({ style: artStyle, styleDirection }),
           });
         } catch {
           // Non-fatal: the footprint stays until a manual regenerate.
@@ -131,13 +132,14 @@ export function CanvasTab({
         }
       })();
     },
-    [artStyle, router],
+    [artStyle, styleDirection, router],
   );
 
   const stagePatch = useCallback(
     (patch: Partial<StageConfig>): StageConfig => ({
       groundColor: stage?.groundColor ?? null,
       artStyle: stage?.artStyle ?? null,
+      styleDirection: stage?.styleDirection ?? null,
       snapM: stage?.snapM ?? null,
       viewport: stage?.viewport ?? null,
       spawn: stage?.spawn ?? null,
@@ -557,7 +559,7 @@ export function CanvasTab({
             node={selected}
             asset={selected.refId ? artifactById.get(selected.refId) ?? null : null}
             artStyle={artStyle}
-            onPickArtStyle={(style) => onStageChange(stagePatch({ artStyle: style }))}
+            styleDirection={styleDirection}
             onPromoted={(assetId) => {
               onNodeSaved(selected.id, { refId: assetId });
               ensureRendition(assetId, {});
@@ -594,7 +596,7 @@ function PlacementInspector({
   node,
   asset,
   artStyle,
-  onPickArtStyle,
+  styleDirection,
   onPromoted,
   sceneId,
   snapM,
@@ -604,7 +606,7 @@ function PlacementInspector({
   node: SceneNode;
   asset: SceneLibraryArtifact | null;
   artStyle: string | null;
-  onPickArtStyle: (style: string | null) => void;
+  styleDirection: string | null;
   onPromoted: (assetId: string) => void;
   sceneId: string;
   snapM: number;
@@ -676,7 +678,7 @@ function PlacementInspector({
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ style: artStyle }),
+            body: JSON.stringify({ style: artStyle, styleDirection }),
           },
         );
         const body = (await res.json()) as { error?: string };
@@ -691,7 +693,7 @@ function PlacementInspector({
         setSpriteBusy(false);
       }
     })();
-  }, [asset, artStyle, router]);
+  }, [asset, artStyle, styleDirection, router]);
 
   const saveData = useCallback(
     (dataPatch: Record<string, unknown>) => {
@@ -771,25 +773,13 @@ function PlacementInspector({
 
       {node.kind === "artifact" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-          <span style={fieldLabelStyle}>Scene art</span>
-          {/* The scene's art style — surfaced here because this is where
-              generation happens. Changing it restyles the whole stage. */}
-          <select
-            value={artStyle ?? ""}
-            onChange={(event) => onPickArtStyle(event.target.value || null)}
-            style={{ ...inputStyle, cursor: "pointer" }}
-          >
-            <option value="">none — footprints only</option>
-            {STAGE_ART_STYLE_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {STAGE_ART_STYLES[key].label}
-              </option>
-            ))}
-          </select>
+          <span style={fieldLabelStyle}>
+            Scene art{artStyle ? ` · ${STAGE_ART_STYLES[artStyle]?.label ?? artStyle}` : ""}
+          </span>
           {!artStyle ? (
             <p style={spriteHintStyle}>
-              Pick an art style to start painting artifacts; until then they
-              render as footprints.
+              No art style set — artifacts render as footprints. Style and
+              direction live in Stage settings (click empty ground).
             </p>
           ) : !asset ? (
             <>
@@ -1121,6 +1111,22 @@ function StageSettings({
             ))}
           </select>
         </Field>
+
+        {stage?.artStyle && (
+          <Field label="Style direction">
+            <textarea
+              value={stage?.styleDirection ?? ""}
+              onChange={(event) =>
+                onStageChange(
+                  stagePatch({ styleDirection: event.target.value || null }),
+                )
+              }
+              rows={2}
+              placeholder="Seeded into every artifact's image prompt — e.g. dusty golden hour, Bronze Age Canaan, weathered materials"
+              style={textareaStyle}
+            />
+          </Field>
+        )}
 
         {stage?.artStyle && (
           <AdminButton

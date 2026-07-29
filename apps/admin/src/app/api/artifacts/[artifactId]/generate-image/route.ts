@@ -39,13 +39,18 @@ export async function POST(
     );
   }
 
-  let body: { style?: string };
+  let body: { style?: string; styleDirection?: string };
   try {
-    body = (await req.json()) as { style?: string };
+    body = (await req.json()) as { style?: string; styleDirection?: string };
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
   const style = body.style;
+  // Scene-level art direction, capped so a runaway value can't hijack
+  // the prompt. Renditions are stored per style, so scenes sharing an
+  // artifact with different directions overwrite each other's art —
+  // acceptable while the library is small.
+  const styleDirection = body.styleDirection?.trim().slice(0, 300) || null;
   if (!isStageArtStyle(style)) {
     return NextResponse.json(
       { error: `style must be one of: ${Object.keys(STAGE_ART_STYLES).join(", ")}` },
@@ -62,7 +67,7 @@ export async function POST(
   const prompt = [
     `Top-down overhead view of ${asset.name}, seen directly from above (bird's-eye, 90 degrees), as a single game map asset.`,
     asset.description ? `It is ${asset.description}` : null,
-    STAGE_ART_STYLES[style].prompt + ".",
+    STAGE_ART_STYLES[style].prompt + (styleDirection ? `, ${styleDirection}.` : "."),
     // Pure black ground so the knockout can recover alpha; no cast
     // shadows because they'd survive the knockout as gray fringes.
     "Centered, the object fills most of the frame, isolated on a completely pure black (#000000) background, no cast shadows, no ground texture, no text, no border.",
