@@ -19,8 +19,30 @@ import {
 // (refId → audio_assets). Kept in the registry for read tolerance on
 // rows the conversion script hasn't touched; the editors no longer
 // create it.
-export const NODE_KINDS = ["character", "place", "event", "ambience", "audio"] as const;
+export const NODE_KINDS = [
+  "character",
+  "place",
+  "event",
+  "ambience",
+  "audio",
+  "prop",
+  "zone",
+] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
+
+// Stage placement: world-space meters on the shared 96×64 stage (origin
+// center, +x right, +y up). z is a small render-order int; rotation is
+// degrees. Nullable — null means "not placed on the stage".
+export const stagePositionSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number().optional(),
+    rotation: z.number().optional(),
+  })
+  .strict();
+
+export type StageNodePosition = z.infer<typeof stagePositionSchema>;
 
 export const behaviorTriggerSchema = z
   .object({
@@ -42,6 +64,9 @@ export const characterDataSchema = z
     knowledgeHorizon: z
       .object({ era: z.string().trim().min(1), index: z.number().int() })
       .optional(),
+    // Stage: how far this character can overhear, in meters. Authored on
+    // the canvas; dormant until the director gains spatial awareness.
+    earshotM: z.number().positive().max(96).optional(),
     overrides: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
@@ -91,10 +116,42 @@ export const audioDataSchema = z
     // Per-scene gain trim in dB applied on top of the asset's
     // normalized level.
     gainDb: z.number().min(-24).max(12).optional(),
+    // Stage: audible range in meters when this one-shot is placed on the
+    // canvas. Dormant until positional audio lands.
+    rangeM: z.number().positive().max(96).optional(),
   })
   .strict();
 
 export type AudioNodeData = z.infer<typeof audioDataSchema>;
+
+// Stage set piece. Purely visual in v1 — dimensions in meters; either a
+// footprint (widthM×heightM) or a radius for round pieces.
+export const propDataSchema = z
+  .object({
+    glyph: z.string().trim().min(1).optional(),
+    widthM: z.number().positive().max(96).optional(),
+    heightM: z.number().positive().max(64).optional(),
+    radiusM: z.number().positive().max(48).optional(),
+    // Marks the prop as something sound can emanate from (fire pit,
+    // waterfall) — a hint for future positional audio.
+    soundSource: z.boolean().optional(),
+  })
+  .strict();
+
+export type PropNodeData = z.infer<typeof propDataSchema>;
+
+// Named region of the stage ("the tent", "the road"). The node's
+// position is the zone's center; shape + dimensions live here.
+export const zoneDataSchema = z
+  .object({
+    shape: z.enum(["rect", "ellipse"]),
+    widthM: z.number().positive().max(96),
+    heightM: z.number().positive().max(64),
+    color: z.string().trim().min(1).optional(),
+  })
+  .strict();
+
+export type ZoneNodeData = z.infer<typeof zoneDataSchema>;
 
 const dataSchemasByKind = {
   character: characterDataSchema,
@@ -102,6 +159,8 @@ const dataSchemasByKind = {
   event: eventDataSchema,
   ambience: ambienceDataSchema,
   audio: audioDataSchema,
+  prop: propDataSchema,
+  zone: zoneDataSchema,
 } as const satisfies Record<NodeKind, z.ZodTypeAny>;
 
 const kindsRequiringRef = new Set<NodeKind>(["character", "audio"]);
@@ -140,7 +199,7 @@ export interface SceneNodeRecord {
   label: string;
   summary: string | null;
   data: Record<string, unknown>;
-  position: { x: number; y: number } | null;
+  position: StageNodePosition | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -162,14 +221,14 @@ export interface CreateNodeInput {
   label: string;
   summary?: string | null;
   data?: Record<string, unknown>;
-  position?: { x: number; y: number } | null;
+  position?: StageNodePosition | null;
 }
 
 export interface UpdateNodeInput {
   label?: string;
   summary?: string | null;
   data?: Record<string, unknown>;
-  position?: { x: number; y: number } | null;
+  position?: StageNodePosition | null;
 }
 
 export interface CreateEdgeInput {
@@ -201,7 +260,7 @@ export interface SceneGraphStore {
       label?: string;
       roleInScene?: string;
       data?: CharacterNodeData;
-      position?: { x: number; y: number };
+      position?: StageNodePosition;
       mergeOnExist?: boolean;
     },
   ): Promise<SceneNodeRecord>;
@@ -214,6 +273,17 @@ export interface SceneGraphStore {
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
+
+// Positions are stored as untyped jsonb; rows written before the stage
+// rework hold React-Flow pixel coordinates. Anything that doesn't parse
+// as a stage position reads as null (unplaced) rather than throwing.
+// Out-of-bounds values are left to the UI's isPlaced guard so the raw
+// data stays inspectable.
+function normalizePosition(value: unknown): StageNodePosition | null {
+  if (value == null) return null;
+  const parsed = stagePositionSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 function toIso(d: Date | string): string {
   return d instanceof Date ? d.toISOString() : String(d);
@@ -249,7 +319,7 @@ function normalizeNode(row: typeof sceneNodesTable.$inferSelect): SceneNodeRecor
     label: row.label,
     summary: row.summary,
     data: (row.data as Record<string, unknown> | null) ?? {},
-    position: (row.position as { x: number; y: number } | null) ?? null,
+    position: normalizePosition(row.position),
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   };
@@ -343,7 +413,7 @@ function neonStore(): SceneGraphStore {
           label: input.label,
           summary: input.summary ?? null,
           data,
-          position: input.position ?? null,
+          position: input.position ? stagePositionSchema.parse(input.position) : null,
         })
         .returning();
       return normalizeNode(row);
@@ -363,7 +433,8 @@ function neonStore(): SceneGraphStore {
       const values: Record<string, unknown> = { updatedAt: new Date() };
       if (input.label !== undefined) values.label = input.label;
       if (input.summary !== undefined) values.summary = input.summary;
-      if (input.position !== undefined) values.position = input.position;
+      if (input.position !== undefined)
+        values.position = input.position ? stagePositionSchema.parse(input.position) : null;
       if (input.data !== undefined) {
         values.data = validateNodeData(existing.kind as NodeKind, input.data);
       }
@@ -438,7 +509,7 @@ function neonStore(): SceneGraphStore {
         refId: characterId,
         label: opts?.label ?? character.title,
         data: incomingData,
-        position: opts?.position ?? null,
+        position: opts?.position ? stagePositionSchema.parse(opts.position) : null,
       });
     },
 

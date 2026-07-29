@@ -180,6 +180,9 @@ export {
   eventDataSchema,
   ambienceDataSchema,
   audioDataSchema,
+  propDataSchema,
+  zoneDataSchema,
+  stagePositionSchema,
 } from "./scene-graph-store";
 export type {
   SceneGraphStore,
@@ -194,6 +197,9 @@ export type {
   CharacterNodeData,
   AmbienceNodeData,
   AudioNodeData,
+  PropNodeData,
+  ZoneNodeData,
+  StageNodePosition,
 } from "./scene-graph-store";
 
 export { getSceneStore } from "./scene-store";

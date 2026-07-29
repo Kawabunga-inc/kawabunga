@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAudioAssetStore, getSceneStore, getSceneGraphStore } from "@kawabunga/db";
+import type { StageNodePosition } from "@kawabunga/db";
+import type { StageConfig } from "@kawabunga/types";
 import { invalidateScenesList } from "@/lib/scenes-cache";
 
 type ActionResult<T = undefined> =
@@ -48,6 +50,8 @@ export async function updateSceneConfig(
     openingNarrationVariants?: string[] | null;
     /** How the opening is produced. null = authored when a line exists. */
     openingMode?: "authored" | "generated" | "off" | null;
+    /** Overhead-canvas stage settings (ground color, snap, viewport, spawn). */
+    stage?: StageConfig | null;
   },
 ): Promise<ActionResult> {
   const {
@@ -63,6 +67,7 @@ export async function updateSceneConfig(
     narrator,
     openingNarrationVariants,
     openingMode,
+    stage,
   } = updates;
 
   const definitionPatch: Record<string, unknown> = {};
@@ -77,6 +82,7 @@ export async function updateSceneConfig(
     definitionPatch.openingNarrationVariants = openingNarrationVariants;
   }
   if (openingMode !== undefined) definitionPatch.openingMode = openingMode;
+  if (stage !== undefined) definitionPatch.stage = stage;
 
   const updated = await getSceneStore().updateScene(id, {
     title,
@@ -184,6 +190,86 @@ export async function addEventToScene(
   }
 }
 
+export async function addPropToScene(
+  sceneId: string,
+  input: {
+    label: string;
+    glyph?: string;
+    widthM?: number;
+    heightM?: number;
+    radiusM?: number;
+    soundSource?: boolean;
+    position?: StageNodePosition | null;
+  },
+): Promise<ActionResult<{ nodeId: string }>> {
+  const label = input.label.trim();
+  if (!label) return { ok: false, error: "Prop label is required." };
+
+  try {
+    const node = await getSceneGraphStore().createNode({
+      sceneId,
+      kind: "prop",
+      label,
+      data: {
+        ...(input.glyph?.trim() ? { glyph: input.glyph.trim() } : {}),
+        ...(input.widthM ? { widthM: input.widthM } : {}),
+        ...(input.heightM ? { heightM: input.heightM } : {}),
+        ...(input.radiusM ? { radiusM: input.radiusM } : {}),
+        ...(input.soundSource ? { soundSource: true } : {}),
+      },
+      position: input.position ?? null,
+    });
+    revalidatePath(`/scenes/${sceneId}`);
+    revalidatePath("/scenes");
+    invalidateScenesList();
+    return { ok: true, data: { nodeId: node.id } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to add prop.",
+    };
+  }
+}
+
+export async function addZoneToScene(
+  sceneId: string,
+  input: {
+    label: string;
+    shape: "rect" | "ellipse";
+    widthM: number;
+    heightM: number;
+    color?: string;
+    position?: StageNodePosition | null;
+  },
+): Promise<ActionResult<{ nodeId: string }>> {
+  const label = input.label.trim();
+  if (!label) return { ok: false, error: "Zone label is required." };
+
+  try {
+    const node = await getSceneGraphStore().createNode({
+      sceneId,
+      kind: "zone",
+      label,
+      data: {
+        shape: input.shape,
+        widthM: input.widthM,
+        heightM: input.heightM,
+        ...(input.color?.trim() ? { color: input.color.trim() } : {}),
+      },
+      position: input.position ?? null,
+    });
+    revalidatePath(`/scenes/${sceneId}`);
+    revalidatePath("/scenes");
+    invalidateScenesList();
+    return { ok: true, data: { nodeId: node.id } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to add zone.",
+    };
+  }
+}
+
 export async function removeSceneNode(
   sceneId: string,
   nodeId: string,
@@ -203,7 +289,7 @@ export async function updateSceneNode(
     label?: string;
     summary?: string | null;
     data?: Record<string, unknown>;
-    position?: { x: number; y: number } | null;
+    position?: StageNodePosition | null;
   },
 ): Promise<ActionResult> {
   const graph = getSceneGraphStore();
