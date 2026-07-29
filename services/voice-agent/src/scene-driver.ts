@@ -406,7 +406,7 @@ export class SceneDriver {
         signal: AbortSignal.timeout(DRAMATURG_TIMEOUT_MS),
       })
       .then((response) => {
-        const { note, landed, facts } = parseDramaturgReflection(response.text);
+        const { note, landed, facts, gone } = parseDramaturgReflection(response.text);
         // Validate landed labels against the authored arc (tolerant match →
         // canonical label), then expand: the arc is ordered, so a later beat
         // landing implies every earlier beat landed too (the dramaturg often
@@ -431,7 +431,21 @@ export class SceneDriver {
         const factsChanged =
           mergedFacts.length !== this.#sceneFacts.length ||
           mergedFacts.some((f, i) => f !== this.#sceneFacts[i]);
-        if (!note && newlyLanded.length === 0 && !factsChanged) return;
+        // GONE: the roster backstop. Only slugs on the authored roster that
+        // are still marked present, and never the last one standing — a
+        // scene with an empty stage cannot continue.
+        const departed = gone
+          .map((raw) => raw.trim().toLowerCase())
+          .filter((slug) =>
+            this.scene.characters.some((c) => c.characterSlug.toLowerCase() === slug),
+          );
+        const stillPresent = this.#sceneState.presentCharacterSlugs.filter(
+          (slug) => !departed.includes(slug.toLowerCase()),
+        );
+        const presenceChanged =
+          stillPresent.length > 0 &&
+          stillPresent.length !== this.#sceneState.presentCharacterSlugs.length;
+        if (!note && newlyLanded.length === 0 && !factsChanged && !presenceChanged) return;
 
         if (factsChanged) {
           for (const fact of mergedFacts.filter((f) => !this.#sceneFacts.includes(f))) {
@@ -445,10 +459,27 @@ export class SceneDriver {
         // Race-safe: decisions may have advanced #sceneState while we
         // reflected — we only write our own fields, onto whatever the
         // CURRENT state is.
+        if (presenceChanged) {
+          for (const slug of this.#sceneState.presentCharacterSlugs.filter(
+            (p) => !stillPresent.includes(p),
+          )) {
+            console.log(`[dramaturg] no longer in the scene: ${slug}`);
+          }
+        }
         this.#sceneState = {
           ...this.#sceneState,
           ...(note ? { directorNote: note } : {}),
           ...(mergedLanded.length ? { arcLanded: mergedLanded } : {}),
+          ...(presenceChanged
+            ? {
+                presentCharacterSlugs: stillPresent,
+                // Don't leave continuity pointing at someone who is gone.
+                ...(this.#sceneState.lastSpeakerSlug &&
+                !stillPresent.includes(this.#sceneState.lastSpeakerSlug)
+                  ? { lastSpeakerSlug: null }
+                  : {}),
+              }
+            : {}),
         };
         this.#persistState();
         if (note) {

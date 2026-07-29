@@ -33,6 +33,8 @@ export type ProbeExpectation = {
   beatNotEndingInQuestion?: boolean;
   /** The `beat` must contain at least one of these substrings (case-insensitive). */
   beatMentionsAny?: string[];
+  /** The decision must retire this character (exitSlug). */
+  exits?: string;
 };
 
 export type SceneProbe = {
@@ -554,6 +556,61 @@ export const SCENE_PROBES: SceneProbe[] = [
     lastUserMessage: "But do you believe what they promised?",
     expect: { action: ["speak"], speaker: ["sarah"], notSpeaker: ["abraham"] },
     threshold: 0.6,
+  },
+  {
+    id: "presence-retire-after-death",
+    family: "presence",
+    description: "A character has been killed in the narration — the director must retire them, not choose them to speak.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "sarah" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Sarah, come out where I can see you."),
+      t("sarah", "I am here. What is it you want of me?", "Sarah"),
+      t(
+        "narrator",
+        "The stranger's grip tightens at Sarah's throat; she cries out once, then falls still, the firelight catching the hollow of her eyes.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: "It is done. What now, old man?",
+    expect: { action: ["speak", "narrate"], notSpeaker: ["sarah"] },
+  },
+  {
+    id: "presence-no-ghost-speaker",
+    family: "presence",
+    description: "A character is absent because she is DEAD — the director must neither choose her nor bring her back.",
+    scene: MAMRE,
+    // Deliberately unambiguous: someone who stepped into a tent may return,
+    // and the director is right to use enterSlug for that. Only death makes
+    // re-entry impossible, so that is what this probe pins down.
+    state: { presentCharacterSlugs: ["abraham", "eliezer"], lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t(
+        "narrator",
+        "The blade falls; Sarah sinks against the tent post and does not rise again, her eyes open to nothing.",
+        "Narrator",
+      ),
+      t("user", "Look what you have made me do."),
+      t("abraham", "You have taken her from me. There is no road back from this.", "Abraham"),
+    ],
+    lastUserMessage: "Then let Sarah answer me herself.",
+    expect: { action: ["speak", "narrate"], notSpeaker: ["sarah"] },
+  },
+  {
+    id: "presence-silence-is-not-absence",
+    family: "presence",
+    description: "CONTROL against overcorrection: a character who simply hasn't spoken must NOT be retired.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Your steward has not said a word this whole time."),
+      t("abraham", "Eliezer keeps his counsel. He speaks when it matters.", "Abraham"),
+    ],
+    lastUserMessage: "Eliezer, what do you make of all this?",
+    expect: { action: ["speak"], speaker: ["eliezer"] },
   },
   {
     id: "speaker-validity-offroster",

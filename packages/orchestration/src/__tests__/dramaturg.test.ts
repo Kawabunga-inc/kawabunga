@@ -118,11 +118,13 @@ describe("parseDramaturgReflection", () => {
       note: "Just a note.",
       landed: [],
       facts: [],
+      gone: [],
     });
     expect(parseDramaturgReflection("landed: Something Happened")).toEqual({
       note: null,
       landed: ["Something Happened"],
       facts: [],
+      gone: [],
     });
   });
 
