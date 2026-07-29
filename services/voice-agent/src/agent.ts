@@ -447,6 +447,19 @@ export default defineAgent({
       narratorVoice: sceneDriver.scene.narratorVoice,
       fallbackVoiceSlug: sceneDriver.scene.characters[0]!.voice,
     });
+    // PREWARM the opening. A generated opening costs a model call, and it
+    // used to be requested only after the room was live — so the user
+    // arrived to silence, said "Hello?" into the gap, and that first
+    // utterance aborted the opening before it ever played (observed across
+    // seven sessions: never once heard). Start it NOW and let it resolve
+    // while the LiveKit session starts and the track publishes; by the time
+    // there is anywhere to play it, it is usually already in hand.
+    const openingPromise: Promise<string | null> = narrationRouting
+      ? sceneDriver.resolveOpening().catch((err) => {
+          console.warn(`[voice-agent] opening resolve failed: ${(err as Error).message}`);
+          return null;
+        })
+      : Promise.resolve(null);
     if (narrationRouting) {
       sceneDriver.onNarrate(async (text, meta) => {
         const signal = turn?.signal;
@@ -665,7 +678,7 @@ export default defineAgent({
     // authored → the authored line (one of its variants); generated → the
     // narrator writes it from the premise, falling back to authored on any
     // failure; off → silence. Resolved once, at session open.
-    const openingNarration = narrationRouting ? await sceneDriver.resolveOpening() : null;
+    const openingNarration = await openingPromise;
     if (openingNarration && narrationRouting) {
       turn = new AbortController();
       const openingSignal = turn.signal;
