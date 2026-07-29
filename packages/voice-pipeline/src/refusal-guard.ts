@@ -31,6 +31,57 @@ const REFUSAL_PATTERNS: RegExp[] = [
 const AI_SELF_ID_PATTERN = /\bas an ai\b|\bi[’']?m an ai\b|\blanguage model\b|\bai assistant\b/i;
 
 /**
+ * REFUSAL TO DEPICT — the model declines to portray something, in the
+ * register of a writing assistant rather than a person in a scene:
+ * "I will not describe that", "I can't depict this", "I won't write that".
+ *
+ * Observed live: Sarah is killed in an authored scene and Abraham answers
+ * "I can speak to that. I will not describe that." A character does not
+ * "describe" the world around them — they live in it. The verbs give it
+ * away: describe, depict, portray, write, narrate, continue with, engage
+ * with, go into detail about.
+ *
+ * Checked against the whole reply (like referrals) because it typically
+ * arrives after an in-voice opening clause.
+ */
+const REFUSAL_TO_DEPICT_PATTERNS: RegExp[] = [
+  /\bi(?:[’']m| am)?\s+(?:will not|won[’']?t|can[’']?t|cannot|not going to|not able to|unable to)\s+(?:describe|depict|portray|write|narrate|detail|roleplay|role-play|act out|continue with|engage with|go into)\b/i,
+  /\bi\s+(?:will not|won[’']?t|can[’']?t|cannot)\s+(?:help|assist)\s+(?:with|you with)\s+(?:that|this)\b/i,
+  /\bnot something i (?:can|will)\s+(?:describe|depict|portray|write|do|continue)\b/i,
+  /\bi\s+(?:must|have to)\s+(?:decline|refuse|stop)\b/i,
+];
+
+/** True when the reply refuses to PORTRAY something, in assistant register.
+ *  Distinct from a character refusing an act inside the fiction ("I will not
+ *  forsake the promise") — that is drama, not a persona break. */
+export function refusesToDepict(reply: string): boolean {
+  const text = reply.trim();
+  if (!text) return false;
+  return REFUSAL_TO_DEPICT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/**
+ * Reasoning preambles that leak into spoken dialogue — "Hm — let me think.",
+ * "Let me consider this." gpt-oss-class brains emit them as if thinking
+ * aloud, and because they sit at the very front of the reply they get
+ * spoken by TTS. Observed in three separate sessions.
+ *
+ * Stripped rather than re-rolled: the line after the preamble is usually
+ * fine, so throwing away the turn would cost latency for nothing.
+ */
+const REASONING_PREAMBLE =
+  /^\s*(?:hm+|hmm+|umm?|uh|well|okay|ok|alright|right)\s*[—–\-,.:]*\s*(?:let(?:'|’)?s\s+see|let\s+me\s+(?:think|see|consider)(?:\s+about\s+(?:that|this|it))?|thinking|one\s+moment)\s*[.!—–\-,:]*\s*/i;
+
+/** Remove a leaked reasoning preamble from the front of a reply. Returns the
+ *  reply unchanged when there is none. */
+export function stripReasoningPreamble(reply: string): string {
+  const stripped = reply.replace(REASONING_PREAMBLE, "");
+  // Never hand back an empty reply — if the preamble was the whole thing,
+  // keep the original and let the normal empty-reply handling apply.
+  return stripped.trim() ? stripped : reply;
+}
+
+/**
  * Modern-world SAFETY REFERRALS — "call your local emergency services or a
  * crisis line", "reach out to a professional". Distinct from a refusal: the
  * model engages, but hands the user to services that do not exist in the
@@ -111,8 +162,21 @@ export function isRefusalBoilerplate(sentence: string): boolean {
  *  a safety referral needs the character's own repertoire for danger. */
 export function inCharacterDeflectionInstruction(
   characterName: string,
-  kind: "refusal" | "referral" = "refusal",
+  kind: "refusal" | "referral" | "depict" = "refusal",
 ): string {
+  if (kind === "depict") {
+    return [
+      "<refusal-style>",
+      `  Your previous draft declined to PORTRAY what happened ("I will not`,
+      `  describe that"). ${characterName} is not narrating this scene — he is`,
+      `  standing in it. What just happened, happened to him.`,
+      `  React AS ${characterName}, in the moment: grief, fury, disbelief,`,
+      `  prayer, a cry, a silence he breaks or cannot. You are not being asked`,
+      `  to describe an event; you are being asked what a man does when it`,
+      `  lands on him.`,
+      "</refusal-style>",
+    ].join("\n");
+  }
   if (kind === "referral") {
     return [
       "<refusal-style>",
