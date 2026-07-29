@@ -771,29 +771,26 @@ function PlacementInspector({
 
       {node.kind === "artifact" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-          <span style={fieldLabelStyle}>
-            Scene art{artStyle ? ` · ${STAGE_ART_STYLES[artStyle]?.label ?? artStyle}` : ""}
-          </span>
+          <span style={fieldLabelStyle}>Scene art</span>
+          {/* The scene's art style — surfaced here because this is where
+              generation happens. Changing it restyles the whole stage. */}
+          <select
+            value={artStyle ?? ""}
+            onChange={(event) => onPickArtStyle(event.target.value || null)}
+            style={{ ...inputStyle, cursor: "pointer" }}
+          >
+            <option value="">none — footprints only</option>
+            {STAGE_ART_STYLE_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {STAGE_ART_STYLES[key].label}
+              </option>
+            ))}
+          </select>
           {!artStyle ? (
-            <>
-              <p style={spriteHintStyle}>
-                Pick the scene&apos;s art style to start painting artifacts.
-              </p>
-              <select
-                value=""
-                onChange={(event) => onPickArtStyle(event.target.value || null)}
-                style={{ ...inputStyle, cursor: "pointer" }}
-              >
-                <option value="" disabled>
-                  Choose an art style…
-                </option>
-                {STAGE_ART_STYLE_KEYS.map((key) => (
-                  <option key={key} value={key}>
-                    {STAGE_ART_STYLES[key].label}
-                  </option>
-                ))}
-              </select>
-            </>
+            <p style={spriteHintStyle}>
+              Pick an art style to start painting artifacts; until then they
+              render as footprints.
+            </p>
           ) : !asset ? (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
