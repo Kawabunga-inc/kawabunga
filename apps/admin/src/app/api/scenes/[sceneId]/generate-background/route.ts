@@ -90,7 +90,10 @@ export async function POST(
     zoneHints.length
       ? `Suggest these areas in the ground itself (paths, wear, vegetation changes): ${zoneHints.join("; ")}.`
       : null,
-    "Terrain and ground only: soil, stone, sand, grass, paths, subtle vegetation and natural variation. Absolutely no objects, buildings, tents, furniture, creatures, people, text, icons, or UI.",
+    // Natural scatter (rocks, scrub) bakes in beautifully and never
+    // needs to move; set pieces stay out because they're interactive
+    // artifacts layered above.
+    "Natural terrain only: soil, stone, sand, grass, worn paths, scattered rocks and boulders, shrubs and ground vegetation, natural variation and soft shadows. Absolutely no buildings, tents, furniture, tools, campfires, creatures, people, text, icons, or UI.",
     STAGE_ART_STYLES[style].prompt + (styleDirection ? `, ${styleDirection}.` : "."),
     "Full-bleed edge to edge, no border, no vignette, gentle non-repeating variation so it reads as one continuous ground.",
   ]

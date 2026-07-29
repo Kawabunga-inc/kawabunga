@@ -19,7 +19,7 @@ export const STAGE_ART_STYLES: Record<string, { label: string; prompt: string }>
     // isolated sprite the model would paint UI chrome onto the object —
     // the canvas grid/HUD provides that layer instead.)
     prompt:
-      "painterly orthographic top-down historical rendering, like a premium illustrated RPG map asset, warm natural textures, muted earth tones, soft cinematic light",
+      "painterly orthographic top-down historical rendering, like a premium illustrated RPG map asset, a detailed illustrated miniature with subtle internal shading, warm natural textures, muted earth tones, soft cinematic light",
   },
   pixel: {
     label: "Pixel",
