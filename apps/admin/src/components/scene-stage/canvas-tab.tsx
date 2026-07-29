@@ -8,6 +8,7 @@ import type {
   SceneLibraryCharacter,
   SceneLibraryArtifact,
 } from "@/app/(authenticated)/scenes/[sceneId]/page";
+import { updateArtifactAssetMeta } from "@/app/(authenticated)/artifacts/actions";
 import {
   acceptGeneratedArtifact,
   addArtifactFromLibrary,
@@ -27,6 +28,7 @@ import {
   inputStyle,
   kickerStyle,
   T,
+  textareaStyle,
 } from "@/components/scene-tabs/shared";
 import { STAGE_ART_STYLES, STAGE_ART_STYLE_KEYS } from "@/lib/stage-art-styles";
 import { SceneStage, type StageGhost } from "./scene-stage";
@@ -615,13 +617,42 @@ function PlacementInspector({
   const [spriteBusy, setSpriteBusy] = useState(false);
   const [spriteError, setSpriteError] = useState<string | null>(null);
 
+  // The image prompt is the artifact itself: name + description + the
+  // scene's style clause. Description lives on the asset for library
+  // artifacts (renditions regenerate from it) and on the node summary
+  // for ad-hoc ones (promotion copies it across).
+  const [mediaPrompt, setMediaPrompt] = useState(
+    asset ? asset.description ?? "" : node.summary ?? "",
+  );
+  const saveMediaPrompt = useCallback(() => {
+    const next = mediaPrompt.trim() || null;
+    if (asset) {
+      if (next === (asset.description ?? null)) return;
+      void updateArtifactAssetMeta(asset.id, { description: next }).then(() =>
+        router.refresh(),
+      );
+    } else {
+      if (next === (node.summary ?? null)) return;
+      onNodeSaved(node.id, { summary: next });
+      void updateSceneNode(sceneId, node.id, { summary: next });
+    }
+  }, [mediaPrompt, asset, node, sceneId, onNodeSaved, router]);
+
   // Ad-hoc artifact → library asset + first rendition, one click. The
-  // parent attaches the refId locally and kicks generation.
+  // media prompt is persisted to the node summary FIRST (awaited, not
+  // fire-and-forget) because promotion reads it server-side as the
+  // asset description. The parent attaches the refId and kicks
+  // generation.
   const promoteAndGenerate = useCallback(() => {
     setSpriteBusy(true);
     setSpriteError(null);
     void (async () => {
       try {
+        const next = mediaPrompt.trim() || null;
+        if (next !== (node.summary ?? null)) {
+          onNodeSaved(node.id, { summary: next });
+          await updateSceneNode(sceneId, node.id, { summary: next });
+        }
         const res = await promoteArtifactToLibrary(sceneId, node.id);
         if (!res.ok) setSpriteError(res.error);
         else if (res.data) onPromoted(res.data.assetId);
@@ -629,7 +660,7 @@ function PlacementInspector({
         setSpriteBusy(false);
       }
     })();
-  }, [sceneId, node.id, onPromoted]);
+  }, [sceneId, node, mediaPrompt, onNodeSaved, onPromoted]);
 
   // Generate this asset's sprite for the scene's art style without
   // leaving the canvas — same endpoint the /artifacts page uses; the
@@ -765,13 +796,26 @@ function PlacementInspector({
             </>
           ) : !asset ? (
             <>
-              <p style={spriteHintStyle}>
-                Ad-hoc artifact — saving it to the library gives its art a home.
-              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+                <textarea
+                  value={mediaPrompt}
+                  onChange={(event) => setMediaPrompt(event.target.value)}
+                  onBlur={saveMediaPrompt}
+                  rows={2}
+                  placeholder="What is it? e.g. a low woven black-goat-hair tent, open on one side"
+                  style={textareaStyle}
+                />
+                <p style={spriteHintStyle}>
+                  The image prompt is built from this: “top-down view of{" "}
+                  <em>{(label || node.label).trim() || "…"}</em>
+                  {mediaPrompt.trim() ? <> — <em>{mediaPrompt.trim()}</em></> : null},{" "}
+                  {STAGE_ART_STYLES[artStyle]?.label.toLowerCase() ?? artStyle} style.”
+                </p>
+              </div>
               <AdminButton
                 type="button"
                 variant="primary"
-                disabled={spriteBusy}
+                disabled={spriteBusy || (!mediaPrompt.trim() && !label.trim())}
                 onClick={promoteAndGenerate}
               >
                 {spriteBusy ? "Saving…" : "✦ Save to library & generate art"}
@@ -780,6 +824,22 @@ function PlacementInspector({
             </>
           ) : (
             <>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+                <textarea
+                  value={mediaPrompt}
+                  onChange={(event) => setMediaPrompt(event.target.value)}
+                  onBlur={saveMediaPrompt}
+                  rows={2}
+                  placeholder="What is it? e.g. a low woven black-goat-hair tent, open on one side"
+                  style={textareaStyle}
+                />
+                <p style={spriteHintStyle}>
+                  The image prompt is built from this: “top-down view of{" "}
+                  <em>{(label || node.label).trim() || "…"}</em>
+                  {mediaPrompt.trim() ? <> — <em>{mediaPrompt.trim()}</em></> : null},{" "}
+                  {STAGE_ART_STYLES[artStyle]?.label.toLowerCase() ?? artStyle} style.”
+                </p>
+              </div>
               {asset.images[artStyle] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
