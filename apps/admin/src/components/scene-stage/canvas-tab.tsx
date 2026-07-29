@@ -140,6 +140,7 @@ export function CanvasTab({
       groundColor: stage?.groundColor ?? null,
       artStyle: stage?.artStyle ?? null,
       styleDirection: stage?.styleDirection ?? null,
+      backgrounds: stage?.backgrounds ?? null,
       snapM: stage?.snapM ?? null,
       viewport: stage?.viewport ?? null,
       spawn: stage?.spawn ?? null,
@@ -232,6 +233,44 @@ export function CanvasTab({
     },
     [sceneId, viewCenter, onSelect, router, artifactById, ensureRendition],
   );
+
+  // ── Scene background (terrain plate, per style) ──
+  const [bgBusy, setBgBusy] = useState(false);
+  const [bgError, setBgError] = useState<string | null>(null);
+
+  const generateBackground = useCallback(() => {
+    if (!artStyle) return;
+    setBgBusy(true);
+    setBgError(null);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/scenes/${encodeURIComponent(sceneId)}/generate-background`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ style: artStyle, styleDirection }),
+          },
+        );
+        const body = (await res.json()) as { url?: string; error?: string };
+        if (!res.ok || !body.url) {
+          setBgError(body.error ?? "Background generation failed.");
+        } else {
+          // The route returns the URL; persisting flows through client
+          // stage state so the autosave never clobbers it.
+          onStageChange(
+            stagePatch({
+              backgrounds: { ...(stage?.backgrounds ?? {}), [artStyle]: body.url },
+            }),
+          );
+        }
+      } catch {
+        setBgError("Background generation failed.");
+      } finally {
+        setBgBusy(false);
+      }
+    })();
+  }, [sceneId, artStyle, styleDirection, stage?.backgrounds, stagePatch, onStageChange]);
 
   // ── Generated set proposals (ghosts until accepted) ──
   const [proposals, setProposals] = useState<GhostProposal[]>([]);
@@ -583,6 +622,9 @@ export function CanvasTab({
                 ensureRendition(assetId, artifactById.get(assetId)?.images ?? {});
               }
             }}
+            bgBusy={bgBusy}
+            bgError={bgError}
+            onGenerateBackground={generateBackground}
           />
         )}
       </div>
@@ -1049,6 +1091,9 @@ function StageSettings({
   missingArtAssetIds,
   artBusyCount,
   onGenerateMissing,
+  bgBusy,
+  bgError,
+  onGenerateBackground,
 }: {
   stage: StageConfig | null;
   stagePatch: (patch: Partial<StageConfig>) => StageConfig;
@@ -1057,6 +1102,9 @@ function StageSettings({
   missingArtAssetIds: string[];
   artBusyCount: number;
   onGenerateMissing: () => void;
+  bgBusy: boolean;
+  bgError: string | null;
+  onGenerateBackground: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: "20px 20px 40px", overflow: "auto" }}>
@@ -1126,6 +1174,35 @@ function StageSettings({
               style={textareaStyle}
             />
           </Field>
+        )}
+
+        {stage?.artStyle && (
+          <>
+            <AdminButton
+              type="button"
+              variant="secondary"
+              disabled={bgBusy}
+              onClick={onGenerateBackground}
+            >
+              {bgBusy
+                ? "Painting terrain…"
+                : stage.backgrounds?.[stage.artStyle]
+                  ? "↻ Regenerate background"
+                  : "✦ Generate background"}
+            </AdminButton>
+            {bgError && (
+              <p
+                style={{
+                  margin: 0,
+                  color: T.danger,
+                  fontSize: "var(--font-size-xs)",
+                  lineHeight: "17px",
+                }}
+              >
+                {bgError}
+              </p>
+            )}
+          </>
         )}
 
         {stage?.artStyle && (

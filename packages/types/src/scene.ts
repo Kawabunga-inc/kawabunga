@@ -194,6 +194,10 @@ export const stageConfigSchema = z.object({
   // ("dusty golden hour, Bronze Age Canaan"). Rides alongside the style
   // preset's clause.
   styleDirection: z.string().nullable().default(null),
+  // Generated terrain plates covering the full world rect, keyed by art
+  // style (like artifact renditions). Terrain only — artifacts layer
+  // above with alpha, so placements stay live.
+  backgrounds: z.record(z.string(), z.string()).nullable().default(null),
   snapM: z.number().positive().nullable().default(null),
   viewport: z
     .object({ cx: z.number(), cy: z.number(), zoom: z.number().positive() })

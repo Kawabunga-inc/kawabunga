@@ -259,6 +259,7 @@ export function SceneStage({
     >
       {ready && (
         <>
+          <StageBackground viewport={viewport} size={size} stage={stage} />
           <StageGrid viewport={viewport} size={size} />
           {placed.map((node) => {
             const isDragging = dragPos?.id === node.id;
@@ -351,6 +352,46 @@ export function SceneStage({
         </>
       )}
     </div>
+  );
+}
+
+/* ── Background (generated terrain plate) ──────────────────────────── */
+
+/** The scene's terrain plate for the active art style, pinned to the
+ *  full 96×64 world rect so it pans and zooms with everything else.
+ *  Sits under the grid; the ground color shows beyond the world edge. */
+function StageBackground({
+  viewport,
+  size,
+  stage,
+}: {
+  viewport: Viewport;
+  size: ScreenSize;
+  stage: StageConfig | null;
+}) {
+  const artStyle = stage?.artStyle ?? null;
+  const url = artStyle ? stage?.backgrounds?.[artStyle] ?? null : null;
+  if (!url) return null;
+  const topLeft = worldToScreen({ x: -WORLD_MAX_X, y: WORLD_MAX_Y }, viewport, size);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      aria-hidden
+      draggable={false}
+      style={{
+        position: "absolute",
+        left: topLeft.x,
+        top: topLeft.y,
+        width: WORLD.widthM * viewport.pxPerM,
+        height: WORLD.heightM * viewport.pxPerM,
+        pointerEvents: "none",
+        userSelect: "none",
+        // Pixel art stays crisp when the plate is scaled up.
+        imageRendering: artStyle === "pixel" ? "pixelated" : "auto",
+      }}
+    />
   );
 }
 
