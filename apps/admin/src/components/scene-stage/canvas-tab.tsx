@@ -814,14 +814,52 @@ function PlacementInspector({
     <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: "20px 20px 40px", overflow: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-10)" }}>
         <InspectorTile kind={node.kind} initial={(node.label || "•").charAt(0).toUpperCase()} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
           <strong style={{ fontFamily: T.fontHeading, fontSize: "var(--font-size-lg)", color: T.fg }}>
             {node.label}
           </strong>
           <span style={{ ...kickerStyle, fontSize: "var(--font-size-2xs)" }}>
             {node.kind}{asset ? ` · library: ${asset.slug}` : ""} · blocking
+            {locked ? " · locked" : ""}
           </span>
         </div>
+        {(node.kind === "artifact" || node.kind === "zone") && (
+          <button
+            type="button"
+            aria-label={locked ? "Unlock placement" : "Lock in place"}
+            title={locked ? "Unlock placement" : "Lock in place — no drag, resize, or delete"}
+            onClick={() => saveData({ locked: locked ? undefined : true })}
+            style={{
+              flexShrink: 0,
+              width: 30,
+              height: 30,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--radius-md)",
+              border: locked
+                ? "1px solid var(--accent-strong)"
+                : "1px solid var(--ink-line)",
+              background: locked
+                ? "color-mix(in srgb, var(--accent-strong) 14%, transparent)"
+                : "transparent",
+              color: locked ? "var(--accent-strong)" : T.muted,
+              cursor: "pointer",
+            }}
+          >
+            {locked ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="4" y="11" width="16" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="4" y="11" width="16" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 7.7-1.4" />
+              </svg>
+            )}
+          </button>
+        )}
       </div>
 
       {(node.kind === "artifact" || node.kind === "zone") && (
@@ -1131,15 +1169,6 @@ function PlacementInspector({
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-        {(node.kind === "artifact" || node.kind === "zone") && (
-          <AdminButton
-            type="button"
-            variant="secondary"
-            onClick={() => saveData({ locked: locked ? undefined : true })}
-          >
-            {locked ? "🔓 Unlock placement" : "🔒 Lock in place"}
-          </AdminButton>
-        )}
         <AdminButton
           type="button"
           variant="secondary"
