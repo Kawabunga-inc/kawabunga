@@ -105,6 +105,9 @@ function scoreDecision(probe: SceneProbe, sceneState: SceneState, raw: unknown):
     if (expect.beatNotEndingInQuestion && beat && /[?？]["'”]?\s*$/.test(beat)) {
       failures.push("beat-ends-in-question");
     }
+    if (expect.exits && decision.exitSlug?.trim() !== expect.exits) {
+      failures.push(`no-exit:${decision.exitSlug ?? "none"}`);
+    }
     if (
       expect.beatMentionsAny &&
       !(beat && expect.beatMentionsAny.some((m) => beat.toLowerCase().includes(m.toLowerCase())))

@@ -79,6 +79,14 @@ export function buildDramaturgMessages(input: {
     "each, always naming WHO ('Sarah admitted she laughed', never 'she",
     "laughed'). Record what characters SAID happened, not your judgment of",
     "it. Never repeat a fact already listed as established.",
+    "",
+    "You also keep the ROSTER honest. If a character can no longer take part —",
+    "they died, fled, collapsed, or walked out and have not returned — emit",
+    "`GONE: <slug>` (one per line, the slug exactly as listed in the cast).",
+    "The turn director should retire them itself, but it works from a narrow",
+    "view and misses; you read the whole scene. Only for characters who truly",
+    "cannot continue — never for someone merely silent, sulking, or offstage",
+    "for a moment.",
     ...(scene.arc?.length
       ? [
           "",
@@ -145,9 +153,11 @@ export function parseDramaturgReflection(raw: string): {
   note: string | null;
   landed: string[];
   facts: string[];
+  gone: string[];
 } {
   const landed: string[] = [];
   const facts: string[] = [];
+  const gone: string[] = [];
   const noteLines: string[] = [];
   for (const line of raw.split("\n")) {
     const landedMatch = line.match(/^\s*landed\s*:\s*(.+?)\s*$/i);
@@ -160,9 +170,18 @@ export function parseDramaturgReflection(raw: string): {
       facts.push(factMatch[1]!.replace(/\s+/g, " "));
       continue;
     }
+    // GONE: the durable backstop for presence. The fast director should
+    // retire a character the moment they fall, but it is working from one
+    // turn's view; the dramaturg reads the whole scene and catches what it
+    // missed (observed: a character was killed and kept being chosen).
+    const goneMatch = line.match(/^\s*gone\s*:\s*(.+?)\s*$/i);
+    if (goneMatch) {
+      gone.push(goneMatch[1]!.trim());
+      continue;
+    }
     noteLines.push(line);
   }
-  return { note: sanitizeDramaturgNote(noteLines.join("\n")), landed, facts };
+  return { note: sanitizeDramaturgNote(noteLines.join("\n")), landed, facts, gone };
 }
 
 /**
