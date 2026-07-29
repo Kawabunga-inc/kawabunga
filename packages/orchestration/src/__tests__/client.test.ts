@@ -161,6 +161,8 @@ describe("@kawabunga/orchestration client", () => {
       "beat",
       "sceneCue",
       "narration",
+      "exitSlug",
+      "enterSlug",
       "ambience",
       "sfx",
       "beatLabel",
@@ -774,5 +776,89 @@ describe("scene facts (durable memory)", () => {
     expect(system).toContain("- Ada: An older line.");
     expect(system).not.toContain("- Ada: The machine ran twice.");
     expect(request.messages[1]!.content).toContain("Ada: The machine ran twice.");
+  });
+});
+
+describe("character presence", () => {
+  const base = () => createInitialSceneState(scene);
+
+  it("retires a character and stops them being eligible to speak", () => {
+    const after = resolveSceneDecision(
+      { scene, sceneState: base() },
+      { action: "narrate", narration: "She falls still.", exitSlug: "ada" },
+    );
+    expect(after.sceneState.presentCharacterSlugs).not.toContain("ada");
+    expect(after.reason).toContain("exit:ada");
+
+    // The very next decision cannot choose her.
+    const next = resolveSceneDecision(
+      { scene, sceneState: after.sceneState },
+      { action: "speak", speakerId: "ada", beat: "answer" },
+    );
+    expect(next.degraded).toBe(true);
+    expect(next.speakerSlug).not.toBe("ada");
+  });
+
+  it("will not let a departing character speak on the way out", () => {
+    // The observed failure: a character is killed and still takes the turn.
+    const res = resolveSceneDecision(
+      { scene, sceneState: base() },
+      { action: "speak", speakerId: "ada", beat: "last words", exitSlug: "ada" },
+    );
+    expect(res.degraded).toBe(true);
+    expect(res.speakerSlug).not.toBe("ada");
+  });
+
+  it("clears addressee continuity when the last speaker leaves", () => {
+    const state = { ...base(), lastSpeakerSlug: "ada" };
+    const res = resolveSceneDecision(
+      { scene, sceneState: state },
+      { action: "narrate", narration: "She slips away into the dark.", exitSlug: "ada" },
+    );
+    expect(res.sceneState.lastSpeakerSlug).toBeNull();
+  });
+
+  it("brings a character back with enterSlug", () => {
+    const gone = resolveSceneDecision(
+      { scene, sceneState: base() },
+      { action: "narrate", narration: "She steps out.", exitSlug: "ada" },
+    ).sceneState;
+    const back = resolveSceneDecision(
+      { scene, sceneState: gone },
+      { action: "narrate", narration: "She returns.", enterSlug: "ada" },
+    );
+    expect(back.sceneState.presentCharacterSlugs).toContain("ada");
+  });
+
+  it("never empties the stage — the last one present cannot leave", () => {
+    const solo = { ...base(), presentCharacterSlugs: ["turing"] };
+    const res = resolveSceneDecision(
+      { scene, sceneState: solo },
+      { action: "narrate", narration: "He walks off.", exitSlug: "turing" },
+    );
+    expect(res.sceneState.presentCharacterSlugs).toEqual(["turing"]);
+    expect(res.reason).toContain("exit-refused-last-present");
+  });
+
+  it("ignores slugs that aren't on the roster", () => {
+    const res = resolveSceneDecision(
+      { scene, sceneState: base() },
+      { action: "narrate", narration: "Someone leaves.", exitSlug: "nobody" },
+    );
+    expect(res.sceneState.presentCharacterSlugs).toEqual(
+      base().presentCharacterSlugs,
+    );
+    expect(res.reason).toContain("exit-not-in-roster:nobody");
+  });
+
+  it("lists absent characters for the director, so they can return", () => {
+    const gone = resolveSceneDecision(
+      { scene, sceneState: base() },
+      { action: "narrate", narration: "She steps out.", exitSlug: "ada" },
+    ).sceneState;
+    const prompt = buildSceneDecisionRequest({ scene, sceneState: gone })
+      .messages[0]!.content;
+    expect(prompt).toContain("No longer in the scene");
+    expect(prompt).toContain("ada");
   });
 });

@@ -449,10 +449,12 @@ export function resolveSceneDecision(
   const decision = parsed.data;
   if (decision.action === "speak") {
     const speakerSlug = decision.speakerId?.trim() ?? "";
+    // Validate the speaker against the roster AFTER this decision's own
+    // presence changes: a decision that both retires a character and picks
+    // them to speak must not let them speak on the way out.
+    const presentAfter = applyPresence(input.scene, input.sceneState, decision).present;
     const present = input.scene.characters.some(
-      (c) =>
-        c.characterSlug === speakerSlug &&
-        input.sceneState.presentCharacterSlugs.includes(c.characterSlug),
+      (c) => c.characterSlug === speakerSlug && presentAfter.includes(c.characterSlug),
     );
     if (!speakerSlug || !present) {
       return fallbackResolution(
@@ -662,6 +664,56 @@ export function buildDirectiveChunk(input: {
   return lines.join("\n");
 }
 
+/**
+ * Apply the decision's presence changes to the roster.
+ *
+ * `exitSlug` removes a character who has left or can no longer take part;
+ * `enterSlug` restores one. Both are validated against the scene's authored
+ * roster — a hallucinated slug is ignored rather than corrupting state — and
+ * an exit never empties the roster, since a scene with nobody in it has no
+ * way to continue.
+ */
+function applyPresence(
+  scene: Scene,
+  state: SceneState,
+  decision: OrchestratorDecision,
+): { present: string[]; notes: string[] } {
+  const onRoster = (slug: string) =>
+    scene.characters.some((c) => c.characterSlug === slug);
+  let present = [...state.presentCharacterSlugs];
+  const notes: string[] = [];
+
+  const exit = decision.exitSlug?.trim();
+  if (exit) {
+    if (!onRoster(exit)) {
+      notes.push(`exit-not-in-roster:${exit}`);
+    } else if (!present.includes(exit)) {
+      notes.push(`exit-already-absent:${exit}`);
+    } else if (present.length <= 1) {
+      // The last character standing cannot leave — the scene would have
+      // nobody left to carry it.
+      notes.push(`exit-refused-last-present:${exit}`);
+    } else {
+      present = present.filter((slug) => slug !== exit);
+      notes.push(`exit:${exit}`);
+    }
+  }
+
+  const enter = decision.enterSlug?.trim();
+  if (enter) {
+    if (!onRoster(enter)) {
+      notes.push(`enter-not-in-roster:${enter}`);
+    } else if (present.includes(enter)) {
+      notes.push(`enter-already-present:${enter}`);
+    } else {
+      present = [...present, enter];
+      notes.push(`enter:${enter}`);
+    }
+  }
+
+  return { present, notes };
+}
+
 function applyDecision(
   input: {
     scene: Scene;
@@ -672,8 +724,9 @@ function applyDecision(
   meta?: { degraded?: boolean; reason?: string },
 ): SceneDecisionResolution {
   const { decision, notes } = sanitizeAudioCues(input.scene, rawDecision);
+  const presence = applyPresence(input.scene, input.sceneState, decision);
   const reason =
-    [meta?.reason, ...notes].filter(Boolean).join("; ") || undefined;
+    [meta?.reason, ...notes, ...presence.notes].filter(Boolean).join("; ") || undefined;
 
   // Director's working memory: log the DIRECTION it just issued (the
   // per-turn `beat`, not the `beatLabel` situation) so the next decision
@@ -691,7 +744,13 @@ function applyDecision(
       decision.ambience !== undefined
         ? decision.ambience
         : input.sceneState.ambience,
-    lastSpeakerSlug: speakerSlug ?? input.sceneState.lastSpeakerSlug,
+    presentCharacterSlugs: presence.present,
+    // Addressee continuity must not point at someone who just left — a
+    // departed character would keep being handed the user's follow-ups.
+    lastSpeakerSlug: (() => {
+      const next = speakerSlug ?? input.sceneState.lastSpeakerSlug;
+      return next && !presence.present.includes(next) ? null : next;
+    })(),
     turnIndex: input.sceneState.turnIndex + 1,
     ...(recentBeats?.length ? { recentBeats } : {}),
   };
@@ -844,6 +903,16 @@ function buildOrchestratorSystemPrompt(
     "",
     "Characters present:",
     roster,
+    ...(scene.characters.length > present.length
+      ? [
+          "",
+          "No longer in the scene (do NOT choose them to speak; use `enterSlug`",
+          "only if they genuinely return):",
+          ...scene.characters
+            .filter((c) => !state.presentCharacterSlugs.includes(c.characterSlug))
+            .map((c) => `  - ${c.displayName} (${c.characterSlug})`),
+        ]
+      : []),
     "",
     `Current situation: ${state.beat}`,
     ...(state.directorNote
@@ -962,6 +1031,13 @@ function buildOrchestratorSystemPrompt(
           "  layers under them. Most turns need no sfx.",
         ]
       : []),
+    "- PRESENCE: set `exitSlug` the moment a character can no longer take part -",
+    "  they walk out, flee, fall, or die. From that decision on they are gone:",
+    "  never choose them as `speakerId`, and never have them answer. A scene",
+    "  where the dead keep talking is broken, not dramatic. Set `enterSlug` when",
+    "  someone rejoins (returns from the tent, arrives on the road).",
+    "- A character who is present but SILENT is not absent - do not retire someone",
+    "  merely for holding their tongue.",
     "- Update `beatLabel` only when the scene's situation has materially advanced",
     "  (distinct from `beat`, which is this turn's direction for the speaker).",
     "",

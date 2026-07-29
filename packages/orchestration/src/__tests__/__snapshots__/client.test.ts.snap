@@ -115,6 +115,13 @@ Decision rules:
   indication: if farewells have already been exchanged, end the scene rather
   than sending another line after them.
 - Change \`ambience\` only when the emotional register shifts. Don't churn it.
+- PRESENCE: set \`exitSlug\` the moment a character can no longer take part -
+  they walk out, flee, fall, or die. From that decision on they are gone:
+  never choose them as \`speakerId\`, and never have them answer. A scene
+  where the dead keep talking is broken, not dramatic. Set \`enterSlug\` when
+  someone rejoins (returns from the tent, arrives on the road).
+- A character who is present but SILENT is not absent - do not retire someone
+  merely for holding their tongue.
 - Update \`beatLabel\` only when the scene's situation has materially advanced
   (distinct from \`beat\`, which is this turn's direction for the speaker).
 

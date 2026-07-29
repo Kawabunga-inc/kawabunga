@@ -294,6 +294,17 @@ export const orchestratorDecisionSchema = z.object({
   // a character LLM. Keep short (≤2 sentences).
   narration: z.string().optional(),
 
+  // ── Presence (always optional) ─────────────────────────────────
+  // A character who has LEFT the scene or can no longer take part — walked
+  // out, fled, fallen, died. Set on the turn the departure becomes true;
+  // they stop being eligible to speak from that decision onward.
+  // (Observed without it: a character was killed in-scene and the director
+  // kept choosing her to speak, so she narrated her own corpse.)
+  exitSlug: z.string().nullable().optional(),
+  // A character rejoining — returning from the tent, arriving from the road.
+  // Must be on the scene's authored roster; unknown slugs are ignored.
+  enterSlug: z.string().nullable().optional(),
+
   // ── Audio bed (always optional) ────────────────────────────────
   ambience: z.string().nullable().optional(),
   sfx: z.array(sfxCueSchema).optional(),
@@ -325,6 +336,8 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     "beat",
     "sceneCue",
     "narration",
+    "exitSlug",
+    "enterSlug",
     "ambience",
     "sfx",
     "beatLabel",
@@ -338,6 +351,8 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     beat: { type: ["string", "null"] },
     sceneCue: { type: ["string", "null"] },
     narration: { type: ["string", "null"] },
+    exitSlug: { type: ["string", "null"] },
+    enterSlug: { type: ["string", "null"] },
     ambience: { type: ["string", "null"] },
     sfx: {
       type: ["array", "null"],
