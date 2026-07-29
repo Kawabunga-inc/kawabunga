@@ -457,21 +457,68 @@ export function CanvasTab({
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          {libraryArtifacts.map((asset) => (
-            <button
-              key={asset.id}
-              type="button"
-              onClick={() => placeFromLibrary(asset.id)}
-              title={asset.description ?? "Place at the center of the view"}
-              style={trayRowStyle}
-            >
-              <ArtifactThumb asset={asset} artStyle={artStyle} />
-              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {asset.name}
-              </span>
-              <span style={trayPlaceStyle}>place →</span>
-            </button>
-          ))}
+          {libraryArtifacts.map((asset) => {
+            const busy = artBusyIds.has(asset.id);
+            const needsArt = artStyle !== null && !asset.images[artStyle];
+            return (
+              <div key={asset.id} style={{ ...trayRowStyle, cursor: "default", padding: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => placeFromLibrary(asset.id)}
+                  title={asset.description ?? "Place at the center of the view"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-8)",
+                    flex: 1,
+                    minWidth: 0,
+                    padding: "7px 0 7px 9px",
+                    border: "none",
+                    background: "transparent",
+                    color: T.fg,
+                    fontFamily: T.fontBody,
+                    fontSize: "var(--font-size-sm)",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <ArtifactThumb asset={asset} artStyle={artStyle} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {asset.name}
+                  </span>
+                  <span style={trayPlaceStyle}>place →</span>
+                </button>
+                {/* Media generation is a child of the artifact: paint this
+                    asset's sprite for the scene's current art style. */}
+                {(needsArt || busy) && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => ensureRendition(asset.id, asset.images)}
+                    title={
+                      busy
+                        ? "Painting…"
+                        : `Generate ${artStyle} art for ${asset.name}`
+                    }
+                    style={{
+                      flexShrink: 0,
+                      alignSelf: "stretch",
+                      width: 34,
+                      border: "none",
+                      borderLeft: "1px dashed var(--ink-line)",
+                      background: "transparent",
+                      color: busy ? T.muted : T.accent,
+                      cursor: busy ? "wait" : "pointer",
+                      fontSize: "var(--font-size-sm)",
+                    }}
+                  >
+                    {busy ? "…" : "✦"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
           {libraryArtifacts.length === 0 && (
             <p style={trayHintStyle}>
               The library is empty — add reusable set pieces at /artifacts, or
