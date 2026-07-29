@@ -74,8 +74,8 @@ describe("isPlaced (legacy pixel neutralization)", () => {
 
 describe("z ordering", () => {
   it("orders zones under props under characters under audio", () => {
-    expect(zIndexFor("zone", null)).toBeLessThan(zIndexFor("prop", null));
-    expect(zIndexFor("prop", null)).toBeLessThan(zIndexFor("character", null));
+    expect(zIndexFor("zone", null)).toBeLessThan(zIndexFor("artifact", null));
+    expect(zIndexFor("artifact", null)).toBeLessThan(zIndexFor("character", null));
     expect(zIndexFor("character", null)).toBeLessThan(zIndexFor("audio", null));
   });
 

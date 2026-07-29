@@ -554,21 +554,22 @@ export const audioAssetsTable = pgTable(
 // ── Prop assets (stage set-piece library) ───────────────────────────
 //
 // Reusable top-down set pieces for the scene canvas — "goat-hair tent",
-// "fire pit". Scene placement lives on scene_nodes (kind='prop',
+// "fire pit". Scene placement lives on scene_nodes (kind='artifact',
 // refId → this table); the asset holds the canonical visual (icon key
 // from the admin catalog, optional future sprite image URL) and default
 // footprint. Per-placement overrides go in the node's data, so the
 // asset stays the single source of truth. Same soft-delete semantics
 // as audio_assets: archived rows leave existing placements working.
-export const propAssetsTable = pgTable(
-  "prop_assets",
+export const artifactAssetsTable = pgTable(
+  "artifact_assets",
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
     slug: text("slug").notNull().unique(),
     name: text("name").notNull(),
     // LLM-facing description — what set-generation reads to decide reuse.
     description: text("description"),
-    // Key into the admin app's top-down icon catalog (prop-icons.tsx).
+    // Deprecated icon-catalog key from before sprite renditions; kept
+    // for old rows, no longer written.
     icon: text("icon"),
     // Generated top-down sprite renditions, keyed by art-style preset
     // ("pixel" | "anime" | ...) -> public URL. A scene renders its own
@@ -594,7 +595,7 @@ export const propAssetsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("prop_assets_archived_at_idx").on(t.archivedAt)],
+  (t) => [index("artifact_assets_archived_at_idx").on(t.archivedAt)],
 );
 
 // ── Character versions (named snapshots of full config state) ───────
@@ -928,7 +929,7 @@ export const sceneNodesTable = pgTable(
     // (two tents from one prop asset).
     uniqueIndex("scene_nodes_scene_ref_uniq")
       .on(t.sceneId, t.kind, t.refId)
-      .where(sql`${t.refId} IS NOT NULL AND ${t.kind} <> 'prop'`),
+      .where(sql`${t.refId} IS NOT NULL AND ${t.kind} <> 'artifact'`),
   ],
 );
 

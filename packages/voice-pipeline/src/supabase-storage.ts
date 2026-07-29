@@ -23,7 +23,7 @@ export const SOUND_SOURCES_BUCKET = "sound-sources";
 export const SOUND_PROCESSED_BUCKET = "sound-processed";
 // Public bucket for generated prop sprite renditions (top-down set
 // pieces). Addressed by `${asset.id}/${style}-${timestamp}.png`.
-export const PROP_IMAGES_BUCKET = "prop-images";
+export const ARTIFACT_IMAGES_BUCKET = "artifact-images";
 
 let cached: SupabaseClient | null = null;
 

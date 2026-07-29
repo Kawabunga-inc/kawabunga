@@ -2,17 +2,16 @@
 
 import { useMemo, useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import type { PropAssetSummary } from "@/app/(authenticated)/props/page";
+import type { ArtifactAssetSummary } from "@/app/(authenticated)/artifacts/page";
 import {
-  archivePropAsset,
-  createPropAsset,
-  deletePropAsset,
-  unarchivePropAsset,
-  updatePropAssetMeta,
-} from "@/app/(authenticated)/props/actions";
+  archiveArtifactAsset,
+  createArtifactAsset,
+  deleteArtifactAsset,
+  unarchiveArtifactAsset,
+  updateArtifactAssetMeta,
+} from "@/app/(authenticated)/artifacts/actions";
 import { AdminButton, AdminPageShell, AdminStatusPill, adminTokens } from "@/components/admin-ui";
 import { useHeaderContent } from "@/components/header-context";
-import { PROP_ICON_KEYS, PROP_ICONS, PropIcon } from "@/components/scene-stage/prop-icons";
 import { STAGE_ART_STYLES, STAGE_ART_STYLE_KEYS } from "@/lib/stage-art-styles";
 import {
   checkboxRowStyle,
@@ -28,7 +27,6 @@ import { useEffect } from "react";
 type EditableFields = {
   name: string;
   description: string;
-  icon: string | null;
   shape: "round" | "rect";
   radiusM: string;
   widthM: string;
@@ -37,11 +35,10 @@ type EditableFields = {
   tags: string;
 };
 
-function toEditable(asset: PropAssetSummary): EditableFields {
+function toEditable(asset: ArtifactAssetSummary): EditableFields {
   return {
     name: asset.name,
     description: asset.description ?? "",
-    icon: asset.icon,
     shape: asset.defaultRadiusM != null ? "round" : "rect",
     radiusM: asset.defaultRadiusM != null ? String(asset.defaultRadiusM) : "",
     widthM: asset.defaultWidthM != null ? String(asset.defaultWidthM) : "",
@@ -60,7 +57,7 @@ function parseDim(value: string): number | null {
  * Reusable stage set pieces. Placement lives on scene canvases; this
  * page owns the canonical visual + default footprint.
  */
-export function PropsGrid({ propAssets }: { propAssets: PropAssetSummary[] }) {
+export function ArtifactsGrid({ propAssets }: { propAssets: ArtifactAssetSummary[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showCreate, setShowCreate] = useState(false);
@@ -132,10 +129,9 @@ export function PropsGrid({ propAssets }: { propAssets: PropAssetSummary[] }) {
             onSubmit={(fields) => {
               setError(null);
               start(async () => {
-                const res = await createPropAsset({
+                const res = await createArtifactAsset({
                   name: fields.name,
                   description: fields.description || null,
-                  icon: fields.icon,
                   shape: fields.shape,
                   radiusM: parseDim(fields.radiusM),
                   widthM: parseDim(fields.widthM),
@@ -181,7 +177,7 @@ function PropAssetRow({
   start,
   refresh,
 }: {
-  asset: PropAssetSummary;
+  asset: ArtifactAssetSummary;
   pending: boolean;
   onError: (message: string | null) => void;
   start: (fn: () => Promise<void>) => void;
@@ -208,23 +204,35 @@ function PropAssetRow({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)", padding: "12px 16px" }}>
-        <span
-          aria-hidden
-          style={{
-            width: 40,
-            height: 40,
-            flexShrink: 0,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--ink-line)",
-            background: "var(--ink-soft)",
-            color: T.muted,
-          }}
-        >
-          <PropIcon icon={asset.icon} size={22} />
-        </span>
+        {Object.keys(asset.images).length > 0 ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={Object.values(asset.images)[0]}
+            alt=""
+            aria-hidden
+            style={{
+              width: 40,
+              height: 40,
+              flexShrink: 0,
+              objectFit: "contain",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--ink-line)",
+              background:
+                "repeating-conic-gradient(color-mix(in srgb, var(--text-primary) 6%, transparent) 0% 25%, transparent 0% 50%) 0 0 / 12px 12px",
+            }}
+          />
+        ) : (
+          <span
+            aria-hidden
+            style={{
+              width: 40,
+              height: 40,
+              flexShrink: 0,
+              borderRadius: "var(--radius-md)",
+              border: "1.5px dashed color-mix(in srgb, var(--text-primary) 30%, transparent)",
+            }}
+          />
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
             <strong style={{ fontFamily: T.fontHeading, fontSize: "var(--font-size-base)", color: T.fg }}>
@@ -262,7 +270,7 @@ function PropAssetRow({
             onClick={() => {
               onError(null);
               start(async () => {
-                const res = await unarchivePropAsset(asset.id);
+                const res = await unarchiveArtifactAsset(asset.id);
                 if (!res.ok) onError(res.error);
                 refresh();
               });
@@ -278,7 +286,7 @@ function PropAssetRow({
             onClick={() => {
               onError(null);
               start(async () => {
-                const res = await archivePropAsset(asset.id);
+                const res = await archiveArtifactAsset(asset.id);
                 if (!res.ok) onError(res.error);
                 refresh();
               });
@@ -297,7 +305,7 @@ function PropAssetRow({
             }
             onError(null);
             start(async () => {
-              const res = await deletePropAsset(asset.id);
+              const res = await deleteArtifactAsset(asset.id);
               if (!res.ok) onError(res.error);
               refresh();
             });
@@ -334,10 +342,9 @@ function PropAssetRow({
             onSubmit={(fields) => {
               onError(null);
               start(async () => {
-                const res = await updatePropAssetMeta(asset.id, {
+                const res = await updateArtifactAssetMeta(asset.id, {
                   name: fields.name,
                   description: fields.description || null,
-                  icon: fields.icon,
                   shape: fields.shape,
                   radiusM: parseDim(fields.radiusM),
                   widthM: parseDim(fields.widthM),
@@ -365,7 +372,7 @@ function SpriteStrip({
   onError,
   refresh,
 }: {
-  asset: PropAssetSummary;
+  asset: ArtifactAssetSummary;
   onError: (message: string | null) => void;
   refresh: () => void;
 }) {
@@ -377,7 +384,7 @@ function SpriteStrip({
     void (async () => {
       try {
         const res = await fetch(
-          `/api/props/${encodeURIComponent(asset.id)}/generate-image`,
+          `/api/artifacts/${encodeURIComponent(asset.id)}/generate-image`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -491,7 +498,6 @@ function PropAssetForm({
     initial ?? {
       name: "",
       description: "",
-      icon: null,
       shape: "rect",
       radiusM: "",
       widthM: "2",
@@ -522,35 +528,6 @@ function PropAssetForm({
           style={textareaStyle}
         />
       </Field>
-      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-        <span style={fieldLabelStyle}>Icon</span>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 44px)", gap: 4 }}>
-          {PROP_ICON_KEYS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              title={PROP_ICONS[key].label}
-              onClick={() => set("icon", key)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 38,
-                borderRadius: "var(--radius-md)",
-                border:
-                  fields.icon === key
-                    ? "1.5px solid var(--accent-strong)"
-                    : "1px solid var(--ink-line)",
-                background: fields.icon === key ? T.accentSoft : "transparent",
-                color: fields.icon === key ? T.fg : T.muted,
-                cursor: "pointer",
-              }}
-            >
-              <PropIcon icon={key} size={19} />
-            </button>
-          ))}
-        </div>
-      </div>
       <div style={{ display: "flex", gap: "var(--space-8)", alignItems: "flex-end" }}>
         <Field label="Footprint">
           <select

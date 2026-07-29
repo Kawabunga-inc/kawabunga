@@ -3,7 +3,7 @@ import {
   ambienceDataSchema,
   getSceneGraphStore,
   NODE_KINDS,
-  propDataSchema,
+  artifactDataSchema,
   stagePositionSchema,
   zoneDataSchema,
 } from "./scene-graph-store";
@@ -43,15 +43,15 @@ describe("scene graph ambience nodes", () => {
 
 describe("stage node kinds (prop, zone)", () => {
   it("registers prop and zone in the kind registry", () => {
-    expect(NODE_KINDS).toContain("prop");
+    expect(NODE_KINDS).toContain("artifact");
     expect(NODE_KINDS).toContain("zone");
   });
 
   it("accepts valid prop data and rejects unknown keys", () => {
     expect(
-      propDataSchema.parse({ glyph: "fire", radiusM: 0.75, soundSource: true }),
+      artifactDataSchema.parse({ glyph: "fire", radiusM: 0.75, soundSource: true }),
     ).toEqual({ glyph: "fire", radiusM: 0.75, soundSource: true });
-    expect(() => propDataSchema.parse({ pixels: 40 })).toThrow();
+    expect(() => artifactDataSchema.parse({ pixels: 40 })).toThrow();
   });
 
   it("requires shape and dimensions on zones", () => {
@@ -77,12 +77,12 @@ describe("stage node kinds (prop, zone)", () => {
 
 describe("prop ref rules (ref-optional kind)", () => {
   it("accepts icon in prop data and still tolerates legacy glyph", () => {
-    expect(propDataSchema.parse({ icon: "tent", widthM: 4, heightM: 3 })).toEqual({
+    expect(artifactDataSchema.parse({ icon: "tent", widthM: 4, heightM: 3 })).toEqual({
       icon: "tent",
       widthM: 4,
       heightM: 3,
     });
-    expect(propDataSchema.parse({ glyph: "▲" })).toEqual({ glyph: "▲" });
+    expect(artifactDataSchema.parse({ glyph: "▲" })).toEqual({ glyph: "▲" });
   });
 
   it("still rejects refIds on kinds that never allow them", async () => {
@@ -104,7 +104,7 @@ describe("prop ref rules (ref-optional kind)", () => {
     await expect(
       getSceneGraphStore().createNode({
         sceneId: "scene_1",
-        kind: "prop",
+        kind: "artifact",
         refId: "some_prop_asset",
         label: "Tent",
         data: { icon: "tent" },

@@ -5,7 +5,7 @@ import { retryRead } from "./retry";
 import {
   audioAssetsTable,
   charactersTable,
-  propAssetsTable,
+  artifactAssetsTable,
   sceneEdgesTable,
   sceneNodesTable,
 } from "./schema";
@@ -26,7 +26,7 @@ export const NODE_KINDS = [
   "event",
   "ambience",
   "audio",
-  "prop",
+  "artifact",
   "zone",
 ] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
@@ -125,12 +125,13 @@ export const audioDataSchema = z
 
 export type AudioNodeData = z.infer<typeof audioDataSchema>;
 
-// Stage set piece. Purely visual in v1 — dimensions in meters; either a
-// footprint (widthM×heightM) or a radius for round pieces.
-export const propDataSchema = z
+// Stage set piece (library-backed via artifact_assets, or ad hoc).
+// Dimensions in meters; either a footprint (widthM×heightM) or a radius
+// for round pieces.
+export const artifactDataSchema = z
   .object({
-    // Key into the admin icon catalog. Overrides the asset's icon for
-    // ref-backed props; the whole visual for ad-hoc ones.
+    // Deprecated icon-catalog key from before sprites; tolerated on old
+    // rows, no longer written.
     icon: z.string().trim().min(1).optional(),
     // Legacy unicode glyph from before the icon catalog; still renders,
     // no longer written.
@@ -138,13 +139,13 @@ export const propDataSchema = z
     widthM: z.number().positive().max(96).optional(),
     heightM: z.number().positive().max(64).optional(),
     radiusM: z.number().positive().max(48).optional(),
-    // Marks the prop as something sound can emanate from (fire pit,
+    // Marks the artifact as something sound can emanate from (fire pit,
     // waterfall) — a hint for future positional audio.
     soundSource: z.boolean().optional(),
   })
   .strict();
 
-export type PropNodeData = z.infer<typeof propDataSchema>;
+export type ArtifactNodeData = z.infer<typeof artifactDataSchema>;
 
 // Named region of the stage ("the tent", "the road"). The node's
 // position is the zone's center; shape + dimensions live here.
@@ -165,16 +166,16 @@ const dataSchemasByKind = {
   event: eventDataSchema,
   ambience: ambienceDataSchema,
   audio: audioDataSchema,
-  prop: propDataSchema,
+  artifact: artifactDataSchema,
   zone: zoneDataSchema,
 } as const satisfies Record<NodeKind, z.ZodTypeAny>;
 
 const kindsRequiringRef = new Set<NodeKind>(["character", "audio"]);
 
-// Kinds that may carry a refId. Superset of kindsRequiringRef: props are
-// ref-OPTIONAL — library-backed when placed from the prop-assets catalog,
-// ref-less when created ad hoc on the canvas.
-const kindsAllowingRef = new Set<NodeKind>(["character", "audio", "prop"]);
+// Kinds that may carry a refId. Superset of kindsRequiringRef: artifacts
+// are ref-OPTIONAL — library-backed when placed from the artifact_assets
+// catalog, ref-less when created ad hoc on the canvas.
+const kindsAllowingRef = new Set<NodeKind>(["character", "audio", "artifact"]);
 
 function validateNodeData(kind: NodeKind, data: unknown): Record<string, unknown> {
   const schema = dataSchemasByKind[kind];
@@ -414,14 +415,14 @@ function neonStore(): SceneGraphStore {
         if (!a) throw new Error(`audio asset ${input.refId} not found`);
       }
 
-      if (input.kind === "prop" && input.refId) {
+      if (input.kind === "artifact" && input.refId) {
         const db = requireDb();
         const refId = input.refId;
         const [p] = await retryRead(() =>
           db
-            .select({ id: propAssetsTable.id })
-            .from(propAssetsTable)
-            .where(eq(propAssetsTable.id, refId))
+            .select({ id: artifactAssetsTable.id })
+            .from(artifactAssetsTable)
+            .where(eq(artifactAssetsTable.id, refId))
             .limit(1),
         );
         if (!p) throw new Error(`prop asset ${input.refId} not found`);

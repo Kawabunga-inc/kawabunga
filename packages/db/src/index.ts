@@ -180,7 +180,7 @@ export {
   eventDataSchema,
   ambienceDataSchema,
   audioDataSchema,
-  propDataSchema,
+  artifactDataSchema,
   zoneDataSchema,
   stagePositionSchema,
 } from "./scene-graph-store";
@@ -197,20 +197,20 @@ export type {
   CharacterNodeData,
   AmbienceNodeData,
   AudioNodeData,
-  PropNodeData,
+  ArtifactNodeData,
   ZoneNodeData,
   StageNodePosition,
 } from "./scene-graph-store";
 
-export { getPropAssetStore } from "./prop-asset-store";
+export { getArtifactAssetStore } from "./artifact-asset-store";
 export type {
-  PropAssetStore,
-  PropAssetRecord,
-  PropAssetSource,
-  CreatePropAssetInput,
-  UpdatePropAssetInput,
-  ListPropAssetsOptions,
-} from "./prop-asset-store";
+  ArtifactAssetStore,
+  ArtifactAssetRecord,
+  ArtifactAssetSource,
+  CreateArtifactAssetInput,
+  UpdateArtifactAssetInput,
+  ListArtifactAssetsOptions,
+} from "./artifact-asset-store";
 
 export { getSceneStore } from "./scene-store";
 export type {

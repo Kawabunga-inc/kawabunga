@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getChatProviderForModel } from "@kawabunga/engine";
-import { getPropAssetStore, getSceneGraphStore, getSceneStore } from "@kawabunga/db";
+import { getArtifactAssetStore, getSceneGraphStore, getSceneStore } from "@kawabunga/db";
 import { resolveAdminAgentModel } from "@/lib/admin-agent/service";
-import { PROP_ICON_KEYS } from "@/components/scene-stage/prop-icons";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +13,7 @@ export const maxDuration = 60;
  * library, and asks the model to propose 4-8 set pieces with world
  * positions. Nothing is persisted — proposals render as ghosts on the
  * canvas and the user accepts or discards each one (the accept path is
- * the acceptGeneratedProp server action).
+ * the acceptGeneratedArtifact server action).
  *
  * LLM pattern per admin-agent/service.ts: provider-neutral complete(),
  * fence-strip, JSON.parse, zod-validate items individually.
@@ -65,13 +64,13 @@ export async function POST(
 
   const [graph, assets] = await Promise.all([
     getSceneGraphStore().getGraph(sceneId),
-    getPropAssetStore().list(),
+    getArtifactAssetStore().list(),
   ]);
 
   const cast = graph.nodes.filter((n) => n.kind === "character").map((n) => n.label);
   const zones = graph.nodes.filter((n) => n.kind === "zone").map((n) => n.label);
   const existingProps = graph.nodes
-    .filter((n) => n.kind === "prop")
+    .filter((n) => n.kind === "artifact")
     .map((n) => n.label);
 
   const system = [
@@ -83,7 +82,6 @@ export async function POST(
     "- Coordinates are meters; origin is the stage center, +x right, +y up.",
     "- Keep the arrangement inside x in [-12, 12] and y in [-8, 8] (the default view), spread naturally — do not stack pieces on one spot.",
     "- Sizes are meters: round pieces get radiusM; rectangular pieces get widthM and heightM. A tent is ~4×3, a fire pit radius ~0.75, a table ~2×1.",
-    `- icon must be one of: ${PROP_ICON_KEYS.join(", ")}.`,
     "- soundSource: true only for pieces sound naturally emanates from (fire, water).",
     "- If an existing library asset below fits, set reuseAssetSlug to its slug instead of inventing a duplicate.",
     "- slug: short kebab-case identifier for new pieces.",
@@ -91,7 +89,7 @@ export async function POST(
     "",
     existingLibraryLine(assets),
     "",
-    'Return ONLY valid JSON with this shape: {"items":[{"name":"…","slug":"…","description":"…","icon":"…","radiusM":0.75,"widthM":4,"heightM":3,"soundSource":false,"position":{"x":0,"y":0},"reuseAssetSlug":"…"}]}',
+    'Return ONLY valid JSON with this shape: {"items":[{"name":"…","slug":"…","description":"…","radiusM":0.75,"widthM":4,"heightM":3,"soundSource":false,"position":{"x":0,"y":0},"reuseAssetSlug":"…"}]}',
     "Omit fields that do not apply. No prose, no code fences.",
   ].join("\n");
 
@@ -140,12 +138,7 @@ export async function POST(
       const result = proposalSchema.safeParse(raw);
       if (!result.success) continue;
       const item = result.data;
-      proposals.push({
-        ...item,
-        // Unknown icon keys fall back to the neutral footprint square.
-        icon: item.icon && PROP_ICON_KEYS.includes(item.icon) ? item.icon : undefined,
-        id: crypto.randomUUID(),
-      });
+      proposals.push({ ...item, id: crypto.randomUUID() });
     }
 
     if (proposals.length === 0) {

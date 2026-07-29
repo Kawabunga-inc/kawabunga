@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import type {
   SceneGraphPayload,
   SceneLibraryCharacter,
-  SceneLibraryProp,
+  SceneLibraryArtifact,
   SceneLibrarySound,
   SceneRosterEntry,
 } from "@/app/(authenticated)/scenes/[sceneId]/page";
@@ -55,7 +55,7 @@ type SceneEditorProps = {
   graph: SceneGraphPayload;
   libraryCharacters: SceneLibraryCharacter[];
   librarySounds: SceneLibrarySound[];
-  libraryProps: SceneLibraryProp[];
+  libraryArtifacts: SceneLibraryArtifact[];
 };
 
 export function SceneEditor({
@@ -63,7 +63,7 @@ export function SceneEditor({
   graph,
   libraryCharacters,
   librarySounds,
-  libraryProps,
+  libraryArtifacts,
 }: SceneEditorProps) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -390,7 +390,7 @@ export function SceneEditor({
             pending={pending}
             graphNodes={graphNodes}
             characterById={characterById}
-            libraryProps={libraryProps}
+            libraryArtifacts={libraryArtifacts}
             stage={stage}
             onStageChange={setStage}
             selectedNodeId={selectedNodeId}

@@ -14,11 +14,10 @@ import type { StageConfig } from "@kawabunga/types";
 import type {
   SceneGraphPayload,
   SceneLibraryCharacter,
-  SceneLibraryProp,
+  SceneLibraryArtifact,
 } from "@/app/(authenticated)/scenes/[sceneId]/page";
 import { resolveAvatarGradient } from "@/lib/avatar-gradients";
 import { T } from "@/components/scene-tabs/shared";
-import { PropIcon } from "./prop-icons";
 import {
   clampToWorld,
   clampZoom,
@@ -48,7 +47,6 @@ type DragState =
 export type StageGhost = {
   id: string;
   label: string;
-  icon: string | null;
   radiusM?: number | null;
   widthM?: number | null;
   heightM?: number | null;
@@ -65,7 +63,7 @@ export type StageGhost = {
 export function SceneStage({
   nodes,
   characterById,
-  propAssetById,
+  artifactAssetById,
   ghosts,
   stage,
   snapM,
@@ -77,7 +75,7 @@ export function SceneStage({
 }: {
   nodes: SceneNode[];
   characterById: Map<string, SceneLibraryCharacter>;
-  propAssetById?: Map<string, SceneLibraryProp>;
+  artifactAssetById?: Map<string, SceneLibraryArtifact>;
   ghosts?: StageGhost[];
   stage: StageConfig | null;
   snapM: number;
@@ -278,9 +276,9 @@ export function SceneStage({
                     ? characterById.get(node.refId) ?? null
                     : null
                 }
-                propAsset={
-                  node.kind === "prop" && node.refId
-                    ? propAssetById?.get(node.refId) ?? null
+                artifactAsset={
+                  node.kind === "artifact" && node.refId
+                    ? artifactAssetById?.get(node.refId) ?? null
                     : null
                 }
                 screen={screen}
@@ -449,7 +447,7 @@ function StageToken({
   artStyle,
   node,
   character,
-  propAsset,
+  artifactAsset,
   screen,
   world,
   pxPerM,
@@ -460,7 +458,7 @@ function StageToken({
   artStyle: string | null;
   node: SceneNode;
   character: SceneLibraryCharacter | null;
-  propAsset?: SceneLibraryProp | null;
+  artifactAsset?: SceneLibraryArtifact | null;
   screen: { x: number; y: number };
   world: { x: number; y: number };
   pxPerM: number;
@@ -518,32 +516,26 @@ function StageToken({
     );
   }
 
-  if (node.kind === "prop") {
+  if (node.kind === "artifact") {
     // Placement data overrides; the library asset supplies defaults.
     const radiusM =
       typeof node.data.radiusM === "number"
         ? node.data.radiusM
-        : propAsset?.defaultRadiusM ?? null;
+        : artifactAsset?.defaultRadiusM ?? null;
     const widthM =
       typeof node.data.widthM === "number"
         ? node.data.widthM
-        : propAsset?.defaultWidthM ?? null;
+        : artifactAsset?.defaultWidthM ?? null;
     const heightM =
       typeof node.data.heightM === "number"
         ? node.data.heightM
-        : propAsset?.defaultHeightM ?? null;
+        : artifactAsset?.defaultHeightM ?? null;
     const w = radiusM ? radiusM * 2 * pxPerM : widthM ? widthM * pxPerM : 36;
     const h = radiusM ? radiusM * 2 * pxPerM : heightM ? heightM * pxPerM : 36;
-    const icon =
-      (typeof node.data.icon === "string" ? node.data.icon : null) ??
-      propAsset?.icon ??
-      null;
-    const sprite = artStyle ? propAsset?.images?.[artStyle] ?? null : null;
-    const legacyGlyph = typeof node.data.glyph === "string" ? node.data.glyph : null;
-    const iconSize = Math.min(26, Math.max(12, Math.min(w, h) * 0.55));
+    const sprite = artStyle ? artifactAsset?.images?.[artStyle] ?? null : null;
     if (sprite) {
       // Sprite rendition: the image IS the token — no panel chrome, just
-      // a selection ring. Sized to the footprint like the icon token.
+      // a selection ring. Sized to the artifact's footprint.
       return (
         <div
           onPointerDown={onPointerDown}
@@ -578,6 +570,11 @@ function StageToken({
         </div>
       );
     }
+    // No rendition for this scene's art style (or no style picked):
+    // a bare footprint — dashed outline at the artifact's true
+    // dimensions. Deliberately not a picture; sprites are the only
+    // visual identity, this just keeps the placement visible and
+    // draggable while art is pending.
     return (
       <div
         onPointerDown={onPointerDown}
@@ -587,23 +584,17 @@ function StageToken({
           height: Math.max(26, h),
           transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
           borderRadius: radiusM ? "50%" : "var(--radius-md)",
-          border: `1px solid ${selected ? "var(--accent-strong)" : "var(--ink-line)"}`,
-          background: T.panelStrong,
+          border: `1.5px dashed ${
+            selected
+              ? "var(--accent-strong)"
+              : "color-mix(in srgb, var(--text-primary) 30%, transparent)"
+          }`,
+          background: "color-mix(in srgb, var(--text-primary) 4%, transparent)",
           boxShadow: selected
             ? "0 0 0 3px color-mix(in srgb, var(--accent-strong) 25%, transparent)"
-            : "0 2px 8px color-mix(in srgb, var(--text-primary) 12%, transparent)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+            : undefined,
         }}
       >
-        {!icon && legacyGlyph ? (
-          <span aria-hidden style={{ color: T.muted, fontSize: Math.min(18, Math.max(11, pxPerM * 0.5)) }}>
-            {legacyGlyph}
-          </span>
-        ) : (
-          <PropIcon icon={icon} size={iconSize} style={{ color: T.muted }} />
-        )}
         <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
       </div>
     );
@@ -796,7 +787,6 @@ function GhostToken({
         pointerEvents: "none",
       }}
     >
-      <PropIcon icon={ghost.icon} size={Math.min(24, Math.max(12, Math.min(w, h) * 0.5))} />
       <span
         style={{
           position: "absolute",

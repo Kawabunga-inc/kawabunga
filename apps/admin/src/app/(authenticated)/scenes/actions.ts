@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   getAudioAssetStore,
-  getPropAssetStore,
+  getArtifactAssetStore,
   getSceneStore,
   getSceneGraphStore,
 } from "@kawabunga/db";
@@ -195,7 +195,7 @@ export async function addEventToScene(
   }
 }
 
-export async function addPropToScene(
+export async function addArtifactToScene(
   sceneId: string,
   input: {
     label: string;
@@ -213,7 +213,7 @@ export async function addPropToScene(
   try {
     const node = await getSceneGraphStore().createNode({
       sceneId,
-      kind: "prop",
+      kind: "artifact",
       label,
       data: {
         ...(input.icon?.trim() ? { icon: input.icon.trim() } : {}),
@@ -239,17 +239,17 @@ export async function addPropToScene(
 /** Place a library set piece. The node stays thin (data = {}) — icon
  * and footprint come from the asset at render time; inspector edits
  * write per-placement overrides into data. */
-export async function addPropFromLibrary(
+export async function addArtifactFromLibrary(
   sceneId: string,
   input: { assetId: string; position?: StageNodePosition | null },
 ): Promise<ActionResult<{ nodeId: string }>> {
   try {
-    const asset = await getPropAssetStore().getById(input.assetId);
+    const asset = await getArtifactAssetStore().getById(input.assetId);
     if (!asset) return { ok: false, error: "Prop not found in the library." };
 
     const node = await getSceneGraphStore().createNode({
       sceneId,
-      kind: "prop",
+      kind: "artifact",
       refId: asset.id,
       label: asset.name,
       summary: asset.description,
@@ -271,13 +271,12 @@ export async function addPropFromLibrary(
 /** Accept one generated set-piece proposal: resolve or create the
  * library asset (source "generated", provenance = the scene premise),
  * then place a ref-backed node at the proposed position. */
-export async function acceptGeneratedProp(
+export async function acceptGeneratedArtifact(
   sceneId: string,
   proposal: {
     name: string;
     slug?: string;
     description?: string;
-    icon?: string;
     radiusM?: number;
     widthM?: number;
     heightM?: number;
@@ -285,12 +284,12 @@ export async function acceptGeneratedProp(
     position: { x: number; y: number };
     reuseAssetSlug?: string;
   },
-): Promise<ActionResult<{ nodeId: string }>> {
+): Promise<ActionResult<{ nodeId: string; assetId: string }>> {
   try {
     const scene = await getSceneStore().getSceneById(sceneId);
     if (!scene) return { ok: false, error: "Scene not found." };
 
-    const store = getPropAssetStore();
+    const store = getArtifactAssetStore();
     const slug = (proposal.reuseAssetSlug ?? proposal.slug ?? "")
       .trim()
       .toLowerCase()
@@ -305,7 +304,6 @@ export async function acceptGeneratedProp(
         slug,
         name: proposal.name.trim(),
         description: proposal.description?.trim() || null,
-        icon: proposal.icon?.trim() || null,
         defaultRadiusM: proposal.radiusM ?? null,
         defaultWidthM: proposal.radiusM ? null : proposal.widthM ?? null,
         defaultHeightM: proposal.radiusM ? null : proposal.heightM ?? null,
@@ -324,7 +322,7 @@ export async function acceptGeneratedProp(
 
     const node = await getSceneGraphStore().createNode({
       sceneId,
-      kind: "prop",
+      kind: "artifact",
       refId: asset.id,
       label: asset.name,
       summary: asset.description,
@@ -333,9 +331,9 @@ export async function acceptGeneratedProp(
     });
     revalidatePath(`/scenes/${sceneId}`);
     revalidatePath("/scenes");
-    revalidatePath("/props");
+    revalidatePath("/artifacts");
     invalidateScenesList();
-    return { ok: true, data: { nodeId: node.id } };
+    return { ok: true, data: { nodeId: node.id, assetId: asset.id } };
   } catch (error) {
     return {
       ok: false,

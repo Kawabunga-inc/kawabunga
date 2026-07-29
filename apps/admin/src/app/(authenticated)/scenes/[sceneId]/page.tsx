@@ -9,7 +9,7 @@ import type {
 import {
   getAudioAssetStore,
   getCharacterStore,
-  getPropAssetStore,
+  getArtifactAssetStore,
   getSceneGraphStore,
   getSceneStore,
 } from "@kawabunga/db";
@@ -56,13 +56,12 @@ export type SceneLibrarySound = {
 };
 
 /** Compact prop-asset row for the canvas tray + ref-backed prop
- * hydration (icon and footprint defaults; node data overrides). */
-export type SceneLibraryProp = {
+ * hydration (sprite renditions and footprint defaults; node data overrides). */
+export type SceneLibraryArtifact = {
   id: string;
   slug: string;
   name: string;
   description: string | null;
-  icon: string | null;
   /** Generated sprite renditions: art-style key -> public URL. */
   images: Record<string, string>;
   defaultWidthM: number | null;
@@ -81,11 +80,11 @@ export default async function SceneDetailPage({
   const scene = await getSceneStore().getSceneById(sceneId);
   if (!scene) notFound();
 
-  const [graph, library, soundLibrary, propLibrary] = await Promise.all([
+  const [graph, library, soundLibrary, artifactLibrary] = await Promise.all([
     getSceneGraphStore().getGraph(sceneId),
     getCharacterStore().list(),
     getAudioAssetStore().list(),
-    getPropAssetStore().list(),
+    getArtifactAssetStore().list(),
   ]);
 
   const roster: SceneRosterEntry[] = graph.nodes
@@ -115,12 +114,11 @@ export default async function SceneDetailPage({
     durationS: a.durationS,
   }));
 
-  const libraryProps: SceneLibraryProp[] = propLibrary.map((p) => ({
+  const libraryArtifacts: SceneLibraryArtifact[] = artifactLibrary.map((p) => ({
     id: p.id,
     slug: p.slug,
     name: p.name,
     description: p.description,
-    icon: p.icon,
     images: p.images,
     defaultWidthM: p.defaultWidthM,
     defaultHeightM: p.defaultHeightM,
@@ -150,7 +148,7 @@ export default async function SceneDetailPage({
       graph={graph}
       libraryCharacters={libraryCharacters}
       librarySounds={librarySounds}
-      libraryProps={libraryProps}
+      libraryArtifacts={libraryArtifacts}
     />
   );
 }

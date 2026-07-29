@@ -90,7 +90,7 @@ export function zIndexFor(kind: string, position: StagePosition | null): number 
   switch (kind) {
     case "zone":
       return 0;
-    case "prop":
+    case "artifact":
       return 10;
     case "character":
       return 20;

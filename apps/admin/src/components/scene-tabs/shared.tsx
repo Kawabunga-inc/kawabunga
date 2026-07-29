@@ -283,7 +283,7 @@ export function InspectorTile({
           ? "≋"
           : kind === "event"
             ? "◆"
-            : kind === "prop"
+            : kind === "artifact"
               ? "▲"
               : kind === "zone"
                 ? "▢"

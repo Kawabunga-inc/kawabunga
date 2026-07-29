@@ -6,12 +6,12 @@ import type { StageConfig } from "@kawabunga/types";
 import type {
   SceneGraphPayload,
   SceneLibraryCharacter,
-  SceneLibraryProp,
+  SceneLibraryArtifact,
 } from "@/app/(authenticated)/scenes/[sceneId]/page";
 import {
-  acceptGeneratedProp,
-  addPropFromLibrary,
-  addPropToScene,
+  acceptGeneratedArtifact,
+  addArtifactFromLibrary,
+  addArtifactToScene,
   addZoneToScene,
   updateSceneNode,
 } from "@/app/(authenticated)/scenes/actions";
@@ -28,7 +28,6 @@ import {
   T,
 } from "@/components/scene-tabs/shared";
 import { STAGE_ART_STYLES, STAGE_ART_STYLE_KEYS } from "@/lib/stage-art-styles";
-import { PROP_ICON_KEYS, PROP_ICONS, PropIcon } from "./prop-icons";
 import { SceneStage, type StageGhost } from "./scene-stage";
 import {
   clampToWorld,
@@ -46,7 +45,6 @@ type GhostProposal = {
   name: string;
   slug?: string;
   description?: string;
-  icon?: string;
   radiusM?: number;
   widthM?: number;
   heightM?: number;
@@ -69,7 +67,7 @@ export function CanvasTab({
   pending,
   graphNodes,
   characterById,
-  libraryProps,
+  libraryArtifacts,
   stage,
   onStageChange,
   selectedNodeId,
@@ -81,7 +79,7 @@ export function CanvasTab({
   pending: boolean;
   graphNodes: SceneNode[];
   characterById: Map<string, SceneLibraryCharacter>;
-  libraryProps: SceneLibraryProp[];
+  libraryArtifacts: SceneLibraryArtifact[];
   stage: StageConfig | null;
   onStageChange: (next: StageConfig) => void;
   selectedNodeId: string | null;
@@ -92,6 +90,46 @@ export function CanvasTab({
   const router = useRouter();
   const viewportRef = useRef<Viewport | null>(null);
   const snapM = stage?.snapM ?? WORLD.defaultSnapM;
+  const artStyle = stage?.artStyle ?? null;
+
+  /* ── Automatic sprite generation ──
+   * With no icon fallback, renditions ARE the visuals — so placing or
+   * accepting a library artifact kicks off generation for the scene's
+   * art style when the rendition is missing. Tokens show a dashed
+   * footprint until the refresh brings the sprite in. */
+  const [artBusyIds, setArtBusyIds] = useState<Set<string>>(new Set());
+
+  const ensureRendition = useCallback(
+    (assetId: string, images: Record<string, string>) => {
+      if (!artStyle) return;
+      if (images[artStyle]) return;
+      setArtBusyIds((prev) => {
+        if (prev.has(assetId)) return prev;
+        const next = new Set(prev);
+        next.add(assetId);
+        return next;
+      });
+      void (async () => {
+        try {
+          await fetch(`/api/artifacts/${encodeURIComponent(assetId)}/generate-image`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ style: artStyle }),
+          });
+        } catch {
+          // Non-fatal: the footprint stays until a manual regenerate.
+        } finally {
+          setArtBusyIds((prev) => {
+            const next = new Set(prev);
+            next.delete(assetId);
+            return next;
+          });
+          router.refresh();
+        }
+      })();
+    },
+    [artStyle, router],
+  );
 
   const stagePatch = useCallback(
     (patch: Partial<StageConfig>): StageConfig => ({
@@ -140,10 +178,10 @@ export function CanvasTab({
     [persistPosition, viewCenter, onSelect],
   );
 
-  const addProp = useCallback(() => {
+  const addArtifact = useCallback(() => {
     void (async () => {
-      const res = await addPropToScene(sceneId, {
-        label: "New prop",
+      const res = await addArtifactToScene(sceneId, {
+        label: "New artifact",
         radiusM: 0.5,
         position: viewCenter(),
       });
@@ -166,24 +204,28 @@ export function CanvasTab({
     })();
   }, [sceneId, viewCenter, onSelect, router]);
 
-  const propById = useMemo(() => {
-    const map = new Map<string, SceneLibraryProp>();
-    for (const asset of libraryProps) map.set(asset.id, asset);
+  const artifactById = useMemo(() => {
+    const map = new Map<string, SceneLibraryArtifact>();
+    for (const asset of libraryArtifacts) map.set(asset.id, asset);
     return map;
-  }, [libraryProps]);
+  }, [libraryArtifacts]);
 
   const placeFromLibrary = useCallback(
     (assetId: string) => {
       void (async () => {
-        const res = await addPropFromLibrary(sceneId, {
+        const res = await addArtifactFromLibrary(sceneId, {
           assetId,
           position: viewCenter(),
         });
-        if (res.ok && res.data) onSelect(res.data.nodeId);
+        if (res.ok && res.data) {
+          onSelect(res.data.nodeId);
+          const asset = artifactById.get(assetId);
+          ensureRendition(assetId, asset?.images ?? {});
+        }
         router.refresh();
       })();
     },
-    [sceneId, viewCenter, onSelect, router],
+    [sceneId, viewCenter, onSelect, router, artifactById, ensureRendition],
   );
 
   // ── Generated set proposals (ghosts until accepted) ──
@@ -220,38 +262,53 @@ export function CanvasTab({
   const acceptProposal = useCallback(
     (proposal: GhostProposal) => {
       void (async () => {
-        const res = await acceptGeneratedProp(sceneId, proposal);
+        const res = await acceptGeneratedArtifact(sceneId, proposal);
         if (!res.ok) {
           setGenError(res.error);
           return;
         }
         setProposals((prev) => prev.filter((p) => p.id !== proposal.id));
-        if (res.data) onSelect(res.data.nodeId);
+        if (res.data) {
+          onSelect(res.data.nodeId);
+          // Freshly generated assets have no renditions yet.
+          ensureRendition(res.data.assetId, artifactById.get(res.data.assetId)?.images ?? {});
+        }
         router.refresh();
       })();
     },
-    [sceneId, onSelect, router],
+    [sceneId, onSelect, router, artifactById, ensureRendition],
   );
 
   const ghosts: StageGhost[] = proposals.map((p) => ({
     id: p.id,
     label: p.name,
-    icon: p.icon ?? null,
     radiusM: p.radiusM ?? null,
     widthM: p.widthM ?? null,
     heightM: p.heightM ?? null,
     position: p.position,
   }));
 
+  // Placed library artifacts lacking a rendition for the current style.
+  const missingArtAssetIds = useMemo(() => {
+    if (!artStyle) return [] as string[];
+    const ids = new Set<string>();
+    for (const node of graphNodes) {
+      if (node.kind !== "artifact" || !node.refId || !isPlaced(node.position)) continue;
+      const asset = artifactById.get(node.refId);
+      if (asset && !asset.images[artStyle]) ids.add(node.refId);
+    }
+    return [...ids];
+  }, [graphNodes, artifactById, artStyle]);
+
   const selected =
     graphNodes.find((n) => n.id === selectedNodeId && isPlaced(n.position)) ?? null;
 
-  // Placeable but not on stage: characters, one-shot audio, props, zones.
+  // Placeable but not on stage: characters, one-shot audio, artifacts, zones.
   const wings = graphNodes.filter(
     (node) =>
       !isPlaced(node.position) &&
       (node.kind === "character" ||
-        node.kind === "prop" ||
+        node.kind === "artifact" ||
         node.kind === "zone" ||
         (node.kind === "audio" && node.data.role === "oneshot")),
   );
@@ -294,20 +351,11 @@ export function CanvasTab({
                           ),
                     }}
                   />
-                ) : node.kind === "prop" ? (
-                  <span
-                    aria-hidden
-                    style={{ width: 26, display: "inline-flex", justifyContent: "center", color: T.muted }}
-                  >
-                    <PropIcon
-                      icon={
-                        typeof node.data.icon === "string"
-                          ? node.data.icon
-                          : (node.refId ? propById.get(node.refId)?.icon : null) ?? null
-                      }
-                      size={16}
-                    />
-                  </span>
+                ) : node.kind === "artifact" ? (
+                  <ArtifactThumb
+                    asset={node.refId ? artifactById.get(node.refId) ?? null : null}
+                    artStyle={artStyle}
+                  />
                 ) : (
                   <span aria-hidden style={{ width: 26, textAlign: "center", color: T.muted }}>
                     {node.kind === "audio" ? "♪" : "▢"}
@@ -323,8 +371,8 @@ export function CanvasTab({
           {wings.length === 0 && <p style={trayHintStyle}>Everything is on stage.</p>}
         </div>
         <div style={{ display: "flex", gap: "var(--space-6)" }}>
-          <AdminButton type="button" variant="secondary" disabled={pending} onClick={addProp}>
-            + prop
+          <AdminButton type="button" variant="secondary" disabled={pending} onClick={addArtifact}>
+            + artifact
           </AdminButton>
           <AdminButton type="button" variant="secondary" disabled={pending} onClick={addZone}>
             + zone
@@ -332,7 +380,10 @@ export function CanvasTab({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-          <span style={kickerStyle}>Set pieces · {libraryProps.length}</span>
+          <span style={kickerStyle}>
+            Artifacts · {libraryArtifacts.length}
+            {artBusyIds.size > 0 ? ` · painting ${artBusyIds.size}…` : ""}
+          </span>
           <div style={{ flex: 1 }} />
           <button
             type="button"
@@ -369,7 +420,7 @@ export function CanvasTab({
                   aria-hidden
                   style={{ width: 26, display: "inline-flex", justifyContent: "center", color: T.muted }}
                 >
-                  <PropIcon icon={proposal.icon ?? null} size={16} />
+                  ✦
                 </span>
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {proposal.name}
@@ -415,7 +466,7 @@ export function CanvasTab({
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
-          {libraryProps.map((asset) => (
+          {libraryArtifacts.map((asset) => (
             <button
               key={asset.id}
               type="button"
@@ -423,21 +474,16 @@ export function CanvasTab({
               title={asset.description ?? "Place at the center of the view"}
               style={trayRowStyle}
             >
-              <span
-                aria-hidden
-                style={{ width: 26, display: "inline-flex", justifyContent: "center", color: T.muted }}
-              >
-                <PropIcon icon={asset.icon} size={16} />
-              </span>
+              <ArtifactThumb asset={asset} artStyle={artStyle} />
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {asset.name}
               </span>
               <span style={trayPlaceStyle}>place →</span>
             </button>
           ))}
-          {libraryProps.length === 0 && (
+          {libraryArtifacts.length === 0 && (
             <p style={trayHintStyle}>
-              The library is empty — add reusable set pieces at /props, or
+              The library is empty — add reusable set pieces at /artifacts, or
               generate a set from the premise.
             </p>
           )}
@@ -447,7 +493,7 @@ export function CanvasTab({
       <SceneStage
         nodes={graphNodes}
         characterById={characterById}
-        propAssetById={propById}
+        artifactAssetById={artifactById}
         ghosts={ghosts}
         stage={stage}
         snapM={snapM}
@@ -468,7 +514,7 @@ export function CanvasTab({
           <PlacementInspector
             key={selected.id}
             node={selected}
-            asset={selected.refId ? propById.get(selected.refId) ?? null : null}
+            asset={selected.refId ? artifactById.get(selected.refId) ?? null : null}
             artStyle={stage?.artStyle ?? null}
             sceneId={sceneId}
             snapM={snapM}
@@ -481,6 +527,13 @@ export function CanvasTab({
             stagePatch={stagePatch}
             onStageChange={onStageChange}
             viewportRef={viewportRef}
+            missingArtAssetIds={missingArtAssetIds}
+            artBusyCount={artBusyIds.size}
+            onGenerateMissing={() => {
+              for (const assetId of missingArtAssetIds) {
+                ensureRendition(assetId, artifactById.get(assetId)?.images ?? {});
+              }
+            }}
           />
         )}
       </div>
@@ -500,7 +553,7 @@ function PlacementInspector({
   onRemoveNode,
 }: {
   node: SceneNode;
-  asset: SceneLibraryProp | null;
+  asset: SceneLibraryArtifact | null;
   artStyle: string | null;
   sceneId: string;
   snapM: number;
@@ -514,7 +567,7 @@ function PlacementInspector({
   const [spriteError, setSpriteError] = useState<string | null>(null);
 
   // Generate this asset's sprite for the scene's art style without
-  // leaving the canvas — same endpoint the /props page uses; the
+  // leaving the canvas — same endpoint the /artifacts page uses; the
   // refresh pulls the new rendition into the library payload.
   const generateSprite = useCallback(() => {
     if (!asset || !artStyle) return;
@@ -523,7 +576,7 @@ function PlacementInspector({
     void (async () => {
       try {
         const res = await fetch(
-          `/api/props/${encodeURIComponent(asset.id)}/generate-image`,
+          `/api/artifacts/${encodeURIComponent(asset.id)}/generate-image`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -606,7 +659,7 @@ function PlacementInspector({
         </div>
       </div>
 
-      {(node.kind === "prop" || node.kind === "zone") && (
+      {(node.kind === "artifact" || node.kind === "zone") && (
         <Field label="Label">
           <input
             value={label}
@@ -620,19 +673,19 @@ function PlacementInspector({
         </Field>
       )}
 
-      {node.kind === "prop" && (
+      {node.kind === "artifact" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
           <span style={fieldLabelStyle}>
             Scene art{artStyle ? ` · ${STAGE_ART_STYLES[artStyle]?.label ?? artStyle}` : ""}
           </span>
           {!asset ? (
             <p style={spriteHintStyle}>
-              Ad-hoc prop — save it to the library (/props) to generate sprite art.
+              Ad-hoc artifact — save it to the library (/artifacts) to generate sprite art.
             </p>
           ) : !artStyle ? (
             <p style={spriteHintStyle}>
               Pick an Art style in Stage settings (click empty ground) to render
-              sprites instead of icons.
+              sprites instead of footprints.
             </p>
           ) : (
             <>
@@ -712,44 +765,8 @@ function PlacementInspector({
         />
       )}
 
-      {node.kind === "prop" && (
+      {node.kind === "artifact" && (
         <>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-            <span style={fieldLabelStyle}>Icon</span>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
-              {PROP_ICON_KEYS.map((key) => {
-                const resolvedIcon =
-                  (typeof node.data.icon === "string" ? node.data.icon : null) ??
-                  asset?.icon ??
-                  null;
-                const active = resolvedIcon === key;
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    title={PROP_ICONS[key].label}
-                    aria-label={`Icon: ${PROP_ICONS[key].label}`}
-                    onClick={() => saveData({ icon: key, glyph: undefined })}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      height: 34,
-                      borderRadius: "var(--radius-md)",
-                      border: active
-                        ? "1.5px solid var(--accent-strong)"
-                        : "1px solid var(--ink-line)",
-                      background: active ? T.accentSoft : "transparent",
-                      color: active ? T.fg : T.muted,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <PropIcon icon={key} size={17} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-6)" }}>
             <NumberField
               label="radius m"
@@ -819,7 +836,7 @@ function PlacementInspector({
         <AdminButton type="button" variant="secondary" onClick={removeFromStage}>
           Remove from stage
         </AdminButton>
-        {(node.kind === "prop" || node.kind === "zone") && (
+        {(node.kind === "artifact" || node.kind === "zone") && (
           <AdminButton type="button" variant="danger" onClick={() => onRemoveNode(node.id)}>
             Delete {node.kind}
           </AdminButton>
@@ -891,11 +908,17 @@ function StageSettings({
   stagePatch,
   onStageChange,
   viewportRef,
+  missingArtAssetIds,
+  artBusyCount,
+  onGenerateMissing,
 }: {
   stage: StageConfig | null;
   stagePatch: (patch: Partial<StageConfig>) => StageConfig;
   onStageChange: (next: StageConfig) => void;
   viewportRef: { current: Viewport | null };
+  missingArtAssetIds: string[];
+  artBusyCount: number;
+  onGenerateMissing: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: "20px 20px 40px", overflow: "auto" }}>
@@ -942,7 +965,7 @@ function StageSettings({
             }
             style={{ ...inputStyle, cursor: "pointer" }}
           >
-            <option value="">icons — no generated art</option>
+            <option value="">none — footprints only</option>
             {STAGE_ART_STYLE_KEYS.map((key) => (
               <option key={key} value={key}>
                 {STAGE_ART_STYLES[key].label}
@@ -950,6 +973,21 @@ function StageSettings({
             ))}
           </select>
         </Field>
+
+        {stage?.artStyle && (
+          <AdminButton
+            type="button"
+            variant="secondary"
+            disabled={missingArtAssetIds.length === 0 || artBusyCount > 0}
+            onClick={onGenerateMissing}
+          >
+            {artBusyCount > 0
+              ? `Painting ${artBusyCount}…`
+              : missingArtAssetIds.length === 0
+                ? "All placed artifacts have art"
+                : `✦ Generate missing art (${missingArtAssetIds.length})`}
+          </AdminButton>
+        )}
 
         <Field label="Snap">
           <select
@@ -1084,6 +1122,43 @@ const trayPlaceStyle: CSSProperties = {
   letterSpacing: "0.1em",
   textTransform: "uppercase",
 };
+
+/** 26px tray tile: the current style's sprite when it exists, else a
+ *  dashed footprint square (the same "art pending" language the stage
+ *  tokens use). */
+function ArtifactThumb({
+  asset,
+  artStyle,
+}: {
+  asset: SceneLibraryArtifact | null;
+  artStyle: string | null;
+}) {
+  const sprite = asset && artStyle ? asset.images[artStyle] ?? null : null;
+  if (sprite) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={sprite}
+        alt=""
+        aria-hidden
+        style={{ width: 26, height: 26, objectFit: "contain", flexShrink: 0 }}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 22,
+        height: 22,
+        margin: 2,
+        flexShrink: 0,
+        borderRadius: 5,
+        border: "1.5px dashed color-mix(in srgb, var(--text-primary) 35%, transparent)",
+      }}
+    />
+  );
+}
 
 const spriteHintStyle: CSSProperties = {
   margin: 0,

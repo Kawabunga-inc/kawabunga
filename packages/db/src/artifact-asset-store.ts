@@ -1,13 +1,13 @@
 import { desc, eq, isNull } from "drizzle-orm";
 import { getDb } from "./client";
 import { retryRead } from "./retry";
-import { propAssetsTable } from "./schema";
+import { artifactAssetsTable } from "./schema";
 
 // How the asset entered the library. "generated" rows come from the
 // scene editor's set-generation flow (an accepted proposal).
-export type PropAssetSource = "manual" | "generated";
+export type ArtifactAssetSource = "manual" | "generated";
 
-export interface PropAssetRecord {
+export interface ArtifactAssetRecord {
   id: string;
   slug: string;
   name: string;
@@ -22,7 +22,7 @@ export interface PropAssetRecord {
   defaultRadiusM: number | null;
   soundSource: boolean;
   tags: string[];
-  source: PropAssetSource;
+  source: ArtifactAssetSource;
   generationPrompt: string | null;
   archivedAt: string | null;
   createdBy: string | null;
@@ -31,7 +31,7 @@ export interface PropAssetRecord {
   updatedAt: string;
 }
 
-export interface CreatePropAssetInput {
+export interface CreateArtifactAssetInput {
   slug: string;
   name: string;
   description?: string | null;
@@ -42,12 +42,12 @@ export interface CreatePropAssetInput {
   defaultRadiusM?: number | null;
   soundSource?: boolean;
   tags?: string[];
-  source?: PropAssetSource;
+  source?: ArtifactAssetSource;
   generationPrompt?: string | null;
   createdBy?: string | null;
 }
 
-export interface UpdatePropAssetInput {
+export interface UpdateArtifactAssetInput {
   name?: string;
   description?: string | null;
   icon?: string | null;
@@ -61,7 +61,7 @@ export interface UpdatePropAssetInput {
   updatedBy?: string | null;
 }
 
-export interface ListPropAssetsOptions {
+export interface ListArtifactAssetsOptions {
   /** Include soft-deleted (archived) assets. Default false. */
   includeArchived?: boolean;
 }
@@ -99,7 +99,7 @@ function toIsoNullable(d: Date | string | null | undefined): string | null {
   return toIso(d);
 }
 
-function normalize(row: typeof propAssetsTable.$inferSelect): PropAssetRecord {
+function normalize(row: typeof artifactAssetsTable.$inferSelect): ArtifactAssetRecord {
   return {
     id: row.id,
     slug: row.slug,
@@ -112,7 +112,7 @@ function normalize(row: typeof propAssetsTable.$inferSelect): PropAssetRecord {
     defaultRadiusM: row.defaultRadiusM,
     soundSource: row.soundSource ?? false,
     tags: row.tags ?? [],
-    source: (row.source as PropAssetSource) ?? "manual",
+    source: (row.source as ArtifactAssetSource) ?? "manual",
     generationPrompt: row.generationPrompt,
     archivedAt: toIsoNullable(row.archivedAt),
     createdBy: row.createdBy,
@@ -122,32 +122,32 @@ function normalize(row: typeof propAssetsTable.$inferSelect): PropAssetRecord {
   };
 }
 
-export interface PropAssetStore {
-  list(options?: ListPropAssetsOptions): Promise<PropAssetRecord[]>;
-  getById(id: string): Promise<PropAssetRecord | null>;
-  getBySlug(slug: string): Promise<PropAssetRecord | null>;
-  create(input: CreatePropAssetInput): Promise<PropAssetRecord>;
-  update(id: string, input: UpdatePropAssetInput): Promise<PropAssetRecord | null>;
+export interface ArtifactAssetStore {
+  list(options?: ListArtifactAssetsOptions): Promise<ArtifactAssetRecord[]>;
+  getById(id: string): Promise<ArtifactAssetRecord | null>;
+  getBySlug(slug: string): Promise<ArtifactAssetRecord | null>;
+  create(input: CreateArtifactAssetInput): Promise<ArtifactAssetRecord>;
+  update(id: string, input: UpdateArtifactAssetInput): Promise<ArtifactAssetRecord | null>;
   /** Soft-delete — sets archivedAt. Scene nodes referencing the asset keep
    * working; the library UI filters it out. */
-  archive(id: string, archivedBy?: string | null): Promise<PropAssetRecord | null>;
-  unarchive(id: string, unarchivedBy?: string | null): Promise<PropAssetRecord | null>;
+  archive(id: string, archivedBy?: string | null): Promise<ArtifactAssetRecord | null>;
+  unarchive(id: string, unarchivedBy?: string | null): Promise<ArtifactAssetRecord | null>;
   /** Hard delete. Prefer `archive` — scene nodes hold refIds to this row. */
   remove(id: string): Promise<boolean>;
 }
 
-function neonStore(): PropAssetStore {
+function neonStore(): ArtifactAssetStore {
   return {
-    async list({ includeArchived = false }: ListPropAssetsOptions = {}) {
+    async list({ includeArchived = false }: ListArtifactAssetsOptions = {}) {
       try {
         const rows = await retryRead(() => {
           const q = requireDb()
             .select()
-            .from(propAssetsTable)
-            .orderBy(desc(propAssetsTable.createdAt));
+            .from(artifactAssetsTable)
+            .orderBy(desc(artifactAssetsTable.createdAt));
           return includeArchived
             ? q
-            : q.where(isNull(propAssetsTable.archivedAt));
+            : q.where(isNull(artifactAssetsTable.archivedAt));
         });
         return rows.map(normalize);
       } catch (error) {
@@ -161,8 +161,8 @@ function neonStore(): PropAssetStore {
         const [row] = await retryRead(() =>
           requireDb()
             .select()
-            .from(propAssetsTable)
-            .where(eq(propAssetsTable.id, id))
+            .from(artifactAssetsTable)
+            .where(eq(artifactAssetsTable.id, id))
             .limit(1),
         );
         return row ? normalize(row) : null;
@@ -177,8 +177,8 @@ function neonStore(): PropAssetStore {
         const [row] = await retryRead(() =>
           requireDb()
             .select()
-            .from(propAssetsTable)
-            .where(eq(propAssetsTable.slug, slug))
+            .from(artifactAssetsTable)
+            .where(eq(artifactAssetsTable.slug, slug))
             .limit(1),
         );
         return row ? normalize(row) : null;
@@ -192,7 +192,7 @@ function neonStore(): PropAssetStore {
       const db = requireDb();
       const now = new Date();
       const [row] = await db
-        .insert(propAssetsTable)
+        .insert(artifactAssetsTable)
         .values({
           slug: input.slug,
           name: input.name,
@@ -222,9 +222,9 @@ function neonStore(): PropAssetStore {
         if (v !== undefined) values[k] = v;
       }
       const [row] = await db
-        .update(propAssetsTable)
+        .update(artifactAssetsTable)
         .set(values)
-        .where(eq(propAssetsTable.id, id))
+        .where(eq(artifactAssetsTable.id, id))
         .returning();
       return row ? normalize(row) : null;
     },
@@ -240,17 +240,17 @@ function neonStore(): PropAssetStore {
     async remove(id) {
       const db = requireDb();
       const result = await db
-        .delete(propAssetsTable)
-        .where(eq(propAssetsTable.id, id))
+        .delete(artifactAssetsTable)
+        .where(eq(artifactAssetsTable.id, id))
         .returning();
       return result.length > 0;
     },
   };
 }
 
-let _store: PropAssetStore | null = null;
+let _store: ArtifactAssetStore | null = null;
 
-export function getPropAssetStore(): PropAssetStore {
+export function getArtifactAssetStore(): ArtifactAssetStore {
   if (!_store) _store = neonStore();
   return _store;
 }

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
-import { getPropAssetStore } from "@kawabunga/db";
+import { getArtifactAssetStore } from "@kawabunga/db";
 import { stripNearBlackBackground } from "@/lib/image-alpha";
 import { STAGE_ART_STYLES, isStageArtStyle } from "@/lib/stage-art-styles";
 import {
-  PROP_IMAGES_BUCKET,
+  ARTIFACT_IMAGES_BUCKET,
   getSupabaseStorageClient,
 } from "@/lib/supabase-storage";
 
@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /* ── Generate a top-down sprite rendition for a prop asset ──────────
- * POST /api/props/:propId/generate-image  { style: "pixel" | ... }
+ * POST /api/artifacts/:artifactId/generate-image  { style: "pixel" | ... }
  *
- * One rendition per art style, stored in prop_assets.images[style] so
+ * One rendition per art style, stored in artifact_assets.images[style] so
  * a shared asset can look different per scene. gpt-image-2 dropped
  * native transparent backgrounds, so the sprite is prompted onto pure
  * black and the alpha is recovered with the same near-black knockout
@@ -27,9 +27,9 @@ const IMAGE_MODEL = process.env.IMAGE_GEN_MODEL?.trim() || "gpt-image-2";
 
 export async function POST(
   req: NextRequest,
-  ctx: { params: Promise<{ propId: string }> },
+  ctx: { params: Promise<{ artifactId: string }> },
 ) {
-  const { propId } = await ctx.params;
+  const { artifactId } = await ctx.params;
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
@@ -53,8 +53,8 @@ export async function POST(
     );
   }
 
-  const store = getPropAssetStore();
-  const asset = await store.getById(propId);
+  const store = getArtifactAssetStore();
+  const asset = await store.getById(artifactId);
   if (!asset) {
     return NextResponse.json({ error: "prop not found" }, { status: 404 });
   }
@@ -118,7 +118,7 @@ export async function POST(
     const objectPath = `${asset.id}/${style}-${Date.now()}.png`;
     const supabase = getSupabaseStorageClient();
     const { error: uploadError } = await supabase.storage
-      .from(PROP_IMAGES_BUCKET)
+      .from(ARTIFACT_IMAGES_BUCKET)
       .upload(objectPath, processed, {
         contentType: "image/png",
         cacheControl: "public, max-age=31536000, immutable",
@@ -132,7 +132,7 @@ export async function POST(
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from(PROP_IMAGES_BUCKET)
+      .from(ARTIFACT_IMAGES_BUCKET)
       .getPublicUrl(objectPath);
 
     const updated = await store.update(asset.id, {

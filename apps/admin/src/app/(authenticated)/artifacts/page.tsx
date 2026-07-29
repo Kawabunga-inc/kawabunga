@@ -1,15 +1,14 @@
-import type { PropAssetSource } from "@kawabunga/db";
-import { getPropAssetStore } from "@kawabunga/db";
-import { PropsGrid } from "@/components/props-grid";
+import type { ArtifactAssetSource } from "@kawabunga/db";
+import { getArtifactAssetStore } from "@kawabunga/db";
+import { ArtifactsGrid } from "@/components/artifacts-grid";
 
-/** Summary shape consumed by PropsGrid. Co-located with the page so
+/** Summary shape consumed by ArtifactsGrid. Co-located with the page so
  * server hydration and client rendering can't drift apart. */
-export type PropAssetSummary = {
+export type ArtifactAssetSummary = {
   id: string;
   slug: string;
   name: string;
   description: string | null;
-  icon: string | null;
   /** Generated sprite renditions: art-style key -> public URL. */
   images: Record<string, string>;
   defaultWidthM: number | null;
@@ -17,7 +16,7 @@ export type PropAssetSummary = {
   defaultRadiusM: number | null;
   soundSource: boolean;
   tags: string[];
-  source: PropAssetSource;
+  source: ArtifactAssetSource;
   generationPrompt: string | null;
   archivedAt: string | null;
   createdAt: string;
@@ -27,13 +26,12 @@ export type PropAssetSummary = {
 export const dynamic = "force-dynamic";
 
 export default async function PropsPage() {
-  const assets = await getPropAssetStore().list({ includeArchived: true });
-  const props: PropAssetSummary[] = assets.map((a) => ({
+  const assets = await getArtifactAssetStore().list({ includeArchived: true });
+  const props: ArtifactAssetSummary[] = assets.map((a) => ({
     id: a.id,
     slug: a.slug,
     name: a.name,
     description: a.description,
-    icon: a.icon,
     images: a.images,
     defaultWidthM: a.defaultWidthM,
     defaultHeightM: a.defaultHeightM,
@@ -46,5 +44,5 @@ export default async function PropsPage() {
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
   }));
-  return <PropsGrid propAssets={props} />;
+  return <ArtifactsGrid propAssets={props} />;
 }
