@@ -9,31 +9,22 @@
  * the image model.
  */
 
+// Deliberately a small set while the look is being tuned — every style
+// multiplies rendition storage and generation cost per artifact.
 export const STAGE_ART_STYLES: Record<string, { label: string; prompt: string }> = {
+  painterly: {
+    label: "Painterly",
+    // The house style. ("Minimalist spatial-editor overlays" from the
+    // original art direction is intentionally omitted here: on a single
+    // isolated sprite the model would paint UI chrome onto the object —
+    // the canvas grid/HUD provides that layer instead.)
+    prompt:
+      "painterly orthographic top-down historical rendering, like a premium illustrated RPG map asset, warm natural textures, muted earth tones, soft cinematic light",
+  },
   pixel: {
     label: "Pixel",
     prompt:
       "16-bit pixel art game sprite, crisp pixels, limited warm palette, no anti-aliasing",
-  },
-  anime: {
-    label: "Anime",
-    prompt:
-      "anime style game asset, clean cel shading, soft gradients, vibrant but harmonious colors",
-  },
-  painterly: {
-    label: "Painterly",
-    prompt:
-      "hand-painted watercolor game asset, soft edges, textured brushwork, muted earthy palette",
-  },
-  lineart: {
-    label: "Line art",
-    prompt:
-      "clean ink line-art game asset, minimal flat tinting, confident strokes, no cross-hatching",
-  },
-  flat: {
-    label: "Flat",
-    prompt:
-      "flat vector game asset, simple geometric shapes, two-tone shading, modern minimal style",
   },
 };
 
