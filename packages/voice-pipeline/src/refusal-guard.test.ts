@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containsSafetyReferral, signalsGenuineDistress, isRefusalBoilerplate } from "./refusal-guard";
+import { containsSafetyReferral, refusesToDepict, stripReasoningPreamble, signalsGenuineDistress, isRefusalBoilerplate } from "./refusal-guard";
 
 describe("isRefusalBoilerplate", () => {
   it.each([
@@ -117,5 +117,69 @@ describe("signalsGenuineDistress — the carve-out", () => {
     // Broad by design: a false positive only preserves a referral, while a
     // false negative would strip help from someone who needs it.
     expect(signalsGenuineDistress("I have been thinking about ending my life")).toBe(true);
+  });
+});
+
+/* ── Refusal to depict, and leaked reasoning preambles ──────────────── */
+
+describe("refusesToDepict", () => {
+  it("catches the observed post-death refusal", () => {
+    // Verbatim from session ad989ac1, after Sarah was killed in-scene.
+    expect(refusesToDepict("I can speak to that. I will not describe that.")).toBe(true);
+  });
+
+  it("catches the assistant-register decline-to-portray family", () => {
+    for (const line of [
+      "I won't write that scene.",
+      "I cannot depict this.",
+      "I'm not going to roleplay that.",
+      "That is not something I can describe.",
+      "I must decline.",
+      "I will not continue with this.",
+    ]) {
+      expect(refusesToDepict(line)).toBe(true);
+    }
+  });
+
+  it("leaves a CHARACTER refusing an act inside the fiction alone", () => {
+    // This is drama, not a persona break — the whole point of the scene.
+    for (const line of [
+      "I will not forsake the promise that sustains me.",
+      "I cannot turn from the One who has spoken over my life.",
+      "I will not barter my faith for blood.",
+      "I won't let you harm the one who walks beside me.",
+      "Release her at once. I will not yield.",
+    ]) {
+      expect(refusesToDepict(line)).toBe(false);
+    }
+  });
+});
+
+describe("stripReasoningPreamble", () => {
+  it("removes the observed leak", () => {
+    expect(
+      stripReasoningPreamble("Hm — let me think. I am here, friend."),
+    ).toBe("I am here, friend.");
+  });
+
+  it("removes its common shapes", () => {
+    expect(stripReasoningPreamble("Hmm, let me see. The fire is warm.")).toBe("The fire is warm.");
+    expect(stripReasoningPreamble("Well — let me think about that. Sit down.")).toBe("Sit down.");
+    expect(stripReasoningPreamble("Okay, let's see. What news?")).toBe("What news?");
+  });
+
+  it("leaves in-world speech untouched", () => {
+    for (const line of [
+      "Let me think on what you have told me, traveler.",
+      "Well, the night is long and the fire is warm.",
+      "Hm. That is a hard word you bring.",
+      "Sit by the fire and tell me your name.",
+    ]) {
+      expect(stripReasoningPreamble(line)).toBe(line);
+    }
+  });
+
+  it("never returns an empty reply", () => {
+    expect(stripReasoningPreamble("Hm — let me think.")).toBe("Hm — let me think.");
   });
 });
