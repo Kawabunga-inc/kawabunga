@@ -342,6 +342,59 @@ export async function acceptGeneratedArtifact(
   }
 }
 
+/* Promote an ad-hoc artifact node to a library asset so its media can
+ * be generated (renditions live on artifact_assets, keyed by style).
+ * The node keeps its placement and dimension overrides; the asset takes
+ * the label, summary, and dimensions as its defaults. */
+export async function promoteArtifactToLibrary(
+  sceneId: string,
+  nodeId: string,
+): Promise<ActionResult<{ assetId: string }>> {
+  try {
+    const graph = getSceneGraphStore();
+    const node = await graph.getNode(nodeId);
+    if (!node || node.sceneId !== sceneId) {
+      return { ok: false, error: "Scene node not found." };
+    }
+    if (node.kind !== "artifact") {
+      return { ok: false, error: "Only artifacts can be promoted." };
+    }
+    if (node.refId) return { ok: true, data: { assetId: node.refId } };
+
+    const store = getArtifactAssetStore();
+    const base =
+      node.label.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") ||
+      "artifact";
+    let slug = base;
+    for (let i = 2; (await store.getBySlug(slug)) !== null; i += 1) {
+      slug = `${base}-${i}`;
+    }
+
+    const asset = await store.create({
+      slug,
+      name: node.label,
+      description: node.summary,
+      defaultRadiusM: typeof node.data.radiusM === "number" ? node.data.radiusM : null,
+      defaultWidthM: typeof node.data.widthM === "number" ? node.data.widthM : null,
+      defaultHeightM: typeof node.data.heightM === "number" ? node.data.heightM : null,
+      soundSource: node.data.soundSource === true,
+      source: "manual",
+    });
+
+    await graph.updateNode(nodeId, { refId: asset.id });
+
+    revalidatePath(`/scenes/${sceneId}`);
+    revalidatePath("/artifacts");
+    invalidateScenesList();
+    return { ok: true, data: { assetId: asset.id } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to promote artifact.",
+    };
+  }
+}
+
 export async function addZoneToScene(
   sceneId: string,
   input: {

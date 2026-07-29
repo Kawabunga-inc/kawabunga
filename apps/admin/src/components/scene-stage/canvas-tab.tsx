@@ -13,6 +13,7 @@ import {
   addArtifactFromLibrary,
   addArtifactToScene,
   addZoneToScene,
+  promoteArtifactToLibrary,
   updateSceneNode,
 } from "@/app/(authenticated)/scenes/actions";
 import { AdminButton } from "@/components/admin-ui";
@@ -553,7 +554,13 @@ export function CanvasTab({
             key={selected.id}
             node={selected}
             asset={selected.refId ? artifactById.get(selected.refId) ?? null : null}
-            artStyle={stage?.artStyle ?? null}
+            artStyle={artStyle}
+            onPickArtStyle={(style) => onStageChange(stagePatch({ artStyle: style }))}
+            onPromoted={(assetId) => {
+              onNodeSaved(selected.id, { refId: assetId });
+              ensureRendition(assetId, {});
+              router.refresh();
+            }}
             sceneId={sceneId}
             snapM={snapM}
             onNodeSaved={onNodeSaved}
@@ -585,6 +592,8 @@ function PlacementInspector({
   node,
   asset,
   artStyle,
+  onPickArtStyle,
+  onPromoted,
   sceneId,
   snapM,
   onNodeSaved,
@@ -593,6 +602,8 @@ function PlacementInspector({
   node: SceneNode;
   asset: SceneLibraryArtifact | null;
   artStyle: string | null;
+  onPickArtStyle: (style: string | null) => void;
+  onPromoted: (assetId: string) => void;
   sceneId: string;
   snapM: number;
   onNodeSaved: (nodeId: string, patch: Partial<SceneNode>) => void;
@@ -603,6 +614,22 @@ function PlacementInspector({
   const [label, setLabel] = useState(node.label);
   const [spriteBusy, setSpriteBusy] = useState(false);
   const [spriteError, setSpriteError] = useState<string | null>(null);
+
+  // Ad-hoc artifact → library asset + first rendition, one click. The
+  // parent attaches the refId locally and kicks generation.
+  const promoteAndGenerate = useCallback(() => {
+    setSpriteBusy(true);
+    setSpriteError(null);
+    void (async () => {
+      try {
+        const res = await promoteArtifactToLibrary(sceneId, node.id);
+        if (!res.ok) setSpriteError(res.error);
+        else if (res.data) onPromoted(res.data.assetId);
+      } finally {
+        setSpriteBusy(false);
+      }
+    })();
+  }, [sceneId, node.id, onPromoted]);
 
   // Generate this asset's sprite for the scene's art style without
   // leaving the canvas — same endpoint the /artifacts page uses; the
@@ -716,15 +743,41 @@ function PlacementInspector({
           <span style={fieldLabelStyle}>
             Scene art{artStyle ? ` · ${STAGE_ART_STYLES[artStyle]?.label ?? artStyle}` : ""}
           </span>
-          {!asset ? (
-            <p style={spriteHintStyle}>
-              Ad-hoc artifact — save it to the library (/artifacts) to generate sprite art.
-            </p>
-          ) : !artStyle ? (
-            <p style={spriteHintStyle}>
-              Pick an Art style in Stage settings (click empty ground) to render
-              sprites instead of footprints.
-            </p>
+          {!artStyle ? (
+            <>
+              <p style={spriteHintStyle}>
+                Pick the scene&apos;s art style to start painting artifacts.
+              </p>
+              <select
+                value=""
+                onChange={(event) => onPickArtStyle(event.target.value || null)}
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="" disabled>
+                  Choose an art style…
+                </option>
+                {STAGE_ART_STYLE_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {STAGE_ART_STYLES[key].label}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : !asset ? (
+            <>
+              <p style={spriteHintStyle}>
+                Ad-hoc artifact — saving it to the library gives its art a home.
+              </p>
+              <AdminButton
+                type="button"
+                variant="primary"
+                disabled={spriteBusy}
+                onClick={promoteAndGenerate}
+              >
+                {spriteBusy ? "Saving…" : "✦ Save to library & generate art"}
+              </AdminButton>
+              {spriteError && <p style={spriteErrorStyle}>{spriteError}</p>}
+            </>
           ) : (
             <>
               {asset.images[artStyle] && (

@@ -241,6 +241,9 @@ export interface UpdateNodeInput {
   summary?: string | null;
   data?: Record<string, unknown>;
   position?: StageNodePosition | null;
+  /** Attach/detach a library ref (e.g. promoting an ad-hoc artifact to a
+   * library asset). Validated against the node's kind. */
+  refId?: string | null;
 }
 
 export interface CreateEdgeInput {
@@ -425,7 +428,7 @@ function neonStore(): SceneGraphStore {
             .where(eq(artifactAssetsTable.id, refId))
             .limit(1),
         );
-        if (!p) throw new Error(`prop asset ${input.refId} not found`);
+        if (!p) throw new Error(`artifact asset ${input.refId} not found`);
       }
 
       const db = requireDb();
@@ -462,6 +465,33 @@ function neonStore(): SceneGraphStore {
         values.position = input.position ? stagePositionSchema.parse(input.position) : null;
       if (input.data !== undefined) {
         values.data = validateNodeData(existing.kind as NodeKind, input.data);
+      }
+      if (input.refId !== undefined) {
+        const kind = existing.kind as NodeKind;
+        if (input.refId !== null && !kindsAllowingRef.has(kind)) {
+          throw new Error(`kind='${kind}' must not carry refId`);
+        }
+        if (input.refId === null && kindsRequiringRef.has(kind)) {
+          throw new Error(`kind='${kind}' requires refId`);
+        }
+        if (input.refId) {
+          const refTable =
+            kind === "character"
+              ? charactersTable
+              : kind === "audio"
+                ? audioAssetsTable
+                : artifactAssetsTable;
+          const refId = input.refId;
+          const [ref] = await retryRead(() =>
+            db
+              .select({ id: refTable.id })
+              .from(refTable)
+              .where(eq(refTable.id, refId))
+              .limit(1),
+          );
+          if (!ref) throw new Error(`${kind} ref ${input.refId} not found`);
+        }
+        values.refId = input.refId;
       }
 
       const [row] = await db
