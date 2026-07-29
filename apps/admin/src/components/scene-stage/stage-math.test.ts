@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   clampToWorld,
+  clampViewport,
+  coverZoom,
   defaultPxPerM,
   isPlaced,
   screenToWorld,
@@ -81,6 +83,34 @@ describe("z ordering", () => {
 
   it("lets position.z override the kind default", () => {
     expect(zIndexFor("zone", { x: 0, y: 0, z: 99 })).toBe(99);
+  });
+});
+
+describe("camera clamp (full-bleed terrain)", () => {
+  it("cover zoom makes the world exactly fill the tighter axis", () => {
+    // 960/96 = 10, 640/64 = 10 — square case.
+    expect(coverZoom({ width: 960, height: 640 })).toBe(10);
+    // Taller viewport: height dominates.
+    expect(coverZoom({ width: 960, height: 890 })).toBeCloseTo(890 / 64, 10);
+  });
+
+  it("clamps zoom up to the cover floor", () => {
+    const vp = clampViewport({ cx: 0, cy: 0, pxPerM: 1 }, SIZE);
+    expect(vp.pxPerM).toBe(coverZoom(SIZE));
+  });
+
+  it("keeps the visible rect inside the world when panned to a corner", () => {
+    const vp = clampViewport({ cx: 500, cy: -500, pxPerM: 20 }, SIZE);
+    const bounds = visibleWorldBounds(vp, SIZE);
+    expect(bounds.maxX).toBeLessThanOrEqual(WORLD.widthM / 2);
+    expect(bounds.minY).toBeGreaterThanOrEqual(-WORLD.heightM / 2);
+    // And the view is exactly flush against the far corner.
+    expect(vp.cx).toBeCloseTo(WORLD.widthM / 2 - SIZE.width / 2 / 20, 10);
+  });
+
+  it("passes through an already-valid viewport unchanged", () => {
+    const vp = clampViewport({ cx: 1, cy: -2, pxPerM: 40 }, SIZE);
+    expect(vp).toEqual({ cx: 1, cy: -2, pxPerM: 40 });
   });
 });
 

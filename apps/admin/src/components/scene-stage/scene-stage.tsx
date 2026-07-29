@@ -20,7 +20,7 @@ import { resolveAvatarGradient } from "@/lib/avatar-gradients";
 import { T } from "@/components/scene-tabs/shared";
 import {
   clampToWorld,
-  clampZoom,
+  clampViewport,
   defaultPxPerM,
   isPlaced,
   screenToWorld,
@@ -121,11 +121,20 @@ export function SceneStage({
     if (viewport || size.width === 0) return;
     const saved = stage?.viewport;
     setViewport(
-      saved
-        ? { cx: saved.cx, cy: saved.cy, pxPerM: clampZoom(saved.zoom) }
-        : { cx: 0, cy: 0, pxPerM: defaultPxPerM(size) },
+      clampViewport(
+        saved
+          ? { cx: saved.cx, cy: saved.cy, pxPerM: saved.zoom }
+          : { cx: 0, cy: 0, pxPerM: defaultPxPerM(size) },
+        size,
+      ),
     );
   }, [viewport, size, stage?.viewport]);
+
+  // Re-clamp when the container resizes — the cover floor moves with it.
+  useEffect(() => {
+    if (size.width === 0) return;
+    setViewport((vp) => (vp ? clampViewport(vp, size) : vp));
+  }, [size]);
 
   useEffect(() => {
     if (viewport && onViewport) onViewport(viewport);
@@ -146,13 +155,20 @@ export function SceneStage({
       event.preventDefault();
       const cursor = localPoint(event);
       const anchor = screenToWorld(cursor, viewport, size);
-      const nextZoom = clampZoom(viewport.pxPerM * Math.exp(-event.deltaY * 0.0016));
-      // Keep the world point under the cursor stationary through the zoom.
-      setViewport({
-        cx: anchor.x - (cursor.x - size.width / 2) / nextZoom,
-        cy: anchor.y + (cursor.y - size.height / 2) / nextZoom,
-        pxPerM: nextZoom,
-      });
+      const nextZoom = viewport.pxPerM * Math.exp(-event.deltaY * 0.0016);
+      // Keep the world point under the cursor stationary through the
+      // zoom; the clamp then holds the view inside the world (full-bleed
+      // terrain at every zoom).
+      setViewport(
+        clampViewport(
+          {
+            cx: anchor.x - (cursor.x - size.width / 2) / nextZoom,
+            cy: anchor.y + (cursor.y - size.height / 2) / nextZoom,
+            pxPerM: nextZoom,
+          },
+          size,
+        ),
+      );
     },
     [viewport, size, localPoint],
   );
@@ -187,11 +203,16 @@ export function SceneStage({
         const dx = event.clientX - drag.startX;
         const dy = event.clientY - drag.startY;
         if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
-        setViewport({
-          cx: drag.startVp.cx - dx / drag.startVp.pxPerM,
-          cy: drag.startVp.cy + dy / drag.startVp.pxPerM,
-          pxPerM: drag.startVp.pxPerM,
-        });
+        setViewport(
+          clampViewport(
+            {
+              cx: drag.startVp.cx - dx / drag.startVp.pxPerM,
+              cy: drag.startVp.cy + dy / drag.startVp.pxPerM,
+              pxPerM: drag.startVp.pxPerM,
+            },
+            size,
+          ),
+        );
         return;
       }
       drag.moved = true;
@@ -373,49 +394,27 @@ function StageBackground({
   const url = artStyle ? stage?.backgrounds?.[artStyle] ?? null : null;
   if (!url) return null;
   const topLeft = worldToScreen({ x: -WORLD_MAX_X, y: WORLD_MAX_Y }, viewport, size);
+  // The camera is clamped to the world (clampViewport), so this plate
+  // is full-bleed at every zoom — the canvas never shows past it.
   return (
-    <>
-      {/* Beyond the world edge: the same plate, blurred and dimmed, so
-          zooming out never shows dead ground color — the world reads as
-          the in-focus part of a larger landscape. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt=""
-        aria-hidden
-        draggable={false}
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          filter: "blur(28px) brightness(0.55) saturate(0.85)",
-          transform: "scale(1.1)",
-          pointerEvents: "none",
-          userSelect: "none",
-        }}
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt=""
-        aria-hidden
-        draggable={false}
-        style={{
-          position: "absolute",
-          left: topLeft.x,
-          top: topLeft.y,
-          width: WORLD.widthM * viewport.pxPerM,
-          height: WORLD.heightM * viewport.pxPerM,
-          boxShadow: "0 0 60px color-mix(in srgb, black 45%, transparent)",
-          pointerEvents: "none",
-          userSelect: "none",
-          // Pixel art stays crisp when the plate is scaled up.
-          imageRendering: artStyle === "pixel" ? "pixelated" : "auto",
-        }}
-      />
-    </>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      aria-hidden
+      draggable={false}
+      style={{
+        position: "absolute",
+        left: topLeft.x,
+        top: topLeft.y,
+        width: WORLD.widthM * viewport.pxPerM,
+        height: WORLD.heightM * viewport.pxPerM,
+        pointerEvents: "none",
+        userSelect: "none",
+        // Pixel art stays crisp when the plate is scaled up.
+        imageRendering: artStyle === "pixel" ? "pixelated" : "auto",
+      }}
+    />
   );
 }
 

@@ -34,6 +34,28 @@ export function clampZoom(pxPerM: number): number {
   return Math.min(MAX_PX_PER_M, Math.max(MIN_PX_PER_M, pxPerM));
 }
 
+/** The zoom at which the world exactly covers the viewport — the hard
+ *  floor, so the stage (and its generated terrain plate) is always
+ *  full-bleed; the camera never sees past the world edge. */
+export function coverZoom(size: ScreenSize): number {
+  if (size.width <= 0 || size.height <= 0) return MIN_PX_PER_M;
+  return Math.max(size.width / WORLD.widthM, size.height / WORLD.heightM);
+}
+
+/** Clamp zoom to [cover, max] and the center so the visible rect stays
+ *  inside the world. Assumes cover-clamped zoom, which guarantees the
+ *  half-extents fit. */
+export function clampViewport(vp: Viewport, size: ScreenSize): Viewport {
+  const pxPerM = Math.min(MAX_PX_PER_M, Math.max(coverZoom(size), vp.pxPerM));
+  const halfW = size.width / 2 / pxPerM;
+  const halfH = size.height / 2 / pxPerM;
+  return {
+    pxPerM,
+    cx: Math.min(WORLD_MAX_X - halfW, Math.max(-WORLD_MAX_X + halfW, vp.cx)),
+    cy: Math.min(WORLD_MAX_Y - halfH, Math.max(-WORLD_MAX_Y + halfH, vp.cy)),
+  };
+}
+
 export function worldToScreen(
   p: { x: number; y: number },
   vp: Viewport,
