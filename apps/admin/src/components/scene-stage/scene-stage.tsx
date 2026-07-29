@@ -271,8 +271,6 @@ export function SceneStage({
         minHeight: 0,
         minWidth: 0,
         overflow: "hidden",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--border-subtle)",
         background: stage?.groundColor ?? "var(--canvas-surface)",
         cursor: dragRef.current?.mode === "pan" ? "grabbing" : "default",
         touchAction: "none",
@@ -340,7 +338,13 @@ export function SceneStage({
               beginDrag(event, { mode: "spawn", moved: false });
             }}
           />
-          <div style={hudChipStyle({ left: 12, bottom: 10 })}>
+          <div
+            style={hudChipStyle({
+              left: "50%",
+              bottom: 10,
+              transform: "translateX(-50%)",
+            })}
+          >
             {`WORLD ${WORLD.widthM}×${WORLD.heightM} M · SNAP ${snapM} M · ${Math.round(
               viewport.pxPerM,
             )} PX/M`}

@@ -359,6 +359,28 @@ export function CanvasTab({
 
   return (
     <div style={canvasLayoutStyle}>
+      {/* The stage owns the whole surface; panels float above it. */}
+      <div style={stageFillStyle}>
+        <SceneStage
+          nodes={graphNodes}
+          characterById={characterById}
+          artifactAssetById={artifactById}
+          ghosts={ghosts}
+          stage={stage}
+          snapM={snapM}
+          selectedNodeId={selectedNodeId}
+          onSelect={onSelect}
+          onMove={(nodeId, position) => {
+            const node = graphNodes.find((n) => n.id === nodeId);
+            if (node) persistPosition(node, position);
+          }}
+          onMoveSpawn={(spawn) => onStageChange(stagePatch({ spawn }))}
+          onViewport={(vp) => {
+            viewportRef.current = vp;
+          }}
+        />
+      </div>
+
       <div style={trayStyle}>
         <span style={kickerStyle}>In the wings · {wings.length}</span>
         <p style={trayHintStyle}>
@@ -571,25 +593,6 @@ export function CanvasTab({
           )}
         </div>
       </div>
-
-      <SceneStage
-        nodes={graphNodes}
-        characterById={characterById}
-        artifactAssetById={artifactById}
-        ghosts={ghosts}
-        stage={stage}
-        snapM={snapM}
-        selectedNodeId={selectedNodeId}
-        onSelect={onSelect}
-        onMove={(nodeId, position) => {
-          const node = graphNodes.find((n) => n.id === nodeId);
-          if (node) persistPosition(node, position);
-        }}
-        onMoveSpawn={(spawn) => onStageChange(stagePatch({ spawn }))}
-        onViewport={(vp) => {
-          viewportRef.current = vp;
-        }}
-      />
 
       <div style={inspectorColumnStyle}>
         {selected ? (
@@ -1281,26 +1284,46 @@ function StageSettings({
 /* ── Styles ────────────────────────────────────────────────────────── */
 
 const canvasLayoutStyle: CSSProperties = {
+  position: "relative",
   flex: 1,
   minHeight: 0,
-  display: "grid",
-  gridTemplateColumns: "248px minmax(0, 1fr) 300px",
-  gap: 16,
-  padding: "16px 20px 20px",
+  overflow: "hidden",
   color: T.fg,
   fontFamily: T.fontBody,
 };
 
-const trayStyle: CSSProperties = {
+const stageFillStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
   display: "flex",
-  flexDirection: "column",
+};
+
+/** Floating glass panel over the stage — translucent surface + blur so
+ *  the terrain reads through without fighting the controls. */
+function floatingPanelStyle(side: "left" | "right", width: number): CSSProperties {
+  return {
+    position: "absolute",
+    top: 16,
+    [side]: 16,
+    width,
+    maxHeight: "calc(100% - 32px)",
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
+    overflow: "auto",
+    zIndex: 500,
+    borderRadius: "var(--radius-lg)",
+    border: "1px solid var(--border-subtle)",
+    background: "color-mix(in srgb, var(--surface-1) 88%, transparent)",
+    backdropFilter: "blur(14px) saturate(1.1)",
+    boxShadow: "0 12px 40px color-mix(in srgb, black 35%, transparent)",
+  };
+}
+
+const trayStyle: CSSProperties = {
+  ...floatingPanelStyle("left", 248),
   gap: "var(--space-10)",
-  minHeight: 0,
-  overflow: "auto",
   padding: "16px 14px",
-  border: "1px solid var(--border-subtle)",
-  borderRadius: "var(--radius-lg)",
-  background: T.panel,
 };
 
 const trayHintStyle: CSSProperties = {
@@ -1405,15 +1428,7 @@ const spriteErrorStyle: CSSProperties = {
   lineHeight: "17px",
 };
 
-const inspectorColumnStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  minHeight: 0,
-  border: "1px solid var(--border-subtle)",
-  borderRadius: "var(--radius-lg)",
-  background: T.panel,
-  overflow: "hidden",
-};
+const inspectorColumnStyle: CSSProperties = floatingPanelStyle("right", 300);
 
 const howItWorksStyle: CSSProperties = {
   display: "flex",
