@@ -37,10 +37,24 @@ import {
 
 type SceneNode = SceneGraphPayload["nodes"][number];
 
+type ResizeDims = {
+  radiusM: number | null;
+  widthM: number | null;
+  heightM: number | null;
+};
+
 type DragState =
   | { mode: "pan"; startX: number; startY: number; startVp: Viewport; moved: boolean }
   | { mode: "node"; nodeId: string; moved: boolean }
-  | { mode: "spawn"; moved: boolean };
+  | { mode: "spawn"; moved: boolean }
+  | {
+      mode: "resize";
+      nodeId: string;
+      center: { x: number; y: number };
+      startDist: number;
+      start: ResizeDims;
+      moved: boolean;
+    };
 
 /** A generated set-piece proposal rendered as a non-interactive dashed
  *  token until the user accepts or discards it. */
@@ -71,6 +85,7 @@ export function SceneStage({
   onSelect,
   onMove,
   onMoveSpawn,
+  onResizeCommit,
   onViewport,
 }: {
   nodes: SceneNode[];
@@ -83,6 +98,11 @@ export function SceneStage({
   onSelect: (nodeId: string | null) => void;
   onMove: (nodeId: string, position: { x: number; y: number }) => void;
   onMoveSpawn: (position: { x: number; y: number }) => void;
+  /** Commit a footprint scale from the corner handle (artifacts/zones). */
+  onResizeCommit?: (
+    nodeId: string,
+    dims: { radiusM?: number; widthM?: number; heightM?: number },
+  ) => void;
   /** Reports the live viewport so "save this view" can capture it. */
   onViewport?: (vp: Viewport) => void;
 }) {
@@ -95,6 +115,18 @@ export function SceneStage({
   // setState mid-render).
   const dragPosRef = useRef<{ id: string; x: number; y: number } | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const [resizePreview, setResizePreview] = useState<
+    ({ id: string } & ResizeDims) | null
+  >(null);
+  const resizePreviewRef = useRef<({ id: string } & ResizeDims) | null>(null);
+
+  const updateResizePreview = useCallback(
+    (next: ({ id: string } & ResizeDims) | null) => {
+      resizePreviewRef.current = next;
+      setResizePreview(next);
+    },
+    [],
+  );
 
   const updateDragPos = useCallback(
     (next: { id: string; x: number; y: number } | null) => {
@@ -217,6 +249,20 @@ export function SceneStage({
       }
       drag.moved = true;
       const world = screenToWorld(localPoint(event), viewport, size);
+      if (drag.mode === "resize") {
+        const dist = Math.hypot(world.x - drag.center.x, world.y - drag.center.y);
+        const ratio = dist / Math.max(0.05, drag.startDist);
+        // Uniform scale, snapped to 0.1 m, floored so nothing vanishes.
+        const scaleDim = (v: number | null): number | null =>
+          v === null ? null : Math.max(0.25, Math.round(v * ratio * 10) / 10);
+        updateResizePreview({
+          id: drag.nodeId,
+          radiusM: scaleDim(drag.start.radiusM),
+          widthM: scaleDim(drag.start.widthM),
+          heightM: scaleDim(drag.start.heightM),
+        });
+        return;
+      }
       const snapped = clampToWorld({
         x: snapTo(world.x, snapM),
         y: snapTo(world.y, snapM),
@@ -238,13 +284,25 @@ export function SceneStage({
       if (!drag.moved) onSelect(null);
       return;
     }
+    if (drag.mode === "resize") {
+      const preview = resizePreviewRef.current;
+      if (drag.moved && preview && onResizeCommit) {
+        onResizeCommit(preview.id, {
+          ...(preview.radiusM !== null ? { radiusM: preview.radiusM } : {}),
+          ...(preview.widthM !== null ? { widthM: preview.widthM } : {}),
+          ...(preview.heightM !== null ? { heightM: preview.heightM } : {}),
+        });
+      }
+      updateResizePreview(null);
+      return;
+    }
     const current = dragPosRef.current;
     if (drag.moved && current) {
       if (drag.mode === "node") onMove(current.id, { x: current.x, y: current.y });
       else onMoveSpawn({ x: current.x, y: current.y });
     }
     updateDragPos(null);
-  }, [onSelect, onMove, onMoveSpawn, updateDragPos]);
+  }, [onSelect, onMove, onMoveSpawn, updateDragPos, updateResizePreview, onResizeCommit]);
 
   const placed = useMemo(
     () =>
@@ -306,12 +364,47 @@ export function SceneStage({
                 pxPerM={viewport.pxPerM}
                 selected={selectedNodeId === node.id}
                 dragging={isDragging}
+                resizeDims={resizePreview?.id === node.id ? resizePreview : null}
                 onPointerDown={(event) => {
                   event.stopPropagation();
                   if (event.button !== 0) return;
                   onSelect(node.id);
                   beginDrag(event, { mode: "node", nodeId: node.id, moved: false });
                 }}
+                onResizePointerDown={
+                  (node.kind === "artifact" || node.kind === "zone") && onResizeCommit
+                    ? (event) => {
+                        event.stopPropagation();
+                        if (event.button !== 0 || !viewport) return;
+                        const asset =
+                          node.kind === "artifact" && node.refId
+                            ? artifactAssetById?.get(node.refId)
+                            : undefined;
+                        const num = (v: unknown): number | null =>
+                          typeof v === "number" ? v : null;
+                        let start: ResizeDims = {
+                          radiusM: num(node.data.radiusM) ?? asset?.defaultRadiusM ?? null,
+                          widthM: num(node.data.widthM) ?? asset?.defaultWidthM ?? null,
+                          heightM: num(node.data.heightM) ?? asset?.defaultHeightM ?? null,
+                        };
+                        if (start.radiusM !== null) {
+                          start = { ...start, widthM: null, heightM: null };
+                        } else if (start.widthM === null && start.heightM === null) {
+                          // Dimensionless artifact: seed a radius to scale from.
+                          start = { radiusM: 0.9, widthM: null, heightM: null };
+                        }
+                        const cursor = screenToWorld(localPoint(event), viewport, size);
+                        beginDrag(event, {
+                          mode: "resize",
+                          nodeId: node.id,
+                          center: world,
+                          startDist: Math.hypot(cursor.x - world.x, cursor.y - world.y),
+                          start,
+                          moved: false,
+                        });
+                      }
+                    : undefined
+                }
               />
             );
           })}
@@ -526,7 +619,9 @@ function StageToken({
   pxPerM,
   selected,
   dragging,
+  resizeDims,
   onPointerDown,
+  onResizePointerDown,
 }: {
   artStyle: string | null;
   node: SceneNode;
@@ -537,7 +632,9 @@ function StageToken({
   pxPerM: number;
   selected: boolean;
   dragging: boolean;
+  resizeDims: ({ radiusM: number | null; widthM: number | null; heightM: number | null }) | null;
   onPointerDown: (event: ReactPointerEvent) => void;
+  onResizePointerDown?: (event: ReactPointerEvent) => void;
 }) {
   const rotation =
     typeof node.position?.rotation === "number" ? node.position.rotation : 0;
@@ -552,8 +649,12 @@ function StageToken({
   const coordText = `${world.x.toFixed(1)}, ${world.y.toFixed(1)}`;
 
   if (node.kind === "zone") {
-    const widthM = typeof node.data.widthM === "number" ? node.data.widthM : 8;
-    const heightM = typeof node.data.heightM === "number" ? node.data.heightM : 6;
+    const widthM =
+      resizeDims?.widthM ??
+      (typeof node.data.widthM === "number" ? node.data.widthM : 8);
+    const heightM =
+      resizeDims?.heightM ??
+      (typeof node.data.heightM === "number" ? node.data.heightM : 6);
     const ellipse = node.data.shape === "ellipse";
     const color = typeof node.data.color === "string" ? node.data.color : "var(--accent-strong)";
     return (
@@ -585,6 +686,9 @@ function StageToken({
         >
           zone · {node.label}
         </span>
+        {selected && onResizePointerDown && (
+          <ResizeHandle onPointerDown={onResizePointerDown} />
+        )}
       </div>
     );
   }
@@ -592,17 +696,20 @@ function StageToken({
   if (node.kind === "artifact") {
     // Placement data overrides; the library asset supplies defaults.
     const radiusM =
-      typeof node.data.radiusM === "number"
+      resizeDims?.radiusM ??
+      (typeof node.data.radiusM === "number"
         ? node.data.radiusM
-        : artifactAsset?.defaultRadiusM ?? null;
+        : artifactAsset?.defaultRadiusM ?? null);
     const widthM =
-      typeof node.data.widthM === "number"
+      resizeDims?.widthM ??
+      (typeof node.data.widthM === "number"
         ? node.data.widthM
-        : artifactAsset?.defaultWidthM ?? null;
+        : artifactAsset?.defaultWidthM ?? null);
     const heightM =
-      typeof node.data.heightM === "number"
+      resizeDims?.heightM ??
+      (typeof node.data.heightM === "number"
         ? node.data.heightM
-        : artifactAsset?.defaultHeightM ?? null;
+        : artifactAsset?.defaultHeightM ?? null);
     const w = radiusM ? radiusM * 2 * pxPerM : widthM ? widthM * pxPerM : 36;
     const h = radiusM ? radiusM * 2 * pxPerM : heightM ? heightM * pxPerM : 36;
     const sprite = artStyle ? artifactAsset?.images?.[artStyle] ?? null : null;
@@ -640,6 +747,9 @@ function StageToken({
             }}
           />
           <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
+          {selected && onResizePointerDown && (
+            <ResizeHandle onPointerDown={onResizePointerDown} />
+          )}
         </div>
       );
     }
@@ -669,6 +779,9 @@ function StageToken({
         }}
       >
         <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
+        {selected && onResizePointerDown && (
+          <ResizeHandle onPointerDown={onResizePointerDown} />
+        )}
       </div>
     );
   }
@@ -778,6 +891,31 @@ function StageToken({
         )}
       </div>
     </div>
+  );
+}
+
+function ResizeHandle({
+  onPointerDown,
+}: {
+  onPointerDown: (event: ReactPointerEvent) => void;
+}) {
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      title="Drag to scale"
+      style={{
+        position: "absolute",
+        right: -7,
+        bottom: -7,
+        width: 14,
+        height: 14,
+        borderRadius: 4,
+        background: "var(--accent-strong)",
+        border: "2px solid var(--background)",
+        cursor: "nwse-resize",
+        zIndex: 5,
+      }}
+    />
   );
 }
 

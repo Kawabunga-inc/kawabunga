@@ -375,6 +375,21 @@ export function CanvasTab({
             if (node) persistPosition(node, position);
           }}
           onMoveSpawn={(spawn) => onStageChange(stagePatch({ spawn }))}
+          onResizeCommit={(nodeId, dims) => {
+            const node = graphNodes.find((n) => n.id === nodeId);
+            if (!node) return;
+            // The scaled dimensions become placement overrides — the
+            // library asset's defaults stay untouched.
+            const data = { ...node.data, ...dims };
+            if (dims.radiusM !== undefined) {
+              delete data.widthM;
+              delete data.heightM;
+            } else {
+              delete data.radiusM;
+            }
+            onNodeSaved(nodeId, { data });
+            void updateSceneNode(sceneId, nodeId, { data });
+          }}
           onViewport={(vp) => {
             viewportRef.current = vp;
           }}
