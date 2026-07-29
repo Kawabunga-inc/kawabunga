@@ -72,13 +72,16 @@ async function appendStageSnapshot(sessionId: string, sceneId: string | null) {
     ]);
     if (!scene) return;
 
-    // In-bounds meters only; legacy pixel rows read as unplaced.
+    // In-bounds meters only (legacy pixel rows read as unplaced) — plus
+    // anchored sounds, which have no position of their own but emanate
+    // from their artifact.
     const placements = graph.nodes
       .filter(
         (node) =>
-          node.position &&
-          Math.abs(node.position.x) <= 48 &&
-          Math.abs(node.position.y) <= 32,
+          (node.position &&
+            Math.abs(node.position.x) <= 48 &&
+            Math.abs(node.position.y) <= 32) ||
+          typeof node.data.anchorNodeId === "string",
       )
       .map((node) => ({
         nodeId: node.id,
@@ -88,6 +91,9 @@ async function appendStageSnapshot(sessionId: string, sceneId: string | null) {
         position: node.position,
         ...(typeof node.data.earshotM === "number" ? { earshotM: node.data.earshotM } : {}),
         ...(typeof node.data.rangeM === "number" ? { rangeM: node.data.rangeM } : {}),
+        ...(typeof node.data.anchorNodeId === "string"
+          ? { anchorNodeId: node.data.anchorNodeId }
+          : {}),
         ...(node.kind === "zone"
           ? {
               shape: node.data.shape,

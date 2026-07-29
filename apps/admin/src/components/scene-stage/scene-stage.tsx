@@ -339,6 +339,12 @@ export function SceneStage({
           <StageBackground viewport={viewport} size={size} stage={stage} />
           <StageGrid viewport={viewport} size={size} />
           {placed.map((node) => {
+            const attachedSounds =
+              node.kind === "artifact"
+                ? nodes.filter(
+                    (n) => n.kind === "audio" && n.data.anchorNodeId === node.id,
+                  )
+                : [];
             const isDragging = dragPos?.id === node.id;
             const world = isDragging
               ? { x: dragPos.x, y: dragPos.y }
@@ -364,6 +370,14 @@ export function SceneStage({
                 pxPerM={viewport.pxPerM}
                 selected={selectedNodeId === node.id}
                 dragging={isDragging}
+                attachedSoundCount={attachedSounds.length}
+                soundRangeM={attachedSounds.reduce<number | null>(
+                  (max, n) =>
+                    typeof n.data.rangeM === "number"
+                      ? Math.max(max ?? 0, n.data.rangeM)
+                      : max,
+                  null,
+                )}
                 resizeDims={resizePreview?.id === node.id ? resizePreview : null}
                 onPointerDown={(event) => {
                   event.stopPropagation();
@@ -619,6 +633,8 @@ function StageToken({
   pxPerM,
   selected,
   dragging,
+  attachedSoundCount = 0,
+  soundRangeM = null,
   resizeDims,
   onPointerDown,
   onResizePointerDown,
@@ -632,6 +648,8 @@ function StageToken({
   pxPerM: number;
   selected: boolean;
   dragging: boolean;
+  attachedSoundCount?: number;
+  soundRangeM?: number | null;
   resizeDims: ({ radiusM: number | null; widthM: number | null; heightM: number | null }) | null;
   onPointerDown: (event: ReactPointerEvent) => void;
   onResizePointerDown?: (event: ReactPointerEvent) => void;
@@ -747,6 +765,48 @@ function StageToken({
             }}
           />
           <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
+          {attachedSoundCount > 0 && (
+          <span
+            aria-hidden
+            title={`${attachedSoundCount} attached sound${attachedSoundCount > 1 ? "s" : ""}`}
+            style={{
+              position: "absolute",
+              top: -8,
+              right: -8,
+              minWidth: 18,
+              height: 18,
+              padding: "0 4px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--status-draft)",
+              color: "var(--background)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 10,
+              fontWeight: 700,
+              zIndex: 4,
+            }}
+          >
+            ♪{attachedSoundCount > 1 ? attachedSoundCount : ""}
+          </span>
+          )}
+          {selected && soundRangeM && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              width: soundRangeM * 2 * pxPerM,
+              height: soundRangeM * 2 * pxPerM,
+              transform: "translate(-50%, -50%)",
+              borderRadius: "50%",
+              border: "1.5px dashed color-mix(in srgb, var(--status-draft) 55%, transparent)",
+              background: "color-mix(in srgb, var(--status-draft) 6%, transparent)",
+              pointerEvents: "none",
+            }}
+          />
+          )}
           {selected && onResizePointerDown && (
             <ResizeHandle onPointerDown={onResizePointerDown} />
           )}
@@ -779,6 +839,48 @@ function StageToken({
         }}
       >
         <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
+        {attachedSoundCount > 0 && (
+          <span
+            aria-hidden
+            title={`${attachedSoundCount} attached sound${attachedSoundCount > 1 ? "s" : ""}`}
+            style={{
+              position: "absolute",
+              top: -8,
+              right: -8,
+              minWidth: 18,
+              height: 18,
+              padding: "0 4px",
+              borderRadius: "var(--radius-pill)",
+              background: "var(--status-draft)",
+              color: "var(--background)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 10,
+              fontWeight: 700,
+              zIndex: 4,
+            }}
+          >
+            ♪{attachedSoundCount > 1 ? attachedSoundCount : ""}
+          </span>
+        )}
+        {selected && soundRangeM && (
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              width: soundRangeM * 2 * pxPerM,
+              height: soundRangeM * 2 * pxPerM,
+              transform: "translate(-50%, -50%)",
+              borderRadius: "50%",
+              border: "1.5px dashed color-mix(in srgb, var(--status-draft) 55%, transparent)",
+              background: "color-mix(in srgb, var(--status-draft) 6%, transparent)",
+              pointerEvents: "none",
+            }}
+          />
+        )}
         {selected && onResizePointerDown && (
           <ResizeHandle onPointerDown={onResizePointerDown} />
         )}

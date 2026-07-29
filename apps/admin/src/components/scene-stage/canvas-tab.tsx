@@ -354,7 +354,9 @@ export function CanvasTab({
       (node.kind === "character" ||
         node.kind === "artifact" ||
         node.kind === "zone" ||
-        (node.kind === "audio" && node.data.role === "oneshot")),
+        (node.kind === "audio" &&
+          node.data.role === "oneshot" &&
+          typeof node.data.anchorNodeId !== "string")),
   );
 
   return (
@@ -614,6 +616,7 @@ export function CanvasTab({
           <PlacementInspector
             key={selected.id}
             node={selected}
+            graphNodes={graphNodes}
             asset={selected.refId ? artifactById.get(selected.refId) ?? null : null}
             artStyle={artStyle}
             styleDirection={styleDirection}
@@ -630,6 +633,7 @@ export function CanvasTab({
         ) : (
           <StageSettings
             stage={stage}
+            graphNodes={graphNodes}
             stagePatch={stagePatch}
             onStageChange={onStageChange}
             viewportRef={viewportRef}
@@ -654,6 +658,7 @@ export function CanvasTab({
 
 function PlacementInspector({
   node,
+  graphNodes,
   asset,
   artStyle,
   styleDirection,
@@ -664,6 +669,7 @@ function PlacementInspector({
   onRemoveNode,
 }: {
   node: SceneNode;
+  graphNodes: SceneNode[];
   asset: SceneLibraryArtifact | null;
   artStyle: string | null;
   styleDirection: string | null;
@@ -1000,6 +1006,99 @@ function PlacementInspector({
             />
             Sound source (fire, water — a future positional-audio hint)
           </label>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+            <span style={fieldLabelStyle}>Attached sounds</span>
+            {graphNodes
+              .filter(
+                (n) => n.kind === "audio" && n.data.anchorNodeId === node.id,
+              )
+              .map((sound) => (
+                <div
+                  key={sound.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-8)",
+                    padding: "6px 9px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-subtle)",
+                    background: "color-mix(in srgb, var(--status-draft) 8%, transparent)",
+                  }}
+                >
+                  <span aria-hidden style={{ color: T.muted }}>♪</span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--font-size-sm)" }}>
+                    {sound.label}
+                  </span>
+                  {typeof sound.data.rangeM === "number" && (
+                    <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)", color: T.muted }}>
+                      {sound.data.rangeM}m
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Detach ${sound.label}`}
+                    title="Detach — back to a free one-shot"
+                    onClick={() => {
+                      const data = { ...sound.data };
+                      delete data.anchorNodeId;
+                      onNodeSaved(sound.id, { data });
+                      void updateSceneNode(sceneId, sound.id, { data });
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      width: 22,
+                      height: 22,
+                      borderRadius: "var(--radius-md)",
+                      border: "1px solid var(--ink-line)",
+                      background: "transparent",
+                      color: T.muted,
+                      cursor: "pointer",
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            <select
+              value=""
+              onChange={(event) => {
+                const sound = graphNodes.find((n) => n.id === event.target.value);
+                if (!sound) return;
+                // Anchoring takes the sound off the open stage — it
+                // emanates from this artifact and follows it.
+                const data = { ...sound.data, anchorNodeId: node.id };
+                onNodeSaved(sound.id, { data, position: null });
+                void updateSceneNode(sceneId, sound.id, { data, position: null });
+                event.target.value = "";
+              }}
+              style={{ ...inputStyle, cursor: "pointer" }}
+            >
+              <option value="" disabled>
+                {graphNodes.some(
+                  (n) =>
+                    n.kind === "audio" &&
+                    n.data.role === "oneshot" &&
+                    typeof n.data.anchorNodeId !== "string",
+                )
+                  ? "Attach a one-shot sound…"
+                  : "No free one-shots — add them in the Environment tab"}
+              </option>
+              {graphNodes
+                .filter(
+                  (n) =>
+                    n.kind === "audio" &&
+                    n.data.role === "oneshot" &&
+                    typeof n.data.anchorNodeId !== "string",
+                )
+                .map((sound) => (
+                  <option key={sound.id} value={sound.id}>
+                    {sound.label}
+                  </option>
+                ))}
+            </select>
+          </div>
         </>
       )}
 
@@ -1103,6 +1202,7 @@ function NumberField({
 
 function StageSettings({
   stage,
+  graphNodes,
   stagePatch,
   onStageChange,
   viewportRef,
@@ -1114,6 +1214,7 @@ function StageSettings({
   onGenerateBackground,
 }: {
   stage: StageConfig | null;
+  graphNodes: SceneNode[];
   stagePatch: (patch: Partial<StageConfig>) => StageConfig;
   onStageChange: (next: StageConfig) => void;
   viewportRef: { current: Viewport | null };
@@ -1275,6 +1376,46 @@ function StageSettings({
           </AdminButton>
         </div>
       </InspectorSection>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+        <span style={kickerStyle}>Environment · root audio</span>
+        {graphNodes.filter((n) => n.kind === "audio" && n.data.role === "bed").length === 0 ? (
+          <p style={{ margin: 0, color: T.muted, fontSize: "var(--font-size-xs)", lineHeight: "17px" }}>
+            No ambience beds yet — the scene plays in silence. Add beds in the
+            Environment tab.
+          </p>
+        ) : (
+          graphNodes
+            .filter((n) => n.kind === "audio" && n.data.role === "bed")
+            .map((bed) => (
+              <div
+                key={bed.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--space-8)",
+                  padding: "6px 9px",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-subtle)",
+                }}
+              >
+                <span aria-hidden style={{ color: T.muted }}>≋</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "var(--font-size-sm)" }}>
+                  {bed.label}
+                </span>
+                {bed.data.isDefault === true && (
+                  <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)", letterSpacing: "0.08em", color: T.accent }}>
+                    DEFAULT
+                  </span>
+                )}
+              </div>
+            ))
+        )}
+        <p style={{ margin: 0, color: T.muted, fontSize: "var(--font-size-xs)", lineHeight: "17px" }}>
+          Root scene audio — beds loop under everything, unplaced. One-shots
+          attach to artifacts from the artifact&apos;s inspector.
+        </p>
+      </div>
 
       <div style={howItWorksStyle}>
         <span style={kickerStyle}>How placement works</span>

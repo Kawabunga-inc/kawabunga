@@ -120,6 +120,10 @@ export const audioDataSchema = z
     // Stage: audible range in meters when this one-shot is placed on the
     // canvas. Dormant until positional audio lands.
     rangeM: z.number().positive().max(96).optional(),
+    // Stage: anchor this sound to an artifact placement — it emanates
+    // from that set piece and follows it. Anchored sounds carry no
+    // position of their own.
+    anchorNodeId: z.string().min(1).optional(),
   })
   .strict();
 
