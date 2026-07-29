@@ -9,6 +9,7 @@ import type {
 import {
   getAudioAssetStore,
   getCharacterStore,
+  getPropAssetStore,
   getSceneGraphStore,
   getSceneStore,
 } from "@kawabunga/db";
@@ -54,6 +55,20 @@ export type SceneLibrarySound = {
   durationS: number | null;
 };
 
+/** Compact prop-asset row for the canvas tray + ref-backed prop
+ * hydration (icon and footprint defaults; node data overrides). */
+export type SceneLibraryProp = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  defaultWidthM: number | null;
+  defaultHeightM: number | null;
+  defaultRadiusM: number | null;
+  soundSource: boolean;
+};
+
 export default async function SceneDetailPage({
   params,
 }: {
@@ -64,10 +79,11 @@ export default async function SceneDetailPage({
   const scene = await getSceneStore().getSceneById(sceneId);
   if (!scene) notFound();
 
-  const [graph, library, soundLibrary] = await Promise.all([
+  const [graph, library, soundLibrary, propLibrary] = await Promise.all([
     getSceneGraphStore().getGraph(sceneId),
     getCharacterStore().list(),
     getAudioAssetStore().list(),
+    getPropAssetStore().list(),
   ]);
 
   const roster: SceneRosterEntry[] = graph.nodes
@@ -97,6 +113,18 @@ export default async function SceneDetailPage({
     durationS: a.durationS,
   }));
 
+  const libraryProps: SceneLibraryProp[] = propLibrary.map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    description: p.description,
+    icon: p.icon,
+    defaultWidthM: p.defaultWidthM,
+    defaultHeightM: p.defaultHeightM,
+    defaultRadiusM: p.defaultRadiusM,
+    soundSource: p.soundSource,
+  }));
+
   return (
     <SceneEditor
       scene={{
@@ -119,6 +147,7 @@ export default async function SceneDetailPage({
       graph={graph}
       libraryCharacters={libraryCharacters}
       librarySounds={librarySounds}
+      libraryProps={libraryProps}
     />
   );
 }

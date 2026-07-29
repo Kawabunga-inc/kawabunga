@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import type { StageConfig } from "@kawabunga/types";
 import type {
   SceneGraphPayload,
   SceneLibraryCharacter,
+  SceneLibraryProp,
 } from "@/app/(authenticated)/scenes/[sceneId]/page";
 import {
+  addPropFromLibrary,
   addPropToScene,
   addZoneToScene,
   updateSceneNode,
@@ -50,6 +52,7 @@ export function CanvasTab({
   pending,
   graphNodes,
   characterById,
+  libraryProps,
   stage,
   onStageChange,
   selectedNodeId,
@@ -61,6 +64,7 @@ export function CanvasTab({
   pending: boolean;
   graphNodes: SceneNode[];
   characterById: Map<string, SceneLibraryCharacter>;
+  libraryProps: SceneLibraryProp[];
   stage: StageConfig | null;
   onStageChange: (next: StageConfig) => void;
   selectedNodeId: string | null;
@@ -144,6 +148,26 @@ export function CanvasTab({
     })();
   }, [sceneId, viewCenter, onSelect, router]);
 
+  const propById = useMemo(() => {
+    const map = new Map<string, SceneLibraryProp>();
+    for (const asset of libraryProps) map.set(asset.id, asset);
+    return map;
+  }, [libraryProps]);
+
+  const placeFromLibrary = useCallback(
+    (assetId: string) => {
+      void (async () => {
+        const res = await addPropFromLibrary(sceneId, {
+          assetId,
+          position: viewCenter(),
+        });
+        if (res.ok && res.data) onSelect(res.data.nodeId);
+        router.refresh();
+      })();
+    },
+    [sceneId, viewCenter, onSelect, router],
+  );
+
   const selected =
     graphNodes.find((n) => n.id === selectedNodeId && isPlaced(n.position)) ?? null;
 
@@ -201,7 +225,11 @@ export function CanvasTab({
                     style={{ width: 26, display: "inline-flex", justifyContent: "center", color: T.muted }}
                   >
                     <PropIcon
-                      icon={typeof node.data.icon === "string" ? node.data.icon : null}
+                      icon={
+                        typeof node.data.icon === "string"
+                          ? node.data.icon
+                          : (node.refId ? propById.get(node.refId)?.icon : null) ?? null
+                      }
                       size={16}
                     />
                   </span>
@@ -227,11 +255,44 @@ export function CanvasTab({
             + zone
           </AdminButton>
         </div>
+
+        <span style={{ ...kickerStyle, marginTop: 8 }}>
+          Set pieces · {libraryProps.length}
+        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+          {libraryProps.map((asset) => (
+            <button
+              key={asset.id}
+              type="button"
+              onClick={() => placeFromLibrary(asset.id)}
+              title={asset.description ?? "Place at the center of the view"}
+              style={trayRowStyle}
+            >
+              <span
+                aria-hidden
+                style={{ width: 26, display: "inline-flex", justifyContent: "center", color: T.muted }}
+              >
+                <PropIcon icon={asset.icon} size={16} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {asset.name}
+              </span>
+              <span style={trayPlaceStyle}>place →</span>
+            </button>
+          ))}
+          {libraryProps.length === 0 && (
+            <p style={trayHintStyle}>
+              The library is empty — add reusable set pieces at /props, or
+              generate a set from the premise.
+            </p>
+          )}
+        </div>
       </div>
 
       <SceneStage
         nodes={graphNodes}
         characterById={characterById}
+        propAssetById={propById}
         stage={stage}
         snapM={snapM}
         selectedNodeId={selectedNodeId}
@@ -251,6 +312,7 @@ export function CanvasTab({
           <PlacementInspector
             key={selected.id}
             node={selected}
+            asset={selected.refId ? propById.get(selected.refId) ?? null : null}
             sceneId={sceneId}
             snapM={snapM}
             onNodeSaved={onNodeSaved}
@@ -273,12 +335,14 @@ export function CanvasTab({
 
 function PlacementInspector({
   node,
+  asset,
   sceneId,
   snapM,
   onNodeSaved,
   onRemoveNode,
 }: {
   node: SceneNode;
+  asset: SceneLibraryProp | null;
   sceneId: string;
   snapM: number;
   onNodeSaved: (nodeId: string, patch: Partial<SceneNode>) => void;
@@ -344,7 +408,7 @@ function PlacementInspector({
             {node.label}
           </strong>
           <span style={{ ...kickerStyle, fontSize: "var(--font-size-2xs)" }}>
-            {node.kind} · blocking
+            {node.kind}{asset ? ` · library: ${asset.slug}` : ""} · blocking
           </span>
         </div>
       </div>
@@ -411,8 +475,11 @@ function PlacementInspector({
             <span style={fieldLabelStyle}>Icon</span>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
               {PROP_ICON_KEYS.map((key) => {
-                const active =
-                  (typeof node.data.icon === "string" ? node.data.icon : null) === key;
+                const resolvedIcon =
+                  (typeof node.data.icon === "string" ? node.data.icon : null) ??
+                  asset?.icon ??
+                  null;
+                const active = resolvedIcon === key;
                 return (
                   <button
                     key={key}
@@ -444,7 +511,7 @@ function PlacementInspector({
             <NumberField
               label="radius m"
               value={num(node.data.radiusM)}
-              placeholder="—"
+              placeholder={asset?.defaultRadiusM != null ? `${asset.defaultRadiusM} (library)` : "—"}
               onCommit={(v) =>
                 saveData({ radiusM: v > 0 ? v : undefined, widthM: undefined, heightM: undefined })
               }
@@ -453,14 +520,14 @@ function PlacementInspector({
             <NumberField
               label="width m"
               value={num(node.data.widthM)}
-              placeholder="—"
+              placeholder={asset?.defaultWidthM != null ? `${asset.defaultWidthM} (library)` : "—"}
               onCommit={(v) => saveData({ widthM: v > 0 ? v : undefined, radiusM: undefined })}
               onClear={() => saveData({ widthM: undefined })}
             />
             <NumberField
               label="height m"
               value={num(node.data.heightM)}
-              placeholder="—"
+              placeholder={asset?.defaultHeightM != null ? `${asset.defaultHeightM} (library)` : "—"}
               onCommit={(v) => saveData({ heightM: v > 0 ? v : undefined, radiusM: undefined })}
               onClear={() => saveData({ heightM: undefined })}
             />

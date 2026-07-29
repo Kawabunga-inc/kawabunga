@@ -11,7 +11,11 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import type { StageConfig } from "@kawabunga/types";
-import type { SceneGraphPayload, SceneLibraryCharacter } from "@/app/(authenticated)/scenes/[sceneId]/page";
+import type {
+  SceneGraphPayload,
+  SceneLibraryCharacter,
+  SceneLibraryProp,
+} from "@/app/(authenticated)/scenes/[sceneId]/page";
 import { resolveAvatarGradient } from "@/lib/avatar-gradients";
 import { T } from "@/components/scene-tabs/shared";
 import { PropIcon } from "./prop-icons";
@@ -49,6 +53,7 @@ type DragState =
 export function SceneStage({
   nodes,
   characterById,
+  propAssetById,
   stage,
   snapM,
   selectedNodeId,
@@ -59,6 +64,7 @@ export function SceneStage({
 }: {
   nodes: SceneNode[];
   characterById: Map<string, SceneLibraryCharacter>;
+  propAssetById?: Map<string, SceneLibraryProp>;
   stage: StageConfig | null;
   snapM: number;
   selectedNodeId: string | null;
@@ -257,6 +263,11 @@ export function SceneStage({
                     ? characterById.get(node.refId) ?? null
                     : null
                 }
+                propAsset={
+                  node.kind === "prop" && node.refId
+                    ? propAssetById?.get(node.refId) ?? null
+                    : null
+                }
                 screen={screen}
                 world={world}
                 pxPerM={viewport.pxPerM}
@@ -414,6 +425,7 @@ function StageGrid({ viewport, size }: { viewport: Viewport; size: ScreenSize })
 function StageToken({
   node,
   character,
+  propAsset,
   screen,
   world,
   pxPerM,
@@ -423,6 +435,7 @@ function StageToken({
 }: {
   node: SceneNode;
   character: SceneLibraryCharacter | null;
+  propAsset?: SceneLibraryProp | null;
   screen: { x: number; y: number };
   world: { x: number; y: number };
   pxPerM: number;
@@ -481,12 +494,25 @@ function StageToken({
   }
 
   if (node.kind === "prop") {
-    const radiusM = typeof node.data.radiusM === "number" ? node.data.radiusM : null;
-    const widthM = typeof node.data.widthM === "number" ? node.data.widthM : null;
-    const heightM = typeof node.data.heightM === "number" ? node.data.heightM : null;
+    // Placement data overrides; the library asset supplies defaults.
+    const radiusM =
+      typeof node.data.radiusM === "number"
+        ? node.data.radiusM
+        : propAsset?.defaultRadiusM ?? null;
+    const widthM =
+      typeof node.data.widthM === "number"
+        ? node.data.widthM
+        : propAsset?.defaultWidthM ?? null;
+    const heightM =
+      typeof node.data.heightM === "number"
+        ? node.data.heightM
+        : propAsset?.defaultHeightM ?? null;
     const w = radiusM ? radiusM * 2 * pxPerM : widthM ? widthM * pxPerM : 36;
     const h = radiusM ? radiusM * 2 * pxPerM : heightM ? heightM * pxPerM : 36;
-    const icon = typeof node.data.icon === "string" ? node.data.icon : null;
+    const icon =
+      (typeof node.data.icon === "string" ? node.data.icon : null) ??
+      propAsset?.icon ??
+      null;
     const legacyGlyph = typeof node.data.glyph === "string" ? node.data.glyph : null;
     const iconSize = Math.min(26, Math.max(12, Math.min(w, h) * 0.55));
     return (

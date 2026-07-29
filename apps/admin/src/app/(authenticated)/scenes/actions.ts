@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getAudioAssetStore, getSceneStore, getSceneGraphStore } from "@kawabunga/db";
+import {
+  getAudioAssetStore,
+  getPropAssetStore,
+  getSceneStore,
+  getSceneGraphStore,
+} from "@kawabunga/db";
 import type { StageNodePosition } from "@kawabunga/db";
 import type { StageConfig } from "@kawabunga/types";
 import { invalidateScenesList } from "@/lib/scenes-cache";
@@ -227,6 +232,38 @@ export async function addPropToScene(
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Failed to add prop.",
+    };
+  }
+}
+
+/** Place a library set piece. The node stays thin (data = {}) — icon
+ * and footprint come from the asset at render time; inspector edits
+ * write per-placement overrides into data. */
+export async function addPropFromLibrary(
+  sceneId: string,
+  input: { assetId: string; position?: StageNodePosition | null },
+): Promise<ActionResult<{ nodeId: string }>> {
+  try {
+    const asset = await getPropAssetStore().getById(input.assetId);
+    if (!asset) return { ok: false, error: "Prop not found in the library." };
+
+    const node = await getSceneGraphStore().createNode({
+      sceneId,
+      kind: "prop",
+      refId: asset.id,
+      label: asset.name,
+      summary: asset.description,
+      data: {},
+      position: input.position ?? null,
+    });
+    revalidatePath(`/scenes/${sceneId}`);
+    revalidatePath("/scenes");
+    invalidateScenesList();
+    return { ok: true, data: { nodeId: node.id } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to place prop.",
     };
   }
 }
