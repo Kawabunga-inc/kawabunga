@@ -409,6 +409,11 @@ function StageBackground({
         top: topLeft.y,
         width: WORLD.widthM * viewport.pxPerM,
         height: WORLD.heightM * viewport.pxPerM,
+        // Tailwind preflight sets img { max-width: 100% }, which clamps
+        // the plate to the container and silently breaks full-bleed —
+        // max-width beats width no matter where width is declared.
+        maxWidth: "none",
+        maxHeight: "none",
         pointerEvents: "none",
         userSelect: "none",
         // Pixel art stays crisp when the plate is scaled up.
