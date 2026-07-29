@@ -469,6 +469,7 @@ export function CanvasTab({
             key={selected.id}
             node={selected}
             asset={selected.refId ? propById.get(selected.refId) ?? null : null}
+            artStyle={stage?.artStyle ?? null}
             sceneId={sceneId}
             snapM={snapM}
             onNodeSaved={onNodeSaved}
@@ -492,6 +493,7 @@ export function CanvasTab({
 function PlacementInspector({
   node,
   asset,
+  artStyle,
   sceneId,
   snapM,
   onNodeSaved,
@@ -499,13 +501,48 @@ function PlacementInspector({
 }: {
   node: SceneNode;
   asset: SceneLibraryProp | null;
+  artStyle: string | null;
   sceneId: string;
   snapM: number;
   onNodeSaved: (nodeId: string, patch: Partial<SceneNode>) => void;
   onRemoveNode: (nodeId: string) => void;
 }) {
+  const router = useRouter();
   const position = isPlaced(node.position) ? node.position : { x: 0, y: 0 };
   const [label, setLabel] = useState(node.label);
+  const [spriteBusy, setSpriteBusy] = useState(false);
+  const [spriteError, setSpriteError] = useState<string | null>(null);
+
+  // Generate this asset's sprite for the scene's art style without
+  // leaving the canvas — same endpoint the /props page uses; the
+  // refresh pulls the new rendition into the library payload.
+  const generateSprite = useCallback(() => {
+    if (!asset || !artStyle) return;
+    setSpriteBusy(true);
+    setSpriteError(null);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/props/${encodeURIComponent(asset.id)}/generate-image`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ style: artStyle }),
+          },
+        );
+        const body = (await res.json()) as { error?: string };
+        if (!res.ok) {
+          setSpriteError(body.error ?? "Generation failed.");
+        } else {
+          router.refresh();
+        }
+      } catch {
+        setSpriteError("Generation failed.");
+      } finally {
+        setSpriteBusy(false);
+      }
+    })();
+  }, [asset, artStyle, router]);
 
   const saveData = useCallback(
     (dataPatch: Record<string, unknown>) => {
@@ -581,6 +618,56 @@ function PlacementInspector({
             style={inputStyle}
           />
         </Field>
+      )}
+
+      {node.kind === "prop" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+          <span style={fieldLabelStyle}>
+            Scene art{artStyle ? ` · ${STAGE_ART_STYLES[artStyle]?.label ?? artStyle}` : ""}
+          </span>
+          {!asset ? (
+            <p style={spriteHintStyle}>
+              Ad-hoc prop — save it to the library (/props) to generate sprite art.
+            </p>
+          ) : !artStyle ? (
+            <p style={spriteHintStyle}>
+              Pick an Art style in Stage settings (click empty ground) to render
+              sprites instead of icons.
+            </p>
+          ) : (
+            <>
+              {asset.images[artStyle] && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={asset.images[artStyle]}
+                  alt={`${asset.name} — ${artStyle} sprite`}
+                  style={{
+                    width: 96,
+                    height: 96,
+                    objectFit: "contain",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--ink-line)",
+                    background:
+                      "repeating-conic-gradient(color-mix(in srgb, var(--text-primary) 6%, transparent) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px",
+                  }}
+                />
+              )}
+              <AdminButton
+                type="button"
+                variant="secondary"
+                disabled={spriteBusy}
+                onClick={generateSprite}
+              >
+                {spriteBusy
+                  ? "Generating…"
+                  : asset.images[artStyle]
+                    ? "↻ Regenerate sprite"
+                    : "✦ Generate sprite"}
+              </AdminButton>
+              {spriteError && <p style={spriteErrorStyle}>{spriteError}</p>}
+            </>
+          )}
+        </div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
@@ -996,6 +1083,20 @@ const trayPlaceStyle: CSSProperties = {
   fontSize: "var(--font-size-2xs)",
   letterSpacing: "0.1em",
   textTransform: "uppercase",
+};
+
+const spriteHintStyle: CSSProperties = {
+  margin: 0,
+  color: T.muted,
+  fontSize: "var(--font-size-xs)",
+  lineHeight: "17px",
+};
+
+const spriteErrorStyle: CSSProperties = {
+  margin: 0,
+  color: T.danger,
+  fontSize: "var(--font-size-xs)",
+  lineHeight: "17px",
 };
 
 const inspectorColumnStyle: CSSProperties = {
