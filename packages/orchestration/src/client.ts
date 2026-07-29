@@ -1137,6 +1137,15 @@ function buildOrchestratorUserPrompt(
     lines.push("should advance NOW (a character follows up, re-engages, or presses)");
     lines.push("or `wait-for-user` if the last turn already invited them in and the");
     lines.push("silence is natural. Don't fill every silence.");
+    // The stakes rule lives in the system prompt, but this framing sits
+    // closer to the decision and was overriding it: a woman held at
+    // knifepoint got `wait-for-user` because the user had gone quiet.
+    // Silence during an unresolved crisis is not a lull — it is the room
+    // waiting for someone to move.
+    lines.push("But silence during an UNRESOLVED crisis is not a natural lull. If");
+    lines.push("someone is being held, has been struck, or stands in danger and it");
+    lines.push("has not yet been answered, the quiet belongs to the person who must");
+    lines.push("act - `speak`, and let them act. Do not hold there.");
   } else if (lastUserMessage) {
     lines.push("");
     lines.push(`The user just said: "${lastUserMessage}"`);
