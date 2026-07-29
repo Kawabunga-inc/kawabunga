@@ -75,6 +75,44 @@ describe("stage node kinds (prop, zone)", () => {
   });
 });
 
+describe("prop ref rules (ref-optional kind)", () => {
+  it("accepts icon in prop data and still tolerates legacy glyph", () => {
+    expect(propDataSchema.parse({ icon: "tent", widthM: 4, heightM: 3 })).toEqual({
+      icon: "tent",
+      widthM: 4,
+      heightM: 3,
+    });
+    expect(propDataSchema.parse({ glyph: "▲" })).toEqual({ glyph: "▲" });
+  });
+
+  it("still rejects refIds on kinds that never allow them", async () => {
+    await expect(
+      getSceneGraphStore().createNode({
+        sceneId: "scene_1",
+        kind: "zone",
+        refId: "prop_asset_ref",
+        label: "The tent",
+        data: { shape: "rect", widthM: 4, heightM: 3 },
+      }),
+    ).rejects.toThrow("must not carry refId");
+  });
+
+  it("does not reject a ref-backed prop at the validation layer", async () => {
+    // Props are ref-OPTIONAL: the refId gate must pass; the next check is
+    // asset existence, which needs a database — absent one, the error is
+    // about the DB, never "must not carry refId".
+    await expect(
+      getSceneGraphStore().createNode({
+        sceneId: "scene_1",
+        kind: "prop",
+        refId: "some_prop_asset",
+        label: "Tent",
+        data: { icon: "tent" },
+      }),
+    ).rejects.toThrow(/DATABASE_URL|not found/);
+  });
+});
+
 describe("stage positions", () => {
   it("accepts meters with optional z and rotation", () => {
     expect(stagePositionSchema.parse({ x: -3, y: 0.5 })).toEqual({ x: -3, y: 0.5 });

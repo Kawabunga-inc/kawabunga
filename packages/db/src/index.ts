@@ -202,6 +202,16 @@ export type {
   StageNodePosition,
 } from "./scene-graph-store";
 
+export { getPropAssetStore } from "./prop-asset-store";
+export type {
+  PropAssetStore,
+  PropAssetRecord,
+  PropAssetSource,
+  CreatePropAssetInput,
+  UpdatePropAssetInput,
+  ListPropAssetsOptions,
+} from "./prop-asset-store";
+
 export { getSceneStore } from "./scene-store";
 export type {
   SceneStore,

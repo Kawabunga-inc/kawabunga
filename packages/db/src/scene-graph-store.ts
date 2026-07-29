@@ -5,6 +5,7 @@ import { retryRead } from "./retry";
 import {
   audioAssetsTable,
   charactersTable,
+  propAssetsTable,
   sceneEdgesTable,
   sceneNodesTable,
 } from "./schema";
@@ -128,6 +129,11 @@ export type AudioNodeData = z.infer<typeof audioDataSchema>;
 // footprint (widthM×heightM) or a radius for round pieces.
 export const propDataSchema = z
   .object({
+    // Key into the admin icon catalog. Overrides the asset's icon for
+    // ref-backed props; the whole visual for ad-hoc ones.
+    icon: z.string().trim().min(1).optional(),
+    // Legacy unicode glyph from before the icon catalog; still renders,
+    // no longer written.
     glyph: z.string().trim().min(1).optional(),
     widthM: z.number().positive().max(96).optional(),
     heightM: z.number().positive().max(64).optional(),
@@ -164,6 +170,11 @@ const dataSchemasByKind = {
 } as const satisfies Record<NodeKind, z.ZodTypeAny>;
 
 const kindsRequiringRef = new Set<NodeKind>(["character", "audio"]);
+
+// Kinds that may carry a refId. Superset of kindsRequiringRef: props are
+// ref-OPTIONAL — library-backed when placed from the prop-assets catalog,
+// ref-less when created ad hoc on the canvas.
+const kindsAllowingRef = new Set<NodeKind>(["character", "audio", "prop"]);
 
 function validateNodeData(kind: NodeKind, data: unknown): Record<string, unknown> {
   const schema = dataSchemasByKind[kind];
@@ -371,7 +382,7 @@ function neonStore(): SceneGraphStore {
       if (kindsRequiringRef.has(input.kind) && !input.refId) {
         throw new Error(`kind='${input.kind}' requires refId`);
       }
-      if (!kindsRequiringRef.has(input.kind) && input.refId) {
+      if (!kindsAllowingRef.has(input.kind) && input.refId) {
         throw new Error(`kind='${input.kind}' must not carry refId`);
       }
 
@@ -401,6 +412,19 @@ function neonStore(): SceneGraphStore {
             .limit(1),
         );
         if (!a) throw new Error(`audio asset ${input.refId} not found`);
+      }
+
+      if (input.kind === "prop" && input.refId) {
+        const db = requireDb();
+        const refId = input.refId;
+        const [p] = await retryRead(() =>
+          db
+            .select({ id: propAssetsTable.id })
+            .from(propAssetsTable)
+            .where(eq(propAssetsTable.id, refId))
+            .limit(1),
+        );
+        if (!p) throw new Error(`prop asset ${input.refId} not found`);
       }
 
       const db = requireDb();
