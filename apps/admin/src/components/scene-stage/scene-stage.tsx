@@ -14,6 +14,7 @@ import type { StageConfig } from "@kawabunga/types";
 import type { SceneGraphPayload, SceneLibraryCharacter } from "@/app/(authenticated)/scenes/[sceneId]/page";
 import { resolveAvatarGradient } from "@/lib/avatar-gradients";
 import { T } from "@/components/scene-tabs/shared";
+import { PropIcon } from "./prop-icons";
 import {
   clampToWorld,
   clampZoom,
@@ -485,7 +486,9 @@ function StageToken({
     const heightM = typeof node.data.heightM === "number" ? node.data.heightM : null;
     const w = radiusM ? radiusM * 2 * pxPerM : widthM ? widthM * pxPerM : 36;
     const h = radiusM ? radiusM * 2 * pxPerM : heightM ? heightM * pxPerM : 36;
-    const glyph = typeof node.data.glyph === "string" ? node.data.glyph : "▲";
+    const icon = typeof node.data.icon === "string" ? node.data.icon : null;
+    const legacyGlyph = typeof node.data.glyph === "string" ? node.data.glyph : null;
+    const iconSize = Math.min(26, Math.max(12, Math.min(w, h) * 0.55));
     return (
       <div
         onPointerDown={onPointerDown}
@@ -505,9 +508,13 @@ function StageToken({
           justifyContent: "center",
         }}
       >
-        <span aria-hidden style={{ color: T.muted, fontSize: Math.min(18, Math.max(11, pxPerM * 0.5)) }}>
-          {glyph}
-        </span>
+        {!icon && legacyGlyph ? (
+          <span aria-hidden style={{ color: T.muted, fontSize: Math.min(18, Math.max(11, pxPerM * 0.5)) }}>
+            {legacyGlyph}
+          </span>
+        ) : (
+          <PropIcon icon={icon} size={iconSize} style={{ color: T.muted }} />
+        )}
         <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
       </div>
     );

@@ -24,6 +24,7 @@ import {
   kickerStyle,
   T,
 } from "@/components/scene-tabs/shared";
+import { PROP_ICON_KEYS, PROP_ICONS, PropIcon } from "./prop-icons";
 import { SceneStage } from "./scene-stage";
 import {
   clampToWorld,
@@ -34,8 +35,6 @@ import {
 } from "./stage-math";
 
 type SceneNode = SceneGraphPayload["nodes"][number];
-
-const PROP_GLYPHS = ["▲", "●", "■", "✶", "≋", "♨"] as const;
 
 const GROUND_PRESETS: Array<{ key: string; color: string | null; label: string }> = [
   { key: "default", color: null, label: "default" },
@@ -123,7 +122,6 @@ export function CanvasTab({
     void (async () => {
       const res = await addPropToScene(sceneId, {
         label: "New prop",
-        glyph: PROP_GLYPHS[0],
         radiusM: 0.5,
         position: viewCenter(),
       });
@@ -197,9 +195,19 @@ export function CanvasTab({
                           ),
                     }}
                   />
+                ) : node.kind === "prop" ? (
+                  <span
+                    aria-hidden
+                    style={{ width: 26, display: "inline-flex", justifyContent: "center", color: T.muted }}
+                  >
+                    <PropIcon
+                      icon={typeof node.data.icon === "string" ? node.data.icon : null}
+                      size={16}
+                    />
+                  </span>
                 ) : (
                   <span aria-hidden style={{ width: 26, textAlign: "center", color: T.muted }}>
-                    {node.kind === "audio" ? "♪" : node.kind === "zone" ? "▢" : "▲"}
+                    {node.kind === "audio" ? "♪" : "▢"}
                   </span>
                 )}
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -399,19 +407,39 @@ function PlacementInspector({
 
       {node.kind === "prop" && (
         <>
-          <Field label="Glyph">
-            <select
-              value={typeof node.data.glyph === "string" ? node.data.glyph : "▲"}
-              onChange={(event) => saveData({ glyph: event.target.value })}
-              style={{ ...inputStyle, cursor: "pointer" }}
-            >
-              {PROP_GLYPHS.map((glyph) => (
-                <option key={glyph} value={glyph}>
-                  {glyph}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+            <span style={fieldLabelStyle}>Icon</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 4 }}>
+              {PROP_ICON_KEYS.map((key) => {
+                const active =
+                  (typeof node.data.icon === "string" ? node.data.icon : null) === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    title={PROP_ICONS[key].label}
+                    aria-label={`Icon: ${PROP_ICONS[key].label}`}
+                    onClick={() => saveData({ icon: key, glyph: undefined })}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: 34,
+                      borderRadius: "var(--radius-md)",
+                      border: active
+                        ? "1.5px solid var(--accent-strong)"
+                        : "1px solid var(--ink-line)",
+                      background: active ? T.accentSoft : "transparent",
+                      color: active ? T.fg : T.muted,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <PropIcon icon={key} size={17} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--space-6)" }}>
             <NumberField
               label="radius m"

@@ -194,7 +194,7 @@ export async function addPropToScene(
   sceneId: string,
   input: {
     label: string;
-    glyph?: string;
+    icon?: string;
     widthM?: number;
     heightM?: number;
     radiusM?: number;
@@ -211,7 +211,7 @@ export async function addPropToScene(
       kind: "prop",
       label,
       data: {
-        ...(input.glyph?.trim() ? { glyph: input.glyph.trim() } : {}),
+        ...(input.icon?.trim() ? { icon: input.icon.trim() } : {}),
         ...(input.widthM ? { widthM: input.widthM } : {}),
         ...(input.heightM ? { heightM: input.heightM } : {}),
         ...(input.radiusM ? { radiusM: input.radiusM } : {}),
