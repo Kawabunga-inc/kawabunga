@@ -374,24 +374,48 @@ function StageBackground({
   if (!url) return null;
   const topLeft = worldToScreen({ x: -WORLD_MAX_X, y: WORLD_MAX_Y }, viewport, size);
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url}
-      alt=""
-      aria-hidden
-      draggable={false}
-      style={{
-        position: "absolute",
-        left: topLeft.x,
-        top: topLeft.y,
-        width: WORLD.widthM * viewport.pxPerM,
-        height: WORLD.heightM * viewport.pxPerM,
-        pointerEvents: "none",
-        userSelect: "none",
-        // Pixel art stays crisp when the plate is scaled up.
-        imageRendering: artStyle === "pixel" ? "pixelated" : "auto",
-      }}
-    />
+    <>
+      {/* Beyond the world edge: the same plate, blurred and dimmed, so
+          zooming out never shows dead ground color — the world reads as
+          the in-focus part of a larger landscape. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          filter: "blur(28px) brightness(0.55) saturate(0.85)",
+          transform: "scale(1.1)",
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{
+          position: "absolute",
+          left: topLeft.x,
+          top: topLeft.y,
+          width: WORLD.widthM * viewport.pxPerM,
+          height: WORLD.heightM * viewport.pxPerM,
+          boxShadow: "0 0 60px color-mix(in srgb, black 45%, transparent)",
+          pointerEvents: "none",
+          userSelect: "none",
+          // Pixel art stays crisp when the plate is scaled up.
+          imageRendering: artStyle === "pixel" ? "pixelated" : "auto",
+        }}
+      />
+    </>
   );
 }
 
