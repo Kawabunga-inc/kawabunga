@@ -41,7 +41,12 @@ import {
 } from "./voice-ack-audio-cache";
 import { isAckLaneEnabled, selectVoiceAck } from "./voice-ack-lane";
 import { isStageDirection } from "./stage-direction";
-import { isRefusalBoilerplate, inCharacterDeflectionInstruction } from "./refusal-guard";
+import {
+  containsSafetyReferral,
+  inCharacterDeflectionInstruction,
+  isRefusalBoilerplate,
+  signalsGenuineDistress,
+} from "./refusal-guard";
 import { createEmbeddingSignedUrl } from "./voice-embedding-url";
 import { estimateSessionTurnCost } from "./session-cost";
 import { createEventQueue } from "./event-queue";
@@ -1166,6 +1171,31 @@ export async function* runVoiceStream(
       // no refusal text echoed into scene history).
       let refusalHoldActive = true;
       let rerollRequested = false;
+      let rerollKind: "refusal" | "referral" = "refusal";
+      // The carve-out: when the user's OWN words signal real personal
+      // distress, a safety referral is the correct reply and must stand.
+      // Only in-fiction triggers (a declared action, a narrated event, a
+      // character being threatened) get re-rolled back into voice.
+      const userInDistress = signalsGenuineDistress(message);
+      // A bracketed message is a NARRATED EVENT the driver chained to this
+      // character ("[You seize Sarah…]") — exactly the turns where the model
+      // reaches for a hotline. The referral usually lands mid-reply, after a
+      // perfectly in-voice opening has already released the hold and started
+      // audio, which is too late to retract. So on these turns only, hold the
+      // WHOLE reply until it completes, judge it intact, and re-roll before a
+      // single frame is dispatched. Costs latency on rare, high-stakes turns;
+      // every ordinary turn keeps the first-sentence hold.
+      const isBracketedEvent = (text: string) => /^\s*\[[\s\S]*\]\s*$/.test(text);
+      // The charge outlasts the event turn itself: after a knife is drawn, the
+      // NEXT few plain-text turns ("I mean it. Renounce him now.") are still
+      // inside the moment, and that is where the referral actually landed in
+      // testing. So the hold covers the event turn plus the turns that follow
+      // it while it is still in view of the history window.
+      const recentEvent = (input.history ?? [])
+        .slice(-3)
+        .some((m) => isBracketedEvent(m.content));
+      const holdFullReply =
+        (isBracketedEvent(message) || recentEvent) && !userInDistress;
       let rerolled = false;
       let currentRollAbort: AbortController | null = null;
       // Counts every token callback — the watchdog compares against a snapshot
@@ -1200,6 +1230,9 @@ export async function* runVoiceStream(
               return;
             }
           }
+          // Event-reaction turns keep holding to the end (see holdFullReply)
+          // so a late referral can still be caught before any audio.
+          if (holdFullReply) return;
           // Clean first sentence (or too long to be boilerplate) — release
           // the hold and emit everything accumulated as one delta.
           refusalHoldActive = false;
@@ -1257,7 +1290,7 @@ export async function* runVoiceStream(
               ...promptPlan.systemPromptParts,
               perTurn: [
                 promptPlan.systemPromptParts.perTurn,
-                inCharacterDeflectionInstruction(characterDisplayName),
+                inCharacterDeflectionInstruction(characterDisplayName, rerollKind),
               ]
                 .filter(Boolean)
                 .join("\n\n"),
@@ -1353,6 +1386,24 @@ export async function* runVoiceStream(
           serverTrace.mark("server.llm.refusal_detected", {
             text: replyText.trim().slice(0, 120),
             at: "stream-end",
+          });
+        }
+        // SAFETY REFERRAL — scanned across the WHOLE reply (the opening
+        // sentence is often perfectly in voice; the hotline arrives later).
+        // Skipped entirely when the user signals genuine distress: that
+        // reply is doing the right thing and must not be re-rolled.
+        if (
+          !rerollRequested &&
+          !rerolled &&
+          refusalHoldActive &&
+          chosenProvider &&
+          !userInDistress &&
+          containsSafetyReferral(replyText)
+        ) {
+          rerollRequested = true;
+          rerollKind = "referral";
+          serverTrace.mark("server.llm.referral_detected", {
+            text: replyText.trim().slice(0, 160),
           });
         }
         if (rerollRequested && !signal.aborted) {
