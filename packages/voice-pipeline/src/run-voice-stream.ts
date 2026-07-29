@@ -45,7 +45,9 @@ import {
   containsSafetyReferral,
   inCharacterDeflectionInstruction,
   isRefusalBoilerplate,
+  refusesToDepict,
   signalsGenuineDistress,
+  stripReasoningPreamble,
 } from "./refusal-guard";
 import { createEmbeddingSignedUrl } from "./voice-embedding-url";
 import { estimateSessionTurnCost } from "./session-cost";
@@ -1171,7 +1173,7 @@ export async function* runVoiceStream(
       // no refusal text echoed into scene history).
       let refusalHoldActive = true;
       let rerollRequested = false;
-      let rerollKind: "refusal" | "referral" = "refusal";
+      let rerollKind: "refusal" | "referral" | "depict" = "refusal";
       // The carve-out: when the user's OWN words signal real personal
       // distress, a safety referral is the correct reply and must stand.
       // Only in-fiction triggers (a declared action, a narrated event, a
@@ -1203,6 +1205,18 @@ export async function* runVoiceStream(
       // anything (emittedAnyToken/replyText reset on different boundaries).
       let tokenEventCount = 0;
 
+      // A leaked reasoning preamble ("Hm — let me think.") sits at the very
+      // front of the reply, so it would be spoken first. Strip it at the
+      // moment the hold releases — before any token is emitted or any TTS
+      // chunk is cut — rather than re-rolling: the line after it is fine.
+      const stripPreamble = () => {
+        const cleaned = stripReasoningPreamble(replyText);
+        if (cleaned === replyText) return;
+        serverTrace.mark("server.llm.preamble_stripped", {
+          removed: replyText.slice(0, replyText.length - cleaned.length).trim(),
+        });
+        replyText = cleaned;
+      };
       const onToken = (delta: string) => {
         if (signal.aborted || rerollRequested) return;
         if (!delta) return;
@@ -1236,6 +1250,7 @@ export async function* runVoiceStream(
           // Clean first sentence (or too long to be boilerplate) — release
           // the hold and emit everything accumulated as one delta.
           refusalHoldActive = false;
+          stripPreamble();
           emitMainTokenDelta(replyText);
         } else {
           emitMainTokenDelta(delta);
@@ -1406,6 +1421,21 @@ export async function* runVoiceStream(
             text: replyText.trim().slice(0, 160),
           });
         }
+        // REFUSAL TO DEPICT — "I will not describe that." A character lives
+        // in the scene; they do not decline to portray it.
+        if (
+          !rerollRequested &&
+          !rerolled &&
+          refusalHoldActive &&
+          chosenProvider &&
+          refusesToDepict(replyText)
+        ) {
+          rerollRequested = true;
+          rerollKind = "depict";
+          serverTrace.mark("server.llm.refusal_to_depict_detected", {
+            text: replyText.trim().slice(0, 160),
+          });
+        }
         if (rerollRequested && !signal.aborted) {
           serverTrace.mark("server.llm.refusal_rerolled", {
             refusedText: replyText.trim().slice(0, 160),
@@ -1435,6 +1465,7 @@ export async function* runVoiceStream(
       // text reaches the client and the final flush below can dispatch TTS.
       if (refusalHoldActive) {
         refusalHoldActive = false;
+        stripPreamble();
         if (replyText) emitMainTokenDelta(replyText);
       }
 
