@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSceneSessionStore } from "@kawabunga/db";
+import { getSceneGraphStore, getSceneSessionStore, getSceneStore } from "@kawabunga/db";
 import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -50,10 +50,64 @@ export async function POST(req: NextRequest) {
         characterId: body.characterId ?? null,
       },
     });
+    await appendStageSnapshot(record.id, body.sceneId ?? null);
     return NextResponse.json({ session: record }, { status: 201 });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/* Dormant spatial hook: record the scene's authored blocking (stage
+ * config + world-space placements) as an append-only session event.
+ * Nothing reads it yet — it exists so sessions carry their starting
+ * blocking from day one and future spatial features can backfill.
+ * Never blocks session creation. */
+async function appendStageSnapshot(sessionId: string, sceneId: string | null) {
+  if (!sceneId) return;
+  try {
+    const [scene, graph] = await Promise.all([
+      getSceneStore().getSceneById(sceneId),
+      getSceneGraphStore().getGraph(sceneId),
+    ]);
+    if (!scene) return;
+
+    // In-bounds meters only; legacy pixel rows read as unplaced.
+    const placements = graph.nodes
+      .filter(
+        (node) =>
+          node.position &&
+          Math.abs(node.position.x) <= 48 &&
+          Math.abs(node.position.y) <= 32,
+      )
+      .map((node) => ({
+        nodeId: node.id,
+        kind: node.kind,
+        refId: node.refId,
+        label: node.label,
+        position: node.position,
+        ...(typeof node.data.earshotM === "number" ? { earshotM: node.data.earshotM } : {}),
+        ...(typeof node.data.rangeM === "number" ? { rangeM: node.data.rangeM } : {}),
+        ...(node.kind === "zone"
+          ? {
+              shape: node.data.shape,
+              widthM: node.data.widthM,
+              heightM: node.data.heightM,
+            }
+          : {}),
+      }));
+
+    const stage = scene.definition.stage ?? null;
+    if (!stage && placements.length === 0) return;
+
+    await getSceneSessionStore().appendEvent({
+      sessionId,
+      type: "stage.snapshot",
+      source: "system",
+      payload: { stage, placements },
+    });
+  } catch (err) {
+    console.warn("stage.snapshot event skipped:", err);
   }
 }
 
