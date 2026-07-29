@@ -271,6 +271,7 @@ export function SceneStage({
             return (
               <StageToken
                 key={node.id}
+                artStyle={stage?.artStyle ?? null}
                 node={node}
                 character={
                   node.kind === "character" && node.refId
@@ -445,6 +446,7 @@ function StageGrid({ viewport, size }: { viewport: Viewport; size: ScreenSize })
 /* ── Tokens ────────────────────────────────────────────────────────── */
 
 function StageToken({
+  artStyle,
   node,
   character,
   propAsset,
@@ -455,6 +457,7 @@ function StageToken({
   dragging,
   onPointerDown,
 }: {
+  artStyle: string | null;
   node: SceneNode;
   character: SceneLibraryCharacter | null;
   propAsset?: SceneLibraryProp | null;
@@ -535,8 +538,46 @@ function StageToken({
       (typeof node.data.icon === "string" ? node.data.icon : null) ??
       propAsset?.icon ??
       null;
+    const sprite = artStyle ? propAsset?.images?.[artStyle] ?? null : null;
     const legacyGlyph = typeof node.data.glyph === "string" ? node.data.glyph : null;
     const iconSize = Math.min(26, Math.max(12, Math.min(w, h) * 0.55));
+    if (sprite) {
+      // Sprite rendition: the image IS the token — no panel chrome, just
+      // a selection ring. Sized to the footprint like the icon token.
+      return (
+        <div
+          onPointerDown={onPointerDown}
+          style={{
+            ...base,
+            width: Math.max(26, w),
+            height: Math.max(26, h),
+            transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: radiusM ? "50%" : "var(--radius-md)",
+            boxShadow: selected
+              ? "0 0 0 3px color-mix(in srgb, var(--accent-strong) 45%, transparent)"
+              : undefined,
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={sprite}
+            alt={node.label}
+            draggable={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              pointerEvents: "none",
+              filter: "drop-shadow(0 3px 6px color-mix(in srgb, var(--text-primary) 30%, transparent))",
+            }}
+          />
+          <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
+        </div>
+      );
+    }
     return (
       <div
         onPointerDown={onPointerDown}

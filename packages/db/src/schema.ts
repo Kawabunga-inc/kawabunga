@@ -570,9 +570,11 @@ export const propAssetsTable = pgTable(
     description: text("description"),
     // Key into the admin app's top-down icon catalog (prop-icons.tsx).
     icon: text("icon"),
-    // Future: URL of a top-down sprite (public bucket, like character
-    // thumbnails). No upload UI yet.
-    image: text("image"),
+    // Generated top-down sprite renditions, keyed by art-style preset
+    // ("pixel" | "anime" | ...) -> public URL. A scene renders its own
+    // style's rendition and falls back to the icon when missing, so one
+    // shared asset can look different per scene.
+    images: jsonb("images").notNull().default({}),
     // Default footprint in meters — either a radius (round pieces) or a
     // width×height. Placements may override in node data.
     defaultWidthM: real("default_width_m"),

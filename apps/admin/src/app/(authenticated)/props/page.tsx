@@ -10,6 +10,8 @@ export type PropAssetSummary = {
   name: string;
   description: string | null;
   icon: string | null;
+  /** Generated sprite renditions: art-style key -> public URL. */
+  images: Record<string, string>;
   defaultWidthM: number | null;
   defaultHeightM: number | null;
   defaultRadiusM: number | null;
@@ -32,6 +34,7 @@ export default async function PropsPage() {
     name: a.name,
     description: a.description,
     icon: a.icon,
+    images: a.images,
     defaultWidthM: a.defaultWidthM,
     defaultHeightM: a.defaultHeightM,
     defaultRadiusM: a.defaultRadiusM,

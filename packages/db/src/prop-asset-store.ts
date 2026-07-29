@@ -15,8 +15,8 @@ export interface PropAssetRecord {
   description: string | null;
   /** Key into the admin app's top-down icon catalog. */
   icon: string | null;
-  /** Future top-down sprite URL; no UI writes it yet. */
-  image: string | null;
+  /** Generated sprite renditions: art-style key -> public URL. */
+  images: Record<string, string>;
   defaultWidthM: number | null;
   defaultHeightM: number | null;
   defaultRadiusM: number | null;
@@ -36,7 +36,7 @@ export interface CreatePropAssetInput {
   name: string;
   description?: string | null;
   icon?: string | null;
-  image?: string | null;
+  images?: Record<string, string>;
   defaultWidthM?: number | null;
   defaultHeightM?: number | null;
   defaultRadiusM?: number | null;
@@ -51,7 +51,7 @@ export interface UpdatePropAssetInput {
   name?: string;
   description?: string | null;
   icon?: string | null;
-  image?: string | null;
+  images?: Record<string, string>;
   defaultWidthM?: number | null;
   defaultHeightM?: number | null;
   defaultRadiusM?: number | null;
@@ -106,7 +106,7 @@ function normalize(row: typeof propAssetsTable.$inferSelect): PropAssetRecord {
     name: row.name,
     description: row.description,
     icon: row.icon,
-    image: row.image,
+    images: (row.images as Record<string, string> | null) ?? {},
     defaultWidthM: row.defaultWidthM,
     defaultHeightM: row.defaultHeightM,
     defaultRadiusM: row.defaultRadiusM,
@@ -198,7 +198,7 @@ function neonStore(): PropAssetStore {
           name: input.name,
           description: input.description ?? null,
           icon: input.icon ?? null,
-          image: input.image ?? null,
+          images: input.images ?? {},
           defaultWidthM: input.defaultWidthM ?? null,
           defaultHeightM: input.defaultHeightM ?? null,
           defaultRadiusM: input.defaultRadiusM ?? null,

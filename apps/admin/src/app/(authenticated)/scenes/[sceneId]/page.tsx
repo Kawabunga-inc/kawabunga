@@ -63,6 +63,8 @@ export type SceneLibraryProp = {
   name: string;
   description: string | null;
   icon: string | null;
+  /** Generated sprite renditions: art-style key -> public URL. */
+  images: Record<string, string>;
   defaultWidthM: number | null;
   defaultHeightM: number | null;
   defaultRadiusM: number | null;
@@ -119,6 +121,7 @@ export default async function SceneDetailPage({
     name: p.name,
     description: p.description,
     icon: p.icon,
+    images: p.images,
     defaultWidthM: p.defaultWidthM,
     defaultHeightM: p.defaultHeightM,
     defaultRadiusM: p.defaultRadiusM,

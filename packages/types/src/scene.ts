@@ -187,6 +187,9 @@ export const stagePositionSchema = z.object({
 
 export const stageConfigSchema = z.object({
   groundColor: z.string().nullable().default(null),
+  // Art-style preset driving generated prop sprites ("pixel", "anime",
+  // ...). null = draw the icon catalog instead of images.
+  artStyle: z.string().nullable().default(null),
   snapM: z.number().positive().nullable().default(null),
   viewport: z
     .object({ cx: z.number(), cy: z.number(), zoom: z.number().positive() })

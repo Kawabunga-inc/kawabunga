@@ -27,6 +27,7 @@ import {
   kickerStyle,
   T,
 } from "@/components/scene-tabs/shared";
+import { STAGE_ART_STYLES, STAGE_ART_STYLE_KEYS } from "@/lib/stage-art-styles";
 import { PROP_ICON_KEYS, PROP_ICONS, PropIcon } from "./prop-icons";
 import { SceneStage, type StageGhost } from "./scene-stage";
 import {
@@ -95,6 +96,7 @@ export function CanvasTab({
   const stagePatch = useCallback(
     (patch: Partial<StageConfig>): StageConfig => ({
       groundColor: stage?.groundColor ?? null,
+      artStyle: stage?.artStyle ?? null,
       snapM: stage?.snapM ?? null,
       viewport: stage?.viewport ?? null,
       spawn: stage?.spawn ?? null,
@@ -844,6 +846,23 @@ function StageSettings({
             })}
           </div>
         </div>
+
+        <Field label="Art style">
+          <select
+            value={stage?.artStyle ?? ""}
+            onChange={(event) =>
+              onStageChange(stagePatch({ artStyle: event.target.value || null }))
+            }
+            style={{ ...inputStyle, cursor: "pointer" }}
+          >
+            <option value="">icons — no generated art</option>
+            {STAGE_ART_STYLE_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {STAGE_ART_STYLES[key].label}
+              </option>
+            ))}
+          </select>
+        </Field>
 
         <Field label="Snap">
           <select

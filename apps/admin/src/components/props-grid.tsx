@@ -13,6 +13,7 @@ import {
 import { AdminButton, AdminPageShell, AdminStatusPill, adminTokens } from "@/components/admin-ui";
 import { useHeaderContent } from "@/components/header-context";
 import { PROP_ICON_KEYS, PROP_ICONS, PropIcon } from "@/components/scene-stage/prop-icons";
+import { STAGE_ART_STYLES, STAGE_ART_STYLE_KEYS } from "@/lib/stage-art-styles";
 import {
   checkboxRowStyle,
   Field,
@@ -306,6 +307,10 @@ function PropAssetRow({
         </AdminButton>
       </div>
 
+      {!editing && !asset.archivedAt && (
+        <SpriteStrip asset={asset} onError={onError} refresh={refresh} />
+      )}
+
       {asset.description && !editing && (
         <p
           style={{
@@ -348,6 +353,125 @@ function PropAssetRow({
           />
         </div>
       )}
+    </div>
+  );
+}
+
+/* One rendition slot per art style: thumbnail when generated, a
+ * generate button when not. Renditions are what scene canvases render
+ * when their stage's art style matches. */
+function SpriteStrip({
+  asset,
+  onError,
+  refresh,
+}: {
+  asset: PropAssetSummary;
+  onError: (message: string | null) => void;
+  refresh: () => void;
+}) {
+  const [generatingStyle, setGeneratingStyle] = useState<string | null>(null);
+
+  const generate = (style: string) => {
+    setGeneratingStyle(style);
+    onError(null);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/props/${encodeURIComponent(asset.id)}/generate-image`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ style }),
+          },
+        );
+        const body = (await res.json()) as { error?: string };
+        if (!res.ok) onError(body.error ?? "Sprite generation failed.");
+        refresh();
+      } catch {
+        onError("Sprite generation failed.");
+      } finally {
+        setGeneratingStyle(null);
+      }
+    })();
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-8)",
+        padding: "0 16px 12px 68px",
+        flexWrap: "wrap",
+      }}
+    >
+      {STAGE_ART_STYLE_KEYS.map((style) => {
+        const url = asset.images[style];
+        const busy = generatingStyle === style;
+        return (
+          <div
+            key={style}
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
+          >
+            {url ? (
+              <button
+                type="button"
+                title={`Regenerate ${STAGE_ART_STYLES[style].label}`}
+                disabled={busy}
+                onClick={() => generate(style)}
+                style={{
+                  width: 52,
+                  height: 52,
+                  padding: 0,
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--ink-line)",
+                  background: "var(--ink-soft)",
+                  cursor: busy ? "wait" : "pointer",
+                  overflow: "hidden",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`${asset.name} — ${STAGE_ART_STYLES[style].label}`}
+                  style={{ width: "100%", height: "100%", objectFit: "contain", opacity: busy ? 0.4 : 1 }}
+                />
+              </button>
+            ) : (
+              <button
+                type="button"
+                title={`Generate ${STAGE_ART_STYLES[style].label} sprite`}
+                disabled={busy}
+                onClick={() => generate(style)}
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "var(--radius-md)",
+                  border: "1px dashed var(--ink-line)",
+                  background: "transparent",
+                  color: T.muted,
+                  cursor: busy ? "wait" : "pointer",
+                  fontSize: 16,
+                  lineHeight: 1,
+                }}
+              >
+                {busy ? "…" : "✦"}
+              </button>
+            )}
+            <span
+              style={{
+                fontFamily: T.fontMono,
+                fontSize: "var(--font-size-2xs)",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: T.muted,
+              }}
+            >
+              {STAGE_ART_STYLES[style].label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
