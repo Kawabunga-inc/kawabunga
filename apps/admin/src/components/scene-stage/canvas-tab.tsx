@@ -9,6 +9,7 @@ import type {
   SceneLibraryProp,
 } from "@/app/(authenticated)/scenes/[sceneId]/page";
 import {
+  acceptGeneratedProp,
   addPropFromLibrary,
   addPropToScene,
   addZoneToScene,
@@ -27,7 +28,7 @@ import {
   T,
 } from "@/components/scene-tabs/shared";
 import { PROP_ICON_KEYS, PROP_ICONS, PropIcon } from "./prop-icons";
-import { SceneStage } from "./scene-stage";
+import { SceneStage, type StageGhost } from "./scene-stage";
 import {
   clampToWorld,
   isPlaced,
@@ -37,6 +38,21 @@ import {
 } from "./stage-math";
 
 type SceneNode = SceneGraphPayload["nodes"][number];
+
+/** One generated set-piece proposal from /generate-set. */
+type GhostProposal = {
+  id: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  icon?: string;
+  radiusM?: number;
+  widthM?: number;
+  heightM?: number;
+  soundSource?: boolean;
+  position: { x: number; y: number };
+  reuseAssetSlug?: string;
+};
 
 const GROUND_PRESETS: Array<{ key: string; color: string | null; label: string }> = [
   { key: "default", color: null, label: "default" },
@@ -168,6 +184,63 @@ export function CanvasTab({
     [sceneId, viewCenter, onSelect, router],
   );
 
+  // ── Generated set proposals (ghosts until accepted) ──
+  const [proposals, setProposals] = useState<GhostProposal[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+
+  const generateSet = useCallback(() => {
+    setGenerating(true);
+    setGenError(null);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/scenes/${encodeURIComponent(sceneId)}/generate-set`,
+          { method: "POST" },
+        );
+        const body = (await res.json()) as {
+          proposals?: GhostProposal[];
+          error?: string;
+        };
+        if (!res.ok || !body.proposals) {
+          setGenError(body.error ?? "Generation failed.");
+        } else {
+          setProposals(body.proposals);
+        }
+      } catch {
+        setGenError("Generation failed.");
+      } finally {
+        setGenerating(false);
+      }
+    })();
+  }, [sceneId]);
+
+  const acceptProposal = useCallback(
+    (proposal: GhostProposal) => {
+      void (async () => {
+        const res = await acceptGeneratedProp(sceneId, proposal);
+        if (!res.ok) {
+          setGenError(res.error);
+          return;
+        }
+        setProposals((prev) => prev.filter((p) => p.id !== proposal.id));
+        if (res.data) onSelect(res.data.nodeId);
+        router.refresh();
+      })();
+    },
+    [sceneId, onSelect, router],
+  );
+
+  const ghosts: StageGhost[] = proposals.map((p) => ({
+    id: p.id,
+    label: p.name,
+    icon: p.icon ?? null,
+    radiusM: p.radiusM ?? null,
+    widthM: p.widthM ?? null,
+    heightM: p.heightM ?? null,
+    position: p.position,
+  }));
+
   const selected =
     graphNodes.find((n) => n.id === selectedNodeId && isPlaced(n.position)) ?? null;
 
@@ -256,9 +329,89 @@ export function CanvasTab({
           </AdminButton>
         </div>
 
-        <span style={{ ...kickerStyle, marginTop: 8 }}>
-          Set pieces · {libraryProps.length}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+          <span style={kickerStyle}>Set pieces · {libraryProps.length}</span>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={generateSet}
+            disabled={generating}
+            title="Propose set pieces from the scene premise"
+            style={{
+              ...trayPlaceStyle,
+              border: "none",
+              background: "transparent",
+              cursor: generating ? "wait" : "pointer",
+              padding: 0,
+            }}
+          >
+            {generating ? "generating…" : "✦ generate set"}
+          </button>
+        </div>
+        {genError && (
+          <p style={{ ...trayHintStyle, color: T.danger }}>{genError}</p>
+        )}
+        {proposals.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+            {proposals.map((proposal) => (
+              <div
+                key={proposal.id}
+                style={{
+                  ...trayRowStyle,
+                  cursor: "default",
+                  borderStyle: "dashed",
+                  borderColor: "color-mix(in srgb, var(--accent-strong) 45%, transparent)",
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{ width: 26, display: "inline-flex", justifyContent: "center", color: T.muted }}
+                >
+                  <PropIcon icon={proposal.icon ?? null} size={16} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {proposal.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => acceptProposal(proposal)}
+                  title="Accept — adds to the library and places it"
+                  style={proposalActionStyle("var(--accent-strong)")}
+                >
+                  ✓
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setProposals((prev) => prev.filter((p) => p.id !== proposal.id))
+                  }
+                  title="Discard proposal"
+                  style={proposalActionStyle(T.muted)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: "var(--space-6)" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  for (const proposal of [...proposals]) acceptProposal(proposal);
+                }}
+                style={{ ...trayPlaceStyle, border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
+              >
+                accept all
+              </button>
+              <button
+                type="button"
+                onClick={() => setProposals([])}
+                style={{ ...trayPlaceStyle, color: T.muted, border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
+              >
+                clear
+              </button>
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
           {libraryProps.map((asset) => (
             <button
@@ -293,6 +446,7 @@ export function CanvasTab({
         nodes={graphNodes}
         characterById={characterById}
         propAssetById={propById}
+        ghosts={ghosts}
         stage={stage}
         snapM={snapM}
         selectedNodeId={selectedNodeId}
@@ -797,6 +951,24 @@ const trayRowStyle: CSSProperties = {
   cursor: "pointer",
   textAlign: "left",
 };
+
+function proposalActionStyle(color: string): CSSProperties {
+  return {
+    flexShrink: 0,
+    width: 24,
+    height: 24,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "var(--radius-pill)",
+    border: "1px solid var(--ink-line)",
+    background: "transparent",
+    color,
+    cursor: "pointer",
+    fontSize: 13,
+    lineHeight: 1,
+  };
+}
 
 const trayPlaceStyle: CSSProperties = {
   flexShrink: 0,

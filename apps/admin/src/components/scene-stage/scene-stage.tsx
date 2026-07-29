@@ -43,6 +43,18 @@ type DragState =
   | { mode: "node"; nodeId: string; moved: boolean }
   | { mode: "spawn"; moved: boolean };
 
+/** A generated set-piece proposal rendered as a non-interactive dashed
+ *  token until the user accepts or discards it. */
+export type StageGhost = {
+  id: string;
+  label: string;
+  icon: string | null;
+  radiusM?: number | null;
+  widthM?: number | null;
+  heightM?: number | null;
+  position: { x: number; y: number };
+};
+
 /* ── The overhead stage surface ─────────────────────────────────────
  * A single shared world (96×64 m, origin center, +x right, +y up)
  * rendered as DOM tokens over an SVG meter grid. Zones scale with
@@ -54,6 +66,7 @@ export function SceneStage({
   nodes,
   characterById,
   propAssetById,
+  ghosts,
   stage,
   snapM,
   selectedNodeId,
@@ -65,6 +78,7 @@ export function SceneStage({
   nodes: SceneNode[];
   characterById: Map<string, SceneLibraryCharacter>;
   propAssetById?: Map<string, SceneLibraryProp>;
+  ghosts?: StageGhost[];
   stage: StageConfig | null;
   snapM: number;
   selectedNodeId: string | null;
@@ -282,6 +296,14 @@ export function SceneStage({
               />
             );
           })}
+          {(ghosts ?? []).map((ghost) => (
+            <GhostToken
+              key={ghost.id}
+              ghost={ghost}
+              screen={worldToScreen(ghost.position, viewport, size)}
+              pxPerM={viewport.pxPerM}
+            />
+          ))}
           <SpawnMarker
             screen={worldToScreen(
               dragPos?.id === "__spawn" ? { x: dragPos.x, y: dragPos.y } : spawn,
@@ -690,6 +712,66 @@ function TokenLabel({
         <span style={{ fontFamily: T.fontMono, fontWeight: 400, color: T.muted }}>{coords}</span>
       )}
     </span>
+  );
+}
+
+function GhostToken({
+  ghost,
+  screen,
+  pxPerM,
+}: {
+  ghost: StageGhost;
+  screen: { x: number; y: number };
+  pxPerM: number;
+}) {
+  const w = ghost.radiusM
+    ? ghost.radiusM * 2 * pxPerM
+    : ghost.widthM
+      ? ghost.widthM * pxPerM
+      : 36;
+  const h = ghost.radiusM
+    ? ghost.radiusM * 2 * pxPerM
+    : ghost.heightM
+      ? ghost.heightM * pxPerM
+      : 36;
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        left: screen.x,
+        top: screen.y,
+        zIndex: 90,
+        width: Math.max(26, w),
+        height: Math.max(26, h),
+        transform: "translate(-50%, -50%)",
+        borderRadius: ghost.radiusM ? "50%" : "var(--radius-md)",
+        border: "1.5px dashed color-mix(in srgb, var(--accent-strong) 55%, transparent)",
+        background: "color-mix(in srgb, var(--accent-strong) 6%, transparent)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "color-mix(in srgb, var(--accent-strong) 70%, var(--text-tertiary))",
+        pointerEvents: "none",
+      }}
+    >
+      <PropIcon icon={ghost.icon} size={Math.min(24, Math.max(12, Math.min(w, h) * 0.5))} />
+      <span
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: Math.max(15, h / 2) + 4,
+          transform: "translateX(-50%)",
+          fontFamily: T.fontMono,
+          fontSize: "var(--font-size-2xs)",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {ghost.label} · proposed
+      </span>
+    </div>
   );
 }
 

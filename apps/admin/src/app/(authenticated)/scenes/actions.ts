@@ -268,6 +268,82 @@ export async function addPropFromLibrary(
   }
 }
 
+/** Accept one generated set-piece proposal: resolve or create the
+ * library asset (source "generated", provenance = the scene premise),
+ * then place a ref-backed node at the proposed position. */
+export async function acceptGeneratedProp(
+  sceneId: string,
+  proposal: {
+    name: string;
+    slug?: string;
+    description?: string;
+    icon?: string;
+    radiusM?: number;
+    widthM?: number;
+    heightM?: number;
+    soundSource?: boolean;
+    position: { x: number; y: number };
+    reuseAssetSlug?: string;
+  },
+): Promise<ActionResult<{ nodeId: string }>> {
+  try {
+    const scene = await getSceneStore().getSceneById(sceneId);
+    if (!scene) return { ok: false, error: "Scene not found." };
+
+    const store = getPropAssetStore();
+    const slug = (proposal.reuseAssetSlug ?? proposal.slug ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      || proposal.name.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!slug) return { ok: false, error: "Proposal has no usable slug." };
+
+    let asset = await store.getBySlug(slug);
+    if (!asset) {
+      asset = await store.create({
+        slug,
+        name: proposal.name.trim(),
+        description: proposal.description?.trim() || null,
+        icon: proposal.icon?.trim() || null,
+        defaultRadiusM: proposal.radiusM ?? null,
+        defaultWidthM: proposal.radiusM ? null : proposal.widthM ?? null,
+        defaultHeightM: proposal.radiusM ? null : proposal.heightM ?? null,
+        soundSource: proposal.soundSource ?? false,
+        source: "generated",
+        generationPrompt: scene.prompt || null,
+      });
+    }
+
+    // Snap to the half-meter grid and clamp to the world.
+    const snap = (v: number) => Math.round(v * 2) / 2;
+    const position = {
+      x: Math.min(48, Math.max(-48, snap(proposal.position.x))),
+      y: Math.min(32, Math.max(-32, snap(proposal.position.y))),
+    };
+
+    const node = await getSceneGraphStore().createNode({
+      sceneId,
+      kind: "prop",
+      refId: asset.id,
+      label: asset.name,
+      summary: asset.description,
+      data: {},
+      position,
+    });
+    revalidatePath(`/scenes/${sceneId}`);
+    revalidatePath("/scenes");
+    revalidatePath("/props");
+    invalidateScenesList();
+    return { ok: true, data: { nodeId: node.id } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to accept proposal.",
+    };
+  }
+}
+
 export async function addZoneToScene(
   sceneId: string,
   input: {
