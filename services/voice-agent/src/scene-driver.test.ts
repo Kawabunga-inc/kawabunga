@@ -961,6 +961,33 @@ describe("SceneDriver — timed world events", () => {
   });
 });
 
+describe("SceneDriver — proactive history conventions", () => {
+  it("brackets narrator turns in proactive history (referral-guard hold depends on it)", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "You yank Sarah toward the fire; she stumbles into the flames." },
+      speakDecision("sarah", "Cry out"), // chain reactor
+      speakDecision("abraham", "React to the horror"), // proactive follow-up
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => {});
+    const { speak, inputs } = fakeSpeak(["Abraham—why this fire?", "Sarah!"]);
+
+    await driver.drive("Narrator. I push Sarah into the fire.", speak);
+    await driver.driveProactive(speak);
+
+    const proactiveInput = inputs[inputs.length - 1]!;
+    expect(proactiveInput.speaker.slug).toBe("abraham");
+    const bracketed = proactiveInput.history.filter((h) => /^\[[\s\S]*\]$/.test(h.content));
+    expect(bracketed.length).toBeGreaterThanOrEqual(1);
+    expect(bracketed[0]!.content).toContain("You yank Sarah");
+    // And the visitor-attribution convention rides the directive chunk.
+    expect(proactiveInput.promptChunk).toContain('"you"/"your" refers to THE');
+  });
+});
+
 describe("SceneDriver — momentum cascades", () => {
   it("keeps advancing while decisions carry momentum, then stops when it clears", async () => {
     const exec = fakeExecutor([

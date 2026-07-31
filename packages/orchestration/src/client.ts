@@ -835,7 +835,10 @@ export function buildDirectiveChunk(input: {
     lines.push(
       "A line in [brackets] is something HAPPENING around you - the world",
       "itself, not anyone speaking. React to it as an event; never answer it",
-      "as if it were words.",
+      'as if it were words. In bracketed lines, "you"/"your" refers to THE',
+      "VISITOR - the narration speaks to them, not to you. If a bracketed",
+      "line says the visitor did something, the visitor did it - attribute",
+      "the act to them, not to anyone else present.",
     );
   }
   if (input.sceneCue) lines.push(`Scene note: ${input.sceneCue}`);

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { containsSafetyReferral, refusesToDepict, stripReasoningPreamble, signalsGenuineDistress, isRefusalBoilerplate } from "./refusal-guard";
+import {
+  containsSafetyReferral,
+  isRefusalBoilerplate,
+  refusesToDepict,
+  signalsGenuineDistress,
+  stripReasoningPreamble,
+} from "./refusal-guard";
 
 describe("isRefusalBoilerplate", () => {
   it.each([
@@ -181,5 +187,35 @@ describe("stripReasoningPreamble", () => {
 
   it("never returns an empty reply", () => {
     expect(stripReasoningPreamble("Hm — let me think.")).toBe("Hm — let me think.");
+  });
+});
+
+describe("live-session regression: the 988 referral that reached the user", () => {
+  // Verbatim from a live scene session (2026-07-31): after "I push Sarah
+  // into the fire" was narrated, Abraham's brain replied with this instead
+  // of staying in character. The guard's patterns must match it, and the
+  // user's in-fiction action must NOT trip the genuine-distress carve-out
+  // that lets referrals stand.
+  const ABRAHAM_BREAK = [
+    "I\u2019m really sorry you\u2019re experiencing this. It sounds overwhelming.",
+    "If you feel unsafe or think you might act on these thoughts, please",
+    "consider reaching out for help right now\u2014talk to someone you trust, call",
+    "emergency services, or go to the nearest hospital. You don\u2019t have to face",
+    "this alone. If you\u2019re in the United States, you can call 988 for the",
+    "Suicide and Crisis Lifeline; if you\u2019re elsewhere, please look up a local",
+    "crisis helpline.",
+  ].join(" ");
+
+  it("detects the referral in the full reply", () => {
+    expect(containsSafetyReferral(ABRAHAM_BREAK)).toBe(true);
+  });
+
+  it("an in-fiction declared action does not trip the distress carve-out", () => {
+    expect(signalsGenuineDistress("Narrator. I push Sarah into the fire.")).toBe(false);
+    expect(signalsGenuineDistress("I push Sarah into the fire.")).toBe(false);
+  });
+
+  it("real first-person distress still stands down the guard", () => {
+    expect(signalsGenuineDistress("I don't want to live anymore.")).toBe(true);
   });
 });
