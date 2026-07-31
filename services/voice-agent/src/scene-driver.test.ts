@@ -988,6 +988,30 @@ describe("SceneDriver — proactive history conventions", () => {
   });
 });
 
+describe("SceneDriver — the scene's first move", () => {
+  it("uses the SCENE-OPEN framing before the visitor's first word, silence after", async () => {
+    const exec = fakeExecutor([speakDecision("abraham", "Receive the traveler")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.recordNarration("Evening comes slow to Mamre; an old man steps out to meet you.");
+    const { speak } = fakeSpeak(["Peace, traveler — sit by the fire."]);
+
+    await driver.driveProactive(speak);
+    const openPrompt = exec.requests[0]!.messages[1]!.content;
+    expect(openPrompt).toContain("The scene has just OPENED");
+    expect(openPrompt).not.toContain("gone quiet");
+
+    // After a real user turn, proactive ticks return to silence framing.
+    await driver.drive("Peace be with you.", speak);
+    await driver.driveProactive(speak);
+    const silencePrompt = exec.requests[exec.requests.length - 1]!.messages[1]!.content;
+    expect(silencePrompt).toContain("gone quiet");
+    expect(silencePrompt).not.toContain("The scene has just OPENED");
+  });
+});
+
 describe("SceneDriver — momentum cascades", () => {
   it("keeps advancing while decisions carry momentum, then stops when it clears", async () => {
     const exec = fakeExecutor([

@@ -579,6 +579,18 @@ export default defineAgent({
         idleTimer = null;
       }
     };
+    // The scene's FIRST MOVE: prompt the director shortly after the opening
+    // (or immediately-ish in silent-open scenes) so a host character can
+    // receive the visitor. Faster than the idle cadence — a greeting 3.5s
+    // after the narration reads as a frozen stage. Same guards as armIdle;
+    // proactiveTick itself re-checks who holds the floor.
+    const FIRST_MOVE_MS = Number(process.env.VOICE_AGENT_FIRST_MOVE_MS ?? 1500);
+    const armFirstMove = () => {
+      clearIdle();
+      if (!PROACTIVE_ENABLED || sceneEnded) return;
+      if (userIsSpeaking || speaking) return;
+      idleTimer = setTimeout(proactiveTick, FIRST_MOVE_MS);
+    };
     const armIdle = () => {
       clearIdle();
       if (!PROACTIVE_ENABLED || sceneEnded) return;
@@ -778,8 +790,12 @@ export default defineAgent({
         .finally(() => {
           speaking = false;
           worldAudio?.setDucked(false);
-          armIdle(); // a proactive tick may follow the opening if the user stays quiet
+          armFirstMove(); // the scene's first move follows the opening promptly
         });
+    } else {
+      // No opening narration (openingMode off / no routing): the scene still
+      // owes the visitor a first move — a character noticing the arrival.
+      armFirstMove();
     }
 
     // DIAGNOSTIC (gated): on join, drive ONE turn from a canned user message so the

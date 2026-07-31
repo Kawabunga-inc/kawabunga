@@ -22,6 +22,7 @@ import {
   MOMENTUM_MARKER,
   NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
+  SCENE_OPEN_MARKER,
   RECENT_TURNS_LIMIT,
   expandLandedBeats,
   matchArcLabel,
@@ -953,9 +954,15 @@ export class SceneDriver {
     // time has come and must render it. Consumed here; restored if a newer
     // turn supersedes us before the decision applies.
     const worldEvent = this.#consumeDueWorldEvent(Date.now());
+    // Before the visitor's first word, a proactive tick is the scene's FIRST
+    // MOVE (a character receives them), not a silence-filler — the generic
+    // silence framing reads the opening narration as "already put something
+    // to the user" and holds (observed live: three sessions, no greeting).
+    const hasUserTurn = this.#recentTurns.some((t) => t.speakerSlug === "user");
+    const marker = hasUserTurn ? PROACTIVE_SILENCE_MARKER : SCENE_OPEN_MARKER;
     // Proactive failures stay a hold — nobody is waiting, so silence is the
     // correct degraded behavior (unlike the reactive path's recovery).
-    const { decision } = await this.#decide(PROACTIVE_SILENCE_MARKER, "proactive", undefined, {
+    const { decision } = await this.#decide(marker, "proactive", undefined, {
       worldEventDirective: worldEvent?.direction,
     });
     // The user started talking (or a new turn began) while we deliberated —
