@@ -13,6 +13,7 @@ import {
   resolveSceneDecision,
   sanitizeOpeningNarration,
   selectAuthoredOpening,
+  dismissedPresentCharacters,
   mergeChronicle,
   readSceneChronicleFromSnapshot,
   sanitizeChronicle,
@@ -802,11 +803,25 @@ describe("character presence", () => {
     expect(next.speakerSlug).not.toBe("ada");
   });
 
-  it("will not let a departing character speak on the way out", () => {
-    // The observed failure: a character is killed and still takes the turn.
+  it("lets a departing character speak their leave-taking, then retires them", () => {
+    // Stage semantics: a dismissed character says goodbye ON the exit
+    // decision; every LATER decision excludes them (next test).
     const res = resolveSceneDecision(
       { scene, sceneState: base() },
-      { action: "speak", speakerId: "ada", beat: "last words", exitSlug: "ada" },
+      { action: "speak", speakerId: "ada", beat: "a short goodbye", exitSlug: "ada" },
+    );
+    expect(res.degraded).toBe(false);
+    expect(res.speakerSlug).toBe("ada");
+    expect(res.sceneState.presentCharacterSlugs).not.toContain("ada");
+    // Continuity must not point at the departed.
+    expect(res.sceneState.lastSpeakerSlug).toBeNull();
+  });
+
+  it("still blocks speaking for a character who is already absent", () => {
+    const state = { ...base(), presentCharacterSlugs: ["turing"] };
+    const res = resolveSceneDecision(
+      { scene, sceneState: state },
+      { action: "speak", speakerId: "ada", beat: "from beyond", exitSlug: "ada" },
     );
     expect(res.degraded).toBe(true);
     expect(res.speakerSlug).not.toBe("ada");
@@ -956,5 +971,32 @@ describe("the chronicle", () => {
     const without = buildSceneDecisionRequest({ scene, sceneState: state })
       .messages[0]!.content;
     expect(without).not.toContain("The chronicle");
+  });
+});
+
+
+describe("dismissedPresentCharacters", () => {
+  const present = scene.characters;
+
+  it("detects a named dismissal", () => {
+    expect(
+      dismissedPresentCharacters("Ada, leave us. I wish to speak with Turing alone.", present).map(
+        (c) => c.characterSlug,
+      ),
+    ).toEqual(["ada"]);
+    expect(
+      dismissedPresentCharacters("Go on then, Ada.", present).map((c) => c.characterSlug),
+    ).toEqual(["ada"]);
+    expect(
+      dismissedPresentCharacters("Narrator, Ada withdraws and leaves us by the fire.", present).map(
+        (c) => c.characterSlug,
+      ),
+    ).toEqual(["ada"]);
+  });
+
+  it("stays silent for ordinary mentions and unrelated 'leave' usage", () => {
+    expect(dismissedPresentCharacters("Ada, what did the machine measure?", present)).toEqual([]);
+    expect(dismissedPresentCharacters("Don't leave the lamp burning, Ada.", present)).toEqual([]);
+    expect(dismissedPresentCharacters("leave us out of the ledger entirely", present)).toEqual([]);
   });
 });

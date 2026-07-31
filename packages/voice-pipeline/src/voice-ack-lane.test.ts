@@ -65,3 +65,23 @@ describe("selectVoiceAck", () => {
       .toBe("I can speak to that.");
   });
 });
+
+describe("third-party-directed messages", () => {
+  const base = {
+    enabled: true,
+    characterTitle: "Abraham",
+    selectedPages: [{ page: { slug: "sarah", title: "Sarah" } }],
+  };
+
+  it("skips the ack when the message is FOR someone else", () => {
+    expect(selectVoiceAck({ ...base, message: "I have a message for your wife." })).toBeNull();
+    expect(selectVoiceAck({ ...base, message: "There is word for Sarah from the valley." })).toBeNull();
+    expect(selectVoiceAck({ ...base, message: "Tell Sarah the merchants have come." })).toBeNull();
+    expect(selectVoiceAck({ ...base, message: "Give Eliezer this waterskin." })).toBeNull();
+  });
+
+  it("still acks messages directed at the character themselves", () => {
+    expect(selectVoiceAck({ ...base, message: "I brought something for you, Abraham." })).not.toBeNull();
+    expect(selectVoiceAck({ ...base, message: "Tell me of the promise you carry." })).not.toBeNull();
+  });
+});
