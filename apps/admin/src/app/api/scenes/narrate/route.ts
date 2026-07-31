@@ -32,10 +32,14 @@ type NarrateBody = {
  * POST /api/scenes/narrate
  *
  * Synthesizes narrator speech. A library voice id routes through the SAME
- * streaming TTS pipeline characters use (createStreamingTtsAdapterForVoice),
- * returning PCM frames the scene player feeds into SceneAudioBus — so the
- * narrator sounds like the chosen library voice, not an OpenAI fallback.
- * A bare OpenAI voice name (or no voice) falls back to batch OpenAI TTS.
+ * streaming TTS pipeline characters use (createStreamingTtsAdapterForVoice)
+ * and STREAMS the PCM frames as NDJSON — a header line, then one line per
+ * frame — so playback starts on the first frame instead of after the whole
+ * synthesis (long scenic passages open in ~one frame's latency and remain
+ * barge-in interruptible on the client). The first frame is prefetched
+ * BEFORE the response commits: a provider that fails pre-audio still falls
+ * back to batch OpenAI TTS with a clean JSON response.
+ * A bare OpenAI voice name (or no voice) uses batch OpenAI TTS (mp3 JSON).
  */
 export async function POST(req: NextRequest) {
   let body: NarrateBody;
@@ -68,18 +72,63 @@ export async function POST(req: NextRequest) {
           providerConfig: bound.providerConfig,
         };
         const routing = createStreamingTtsAdapterForVoice(voiceForRouting);
-        const frames: Array<{ pcm: string; sampleRate: number }> = [];
-        for await (const frame of routing.adapter.stream({
-          text,
-          voice: routing.voiceContext,
-        })) {
+        const iterator = routing.adapter
+          .stream({ text, voice: routing.voiceContext })
+          [Symbol.asyncIterator]();
+
+        // Prefetch to the FIRST audio frame before committing the response —
+        // an adapter that dies pre-audio falls back to batch OpenAI below
+        // with clean JSON semantics (we haven't sent headers yet).
+        let firstAudio: { pcm: string; sampleRate: number } | null = null;
+        while (firstAudio === null) {
+          const next = await iterator.next();
+          if (next.done) throw new Error("TTS stream ended before any audio");
+          const frame = next.value;
           if (frame.type === "audio") {
-            frames.push({ pcm: frame.pcmFloat32Base64, sampleRate: frame.sampleRate });
+            firstAudio = { pcm: frame.pcmFloat32Base64, sampleRate: frame.sampleRate };
           } else if (frame.type === "error") {
             throw new Error(frame.message);
           }
         }
-        return NextResponse.json({ kind: "pcm", provider: routing.provider, frames });
+
+        const encoder = new TextEncoder();
+        const line = (obj: unknown) => encoder.encode(`${JSON.stringify(obj)}\n`);
+        const first = firstAudio;
+        const stream = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            controller.enqueue(line({ kind: "pcm-stream", provider: routing.provider }));
+            controller.enqueue(line(first));
+            try {
+              while (true) {
+                const next = await iterator.next();
+                if (next.done) break;
+                const frame = next.value;
+                if (frame.type === "audio") {
+                  controller.enqueue(
+                    line({ pcm: frame.pcmFloat32Base64, sampleRate: frame.sampleRate }),
+                  );
+                } else if (frame.type === "error") {
+                  // Mid-stream failure: the client keeps what it played and
+                  // surfaces the partial — nothing else we can do post-commit.
+                  controller.enqueue(line({ error: frame.message }));
+                  break;
+                }
+              }
+            } catch (err) {
+              controller.enqueue(
+                line({ error: err instanceof Error ? err.message : "narration stream failed" }),
+              );
+            } finally {
+              controller.close();
+            }
+          },
+        });
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "application/x-ndjson",
+            "Cache-Control": "no-store",
+          },
+        });
       } catch (err) {
         // Fall through to OpenAI batch so narration still plays even if the
         // library voice's provider is misconfigured.

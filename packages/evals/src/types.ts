@@ -155,6 +155,7 @@ export type EvalRun = {
     topP?: number;
     maxTokens: number;
     cacheControl: boolean;
+    reasoningEffort?: "none" | "low" | "medium" | "high";
   };
 
   judgeModel: string;

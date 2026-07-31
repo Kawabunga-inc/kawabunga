@@ -93,6 +93,12 @@ export {
   OpenAIChatProvider,
   CerebrasChatProvider,
   GroqChatProvider,
+  XaiChatProvider,
+  GeminiChatProvider,
+  FireworksChatProvider,
+  DeepSeekChatProvider,
+  BasetenChatProvider,
+  OpenAICompatibleChatProvider,
 } from "./chat-providers";
 export type {
   ChatProvider,

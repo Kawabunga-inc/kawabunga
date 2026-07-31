@@ -112,13 +112,10 @@ export function CharacterVoiceWavefield(props: Props) {
   }, [started, warmStartedAt]);
 
   const availableModels = useMemo(() => modelsFor("voice"), []);
-  // Voice surface only supports Anthropic + Cerebras today (OpenAI's realtime
-  // API is a different shape we haven't integrated). The registry returns the
-  // wider ProviderId union; narrow at the boundary with a fallback to
-  // "cerebras" if somehow an unsupported provider slips through the picker.
-  const rawProvider = providerFor(model);
-  const provider: "anthropic" | "cerebras" =
-    rawProvider === "anthropic" ? "anthropic" : "cerebras";
+  // The voice-stream route dispatches by MODEL id (registry meta wins), so
+  // `provider` here is informational — pass the registry's answer through,
+  // falling back to the voice default's provider for unknown ids.
+  const provider = providerFor(model, "cerebras");
   const modelMeta = modelMetaFor(model);
   // Locked once the panel has mounted — model can't change mid-session.
   const modelLocked = started;

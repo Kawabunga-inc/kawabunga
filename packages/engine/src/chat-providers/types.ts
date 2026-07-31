@@ -41,6 +41,11 @@ export type ChatRequestOptions = {
   /** Sampling. Omit when the model doesn't support a knob; the registry's
    * capabilities field is the source of truth for caller-side gating. */
   temperature?: number;
+  /** Reasoning budget for reasoning-first models (xAI Grok: "none" disables
+   * thinking entirely — the voice-latency lever). Sent as `reasoning_effort`
+   * by the OpenAI-compatible providers; Anthropic/OpenAI providers ignore it
+   * (they have their own mechanisms, unwired). Omit = the model's default. */
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   topP?: number;
   maxTokens: number;
   /** Optional abort signal — wire to AbortController for cancellation. */
@@ -80,7 +85,7 @@ export type ChatResponse = {
 
 export interface ChatProvider {
   /** Provider name, matches `ProviderId` from the registry. */
-  readonly id: "anthropic" | "openai" | "cerebras" | "groq";
+  readonly id: import("../model-registry").ProviderId;
 
   /** Single-shot completion — used by the evals runner. Internally may use
    * the SDK's non-streaming endpoint, or wrap stream() and accumulate. */

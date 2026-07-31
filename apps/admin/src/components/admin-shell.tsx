@@ -28,6 +28,7 @@ import {
   Users,
   User,
   Wind,
+  Box,
 } from "react-feather";
 
 const I = 18; // icon size
@@ -52,6 +53,7 @@ const icons = {
   tool: <Tool size={I} />,
   docs: <Book size={I} />,
   sounds: <Wind size={I} />,
+  artifacts: <Box size={I} />,
 };
 
 const kawabungaWordmark = (
@@ -89,6 +91,7 @@ const items: SidebarItem[] = [
   { href: "/wikis", label: "Wikis", section: "Studio", icon: icons.wikis, tab: "app" },
   { href: "/voices", label: "Voices", section: "Studio", icon: icons.waveform, tab: "app" },
   { href: "/sounds", label: "Enviro Sounds", section: "Studio", icon: icons.sounds, tab: "app" },
+  { href: "/artifacts", label: "Artifacts", section: "Studio", icon: icons.artifacts, tab: "app" },
   { href: "/users", label: "Users", section: "Ops", icon: icons.users, tab: "app" },
   { href: "/sessions", label: "Sessions", section: "Database", icon: icons.sessions, tab: "infra" },
   { href: "/ai-icon-test", label: "AI Icon", section: "Tools", icon: icons.tool, tab: "infra" },

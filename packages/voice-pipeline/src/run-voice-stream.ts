@@ -158,6 +158,12 @@ export type ConstructionVariantFn = (m: ConstructionMaterials) => { cached: stri
 const ANTHROPIC_DEFAULT_MODEL = "claude-haiku-4-5";
 const OPENAI_DEFAULT_MODEL = "gpt-5-nano";
 const GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b";
+const XAI_DEFAULT_MODEL = "grok-4.3";
+const GEMINI_DEFAULT_MODEL = "gemini-3.5-flash-lite";
+// Awaiting first live key + /models check - documented stable ids, unverified.
+const FIREWORKS_DEFAULT_MODEL = "accounts/fireworks/models/gpt-oss-120b";
+const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash";
+const BASETEN_DEFAULT_MODEL = "openai/gpt-oss-120b";
 const DEFAULT_MAX_TOKENS = 1024;
 // Fallback chain when no voice is bound: the legacy hardcoded Pocket slug
 // kept the harness alive before voices were a first-class table. Once the
@@ -1352,6 +1358,8 @@ export async function* runVoiceStream(
               maxTokens,
               temperature: voiceCfg?.temperature ?? character.brainModel?.temperature,
               topP: voiceCfg?.topP ?? character.brainModel?.topP,
+              reasoningEffort:
+                voiceCfg?.reasoningEffort ?? character.brainModel?.reasoningEffort,
               signal: AbortSignal.any([signal, attemptAbort.signal]),
               onToken,
             }));
@@ -1813,6 +1821,7 @@ async function streamFromCharacterModel(opts: {
   maxTokens: number;
   temperature?: number;
   topP?: number;
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   signal: AbortSignal;
   onToken: (delta: string) => void;
 }): Promise<{ inputTokens: number; outputTokens: number }> {
@@ -1837,6 +1846,7 @@ async function streamFromCharacterModel(opts: {
       signal: opts.signal,
       ...(typeof opts.temperature === "number" ? { temperature: opts.temperature } : {}),
       ...(typeof opts.topP === "number" ? { topP: opts.topP } : {}),
+      ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
     },
     (ev) => {
       if (ev.type === "token") {
@@ -1873,7 +1883,12 @@ function normalizeProvider(value?: string | null): ProviderId | null {
     normalized === "anthropic" ||
     normalized === "openai" ||
     normalized === "cerebras" ||
-    normalized === "groq"
+    normalized === "groq" ||
+    normalized === "xai" ||
+    normalized === "gemini" ||
+    normalized === "fireworks" ||
+    normalized === "deepseek" ||
+    normalized === "baseten"
   ) {
     return normalized;
   }
@@ -1888,6 +1903,16 @@ function defaultVoiceModelForProvider(provider: ProviderId): string {
       return OPENAI_DEFAULT_MODEL;
     case "groq":
       return GROQ_DEFAULT_MODEL;
+    case "xai":
+      return XAI_DEFAULT_MODEL;
+    case "gemini":
+      return GEMINI_DEFAULT_MODEL;
+    case "fireworks":
+      return FIREWORKS_DEFAULT_MODEL;
+    case "deepseek":
+      return DEEPSEEK_DEFAULT_MODEL;
+    case "baseten":
+      return BASETEN_DEFAULT_MODEL;
     case "cerebras":
       return DEFAULT_VOICE_MODEL;
   }
@@ -1911,6 +1936,26 @@ function missingProviderKeyReason(provider: ProviderId): string | null {
       return process.env.GROQ_API_KEY?.trim()
         ? null
         : "GROQ_API_KEY is not configured.";
+    case "xai":
+      return process.env.XAI_API_KEY?.trim()
+        ? null
+        : "XAI_API_KEY is not configured.";
+    case "gemini":
+      return process.env.GEMINI_API_KEY?.trim()
+        ? null
+        : "GEMINI_API_KEY is not configured.";
+    case "fireworks":
+      return process.env.FIREWORKS_API_KEY?.trim()
+        ? null
+        : "FIREWORKS_API_KEY is not configured.";
+    case "deepseek":
+      return process.env.DEEPSEEK_API_KEY?.trim()
+        ? null
+        : "DEEPSEEK_API_KEY is not configured.";
+    case "baseten":
+      return process.env.BASETEN_API_KEY?.trim()
+        ? null
+        : "BASETEN_API_KEY is not configured.";
   }
 }
 

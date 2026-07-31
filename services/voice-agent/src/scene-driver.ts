@@ -5,11 +5,12 @@ import {
   soundDesignToSceneSounds,
   type CharacterRecord,
 } from "@kawabunga/db";
-import { getChatProviderForModel, type ChatProvider } from "@kawabunga/engine";
+import { getChatProviderForModel, modelMetaFor, type ChatProvider } from "@kawabunga/engine";
 import {
   buildDirectiveChunk,
   buildOpeningNarrationMessages,
   buildDramaturgMessages,
+  mergeChronicle,
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
   buildSpeakerTurnRequest,
@@ -32,6 +33,7 @@ import {
   updateSceneFacts,
   updateSceneMemory,
   type OrchestratorExecutorResolution,
+  type SceneChronicle,
   type SceneSessionSnapshot,
   type SceneTurnForPlanning,
 } from "@kawabunga/orchestration";
@@ -62,7 +64,35 @@ const PROACTIVE_TURN_MESSAGE = "(The user has gone quiet.)";
  *  director reads the note as its own earlier reflection. Kill-switch: =0. */
 const DRAMATURG_ENABLED = process.env.VOICE_AGENT_DRAMATURG !== "0";
 /** Strong model, off the hot path — quality is the point, latency is free. */
-const DRAMATURG_MODEL = process.env.VOICE_AGENT_DRAMATURG_MODEL ?? "claude-sonnet-4-5";
+const DEFAULT_DRAMATURG_MODEL = "claude-sonnet-4-5";
+const DRAMATURG_MODEL = resolveDramaturgModel(process.env.VOICE_AGENT_DRAMATURG_MODEL);
+
+/**
+ * Validate the dramaturg model override against the model registry — the same
+ * treatment as VOICE_AGENT_BRAIN_MODEL / ORCHESTRATOR_MODEL. This matters
+ * because getChatProviderForModel silently routes an UNKNOWN id to its
+ * Anthropic fallback: without this check a typo'd model wouldn't disable the
+ * dramaturg (that path only fires on construction errors) — it would fail
+ * every reflection at request time, warning once per tick, forever. Unknown
+ * ids fall back to the default; a missing provider KEY is still handled
+ * downstream (dramaturg disables for the session, warns once). Also covers
+ * generated openings, which resolve through the same constant.
+ */
+export function resolveDramaturgModel(raw: string | undefined): string {
+  const id = raw?.trim();
+  if (!id) return DEFAULT_DRAMATURG_MODEL;
+  const meta = modelMetaFor(id);
+  if (!meta) {
+    console.warn(
+      `[dramaturg] VOICE_AGENT_DRAMATURG_MODEL="${id}" is not in the model registry — override IGNORED, using ${DEFAULT_DRAMATURG_MODEL}`,
+    );
+    return DEFAULT_DRAMATURG_MODEL;
+  }
+  if (id !== DEFAULT_DRAMATURG_MODEL) {
+    console.log(`[dramaturg] model override: ${id} (${meta.provider})`);
+  }
+  return id;
+}
 /** Reflect every N completed spoken turns (1 = every turn). */
 const DRAMATURG_EVERY = Math.max(1, Number(process.env.VOICE_AGENT_DRAMATURG_EVERY ?? 2));
 const DRAMATURG_TIMEOUT_MS = 20_000;
@@ -136,7 +166,11 @@ const defaultDeps: SceneDriverDeps = {
 type DecideResult = { decision: OrchestratorDecision; failed?: string };
 
 /**
- * Drives a multi-character SCENE over a LiveKit room. Each user turn it asks the
+ * The NARRATOR's runtime — drives a multi-character SCENE over a LiveKit room.
+ * The Narrator is the unified orchestrator; this class hosts its three
+ * faculties: the DIRECTOR (fast per-turn decisions), the CHRONICLER (async
+ * story authorship — chronicle, facts, arc, notes), and the VOICE (the
+ * narration channel via onNarrate). Each user turn it asks the
  * orchestrator who speaks next — IN-PROCESS (no HTTP hop): fastpath when the roster
  * is solo, Cerebras/Groq when it's a real choice — resolves that character, and
  * hands the worker a turn to voice via `runVoiceStream`. Holds the live SceneState +
@@ -154,6 +188,17 @@ export class SceneDriver {
   // Durable facts the dramaturg has extracted — the scene's long-term memory,
   // surviving after the verbatim window scrolls past the turns that stated them.
   #sceneFacts: string[] = [];
+  // The chronicle — the Narrator's living story document (story-so-far, open
+  // threads, world state, prepared intentions). Written by the chronicler
+  // reflection, read by the director on every decision.
+  #chronicle: SceneChronicle | null = null;
+  // TIMED world events, armed from the chronicle: dueAt anchors to the moment
+  // the reflection landed. `fired` survives chronicle restatements (dedupe by
+  // direction text) so a re-stated pending event doesn't re-arm after firing.
+  #timedSchedule: Array<{ dueAt: number; direction: string; fired: boolean }> = [];
+  // Notified when a reflection arms NEW timed events — the host uses it to
+  // schedule a wake-up for the due time (see agent.ts).
+  #onWorldEventsArmed: (() => void) | null = null;
   // B4: the in-flight speculative decision (orchestrated off a partial transcript
   // during the endpoint hold) + the text it was computed from, so drive() can
   // accept it when the final transcript matches and skip the orchestrate latency.
@@ -396,17 +441,19 @@ export class SceneDriver {
       recentTurns: this.#recentTurns,
       previousNote: this.#sceneState.directorNote,
       sceneFacts: this.#sceneFacts,
+      chronicle: this.#chronicle,
     });
     this.#reflection = provider
       .complete({
         model: DRAMATURG_MODEL,
         system: [{ type: "text", text: request.system }],
         messages: [{ role: "user", content: request.user }],
-        maxTokens: 200,
+        // Chronicle sections + note; the chronicle is the bulk of the reply.
+        maxTokens: 450,
         signal: AbortSignal.timeout(DRAMATURG_TIMEOUT_MS),
       })
       .then((response) => {
-        const { note, landed, facts, gone } = parseDramaturgReflection(response.text);
+        const { note, landed, facts, gone, chronicle } = parseDramaturgReflection(response.text);
         // Validate landed labels against the authored arc (tolerant match →
         // canonical label), then expand: the arc is ordered, so a later beat
         // landing implies every earlier beat landed too (the dramaturg often
@@ -445,7 +492,28 @@ export class SceneDriver {
         const presenceChanged =
           stillPresent.length > 0 &&
           stillPresent.length !== this.#sceneState.presentCharacterSlugs.length;
-        if (!note && newlyLanded.length === 0 && !factsChanged && !presenceChanged) return;
+        const mergedChronicle = mergeChronicle(this.#chronicle, chronicle);
+        const chronicleChanged =
+          JSON.stringify(mergedChronicle) !== JSON.stringify(this.#chronicle);
+        if (
+          !note &&
+          newlyLanded.length === 0 &&
+          !factsChanged &&
+          !presenceChanged &&
+          !chronicleChanged
+        ) {
+          return;
+        }
+        if (chronicleChanged && mergedChronicle) {
+          this.#chronicle = mergedChronicle;
+          if (mergedChronicle.story) {
+            console.log(`[chronicler] story: ${mergedChronicle.story}`);
+          }
+          for (const i of mergedChronicle.intents) {
+            console.log(`[chronicler] intent: when ${i.trigger}: ${i.direction}`);
+          }
+          this.#armTimedEvents(mergedChronicle, Date.now());
+        }
 
         if (factsChanged) {
           for (const fact of mergedFacts.filter((f) => !this.#sceneFacts.includes(f))) {
@@ -512,6 +580,7 @@ export class SceneDriver {
         buildSceneSessionSnapshot(this.#sceneState, {
           sceneMemory: this.#sceneMemory,
           sceneFacts: this.#sceneFacts,
+          chronicle: this.#chronicle,
         }),
       );
     } catch {
@@ -859,12 +928,21 @@ export class SceneDriver {
       console.log("[voice-agent] proactive: hold (last reply was refusal boilerplate)");
       return false;
     }
+    // A due TIMED world event upgrades this tick from "maybe fill the
+    // silence" to "the world acts now": the director is told the event's
+    // time has come and must render it. Consumed here; restored if a newer
+    // turn supersedes us before the decision applies.
+    const worldEvent = this.#consumeDueWorldEvent(Date.now());
     // Proactive failures stay a hold — nobody is waiting, so silence is the
     // correct degraded behavior (unlike the reactive path's recovery).
-    const { decision } = await this.#decide(PROACTIVE_SILENCE_MARKER, "proactive");
+    const { decision } = await this.#decide(PROACTIVE_SILENCE_MARKER, "proactive", undefined, {
+      worldEventDirective: worldEvent?.direction,
+    });
     // The user started talking (or a new turn began) while we deliberated —
-    // the floor is theirs; don't apply the proactive decision.
+    // the floor is theirs; don't apply the proactive decision. A consumed
+    // world event is restored: its moment will come again on a later lull.
     if (superseded()) {
+      if (worldEvent) worldEvent.fired = false;
       console.log("[voice-agent] proactive: superseded before decision applied");
       return false;
     }
@@ -877,6 +955,13 @@ export class SceneDriver {
     // the failure observed live — Sarah was seized, answered for herself, and
     // Abraham simply never moved across the rest of the scene. Give the
     // silent witness the turn instead of going quiet.
+    if (resolution.decision.action === "wait-for-user" && worldEvent) {
+      // The event is already happening — a hold here would silently drop it.
+      // Narrate the direction itself: chronicler directions read as stage
+      // prose ("a log collapses in sparks"), which is exactly narration.
+      console.log(`[voice-agent] proactive: world event narrated directly - ${worldEvent.direction}`);
+      return await this.#narrate(worldEvent.direction);
+    }
     if (resolution.decision.action === "wait-for-user") {
       const witness = this.#silentWitnessToEvent();
       if (witness) {
@@ -1042,6 +1127,7 @@ export class SceneDriver {
     userText: string | null,
     phase: "final" | "speculate" | "proactive" | "chain" = "final",
     signal?: AbortSignal,
+    extras?: { worldEventDirective?: string },
   ): Promise<DecideResult> {
     const present = this.#presentRoster();
     const solo = present.length <= 1 ? (present[0] ?? null) : null;
@@ -1060,8 +1146,9 @@ export class SceneDriver {
     // Solo → the lone character carries the turn. Reactive solo skips the LLM on the
     // hot path (the cue rides a speculative HIT) unless opted in. Proactive solo
     // ALWAYS calls it — no user is waiting, so latency is invisible and the director
-    // gets to choose advance-or-hold.
-    if (solo) {
+    // gets to choose advance-or-hold. (A due world event always consults the LLM —
+    // the event must be rendered, not floored.)
+    if (solo && !extras?.worldEventDirective) {
       if (phase === "speculate" && !SOLO_CUE_ENABLED) return { decision: soloFloor! };
       if (phase === "final" && (!SOLO_CUE_ENABLED || !SOLO_CUE_ON_MISS)) {
         return { decision: soloFloor! };
@@ -1077,6 +1164,8 @@ export class SceneDriver {
       recentTurns: this.#recentTurns,
       sceneMemory: this.#sceneMemory,
       sceneFacts: this.#sceneFacts,
+      chronicle: this.#chronicle,
+      worldEventDirective: extras?.worldEventDirective,
       lastUserMessage: userText ?? undefined,
     });
 
@@ -1105,6 +1194,56 @@ export class SceneDriver {
         failed,
       };
     }
+  }
+
+  /** Host hook: invoked when a reflection arms NEW timed world events, so
+   *  the host can schedule a wake-up for the due time. */
+  onWorldEvents(cb: () => void): void {
+    this.#onWorldEventsArmed = cb;
+  }
+
+  /** Milliseconds until the next pending world event is due — 0 when one is
+   *  due now, null when none are pending. The host arms a timer with this. */
+  nextWorldEventDueInMs(now = Date.now()): number | null {
+    const pending = this.#timedSchedule.filter((e) => !e.fired);
+    if (pending.length === 0) return null;
+    const soonest = Math.min(...pending.map((e) => e.dueAt));
+    return Math.max(0, soonest - now);
+  }
+
+  /** Arm the schedule from a fresh chronicle. Events are deduped by
+   *  direction text: a restated pending event keeps its original clock and
+   *  fired state; dropped events disarm; new ones anchor to NOW. */
+  #armTimedEvents(chronicle: SceneChronicle, now: number): void {
+    const next: Array<{ dueAt: number; direction: string; fired: boolean }> = [];
+    let armedNew = false;
+    for (const t of chronicle.timed) {
+      const existing = this.#timedSchedule.find((e) => e.direction === t.direction);
+      if (existing) {
+        next.push(existing);
+      } else {
+        next.push({ dueAt: now + t.afterSeconds * 1000, direction: t.direction, fired: false });
+        armedNew = true;
+        console.log(`[chronicler] timed event armed (~${t.afterSeconds}s): ${t.direction}`);
+      }
+    }
+    this.#timedSchedule = next;
+    if (armedNew && this.#onWorldEventsArmed) {
+      try {
+        this.#onWorldEventsArmed();
+      } catch {
+        // host hook must never disrupt the reflection
+      }
+    }
+  }
+
+  /** The first due, unfired event — marked fired on consumption. The caller
+   *  un-fires it if the turn is superseded before the decision applies. */
+  #consumeDueWorldEvent(now: number): { direction: string; fired: boolean } | null {
+    const due = this.#timedSchedule.find((e) => !e.fired && e.dueAt <= now);
+    if (!due) return null;
+    due.fired = true;
+    return due;
   }
 
   #trim(): void {

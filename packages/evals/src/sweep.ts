@@ -28,6 +28,8 @@ export type SweepSpec = {
   topP?: number[];
   maxTokens?: number[];
   cacheControl?: boolean[];
+  /** Reasoning budget (reasoning-first models — xAI Grok). */
+  reasoningEffort?: Array<"none" | "low" | "medium" | "high">;
 };
 
 export type SweepConfig = {
@@ -158,6 +160,9 @@ export function expandSweep(spec: SweepSpec): SweepConfig[] {
   if (spec.topP?.length) dims.push({ key: "topP", values: spec.topP });
   if (spec.maxTokens?.length) dims.push({ key: "maxTokens", values: spec.maxTokens });
   if (spec.cacheControl?.length) dims.push({ key: "cacheControl", values: spec.cacheControl });
+  if (spec.reasoningEffort?.length) {
+    dims.push({ key: "reasoningEffort", values: spec.reasoningEffort });
+  }
 
   if (dims.length === 0) {
     return [{ id: "default", override: {} }];
@@ -192,6 +197,7 @@ function formatConfigId(o: Partial<CharacterBrainModel>): string {
   if (typeof o.topP === "number") parts.push(`p${o.topP}`);
   if (typeof o.maxTokens === "number") parts.push(`mt${o.maxTokens}`);
   if (typeof o.cacheControl === "boolean") parts.push(`c${o.cacheControl ? 1 : 0}`);
+  if (o.reasoningEffort) parts.push(`re-${o.reasoningEffort}`);
   return parts.join("__") || "default";
 }
 

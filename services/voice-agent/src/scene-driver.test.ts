@@ -18,7 +18,7 @@ vi.hoisted(() => {
   process.env.VOICE_AGENT_DRAMATURG = "0";
 });
 
-import { SceneDriver, type SceneSpeakInput } from "./scene-driver";
+import { SceneDriver, resolveDramaturgModel, type SceneSpeakInput } from "./scene-driver";
 
 /* ── Fixtures ─────────────────────────────────────────────────────── */
 
@@ -796,6 +796,10 @@ describe("SceneDriver — dramaturg", () => {
         reflections.push(options);
         return {
           text: [
+            "STORY: A traveler pressed Sarah about the laugh; she denied it.",
+            "THREAD: Sarah's denial has not been challenged.",
+            "WORLD: Evening deepens outside the tent.",
+            "INTENT: when the fire is mentioned: a log collapses in sparks.",
             "FACT: Sarah denied laughing at the promise.",
             "LANDED: The laugh",
             "NOTE: The laugh is named; press Abraham's trust question.",
@@ -840,5 +844,141 @@ describe("SceneDriver — dramaturg", () => {
     expect(snapshots[snapshots.length - 1]!.sceneFacts).toEqual([
       "Sarah denied laughing at the promise.",
     ]);
+    // The chronicle reaches the director's next prompt and the snapshot.
+    expect(system).toContain("The chronicle - the story you are writing");
+    expect(system).toContain("So far: A traveler pressed Sarah about the laugh");
+    expect(system).toContain("- Sarah's denial has not been challenged.");
+    expect(system).toContain("- Evening deepens outside the tent.");
+    expect(system).toContain("when the fire is mentioned: a log collapses in sparks.");
+    expect(snapshots[snapshots.length - 1]!.chronicle).toEqual({
+      story: "A traveler pressed Sarah about the laugh; she denied it.",
+      threads: ["Sarah's denial has not been challenged."],
+      world: ["Evening deepens outside the tent."],
+      intents: [{ trigger: "the fire is mentioned", direction: "a log collapses in sparks." }],
+      timed: [],
+      drafts: [],
+    });
+    // The chronicler sees its own chronicle for revision on the NEXT reflection.
+    await driver.drive("And the fire?", speak); // 4th spoken turn -> reflect again
+    await driver.settleReflection();
+    expect(reflections.length).toBeGreaterThanOrEqual(2);
+    const secondReflection = reflections[reflections.length - 1]!;
+    const reflectionUser =
+      typeof secondReflection.messages[0]!.content === "string"
+        ? (secondReflection.messages[0]!.content as string)
+        : "";
+    expect(reflectionUser).toContain("Your chronicle as of the last reflection");
+    expect(reflectionUser).toContain("STORY: A traveler pressed Sarah about the laugh");
+  });
+});
+
+describe("SceneDriver — timed world events", () => {
+  function timedDramaturg(afterSeconds: number, direction: string): ChatProvider {
+    return fakeChatProvider(
+      [`TIMED: in ~${afterSeconds}s: ${direction}`, "NOTE: Hold the tension."].join("\n"),
+    );
+  }
+
+  it("arms from the chronicle, reports due time, and renders the event on a proactive tick", async () => {
+    vi.useFakeTimers();
+    try {
+      const exec = fakeExecutor([
+        speakDecision("abraham"),
+        speakDecision("sarah"),
+        { action: "narrate", narration: "A log collapses; sparks climb the dark." },
+      ]);
+      const driver = SceneDriver.fromScene(TENT, {
+        resolveExecutor: exec.resolveExecutor,
+        resolveCharacter: fakeCharacters(),
+        dramaturgProvider: timedDramaturg(30, "A log collapses in a burst of sparks."),
+      });
+      const armed: number[] = [];
+      driver.onWorldEvents(() => armed.push(1));
+      const narrated: string[] = [];
+      driver.onNarrate((text) => {
+        narrated.push(text);
+      });
+      const { speak } = fakeSpeak(["Welcome.", "I heard you."]);
+
+      await driver.drive("Hello?", speak);
+      await driver.drive("Sarah, did you laugh?", speak); // 2nd spoken turn → reflect
+      await driver.settleReflection();
+      expect(armed).toHaveLength(1);
+      const due = driver.nextWorldEventDueInMs();
+      expect(due).toBeGreaterThan(28_000);
+      expect(due).toBeLessThanOrEqual(30_000);
+
+      vi.advanceTimersByTime(31_000);
+      expect(driver.nextWorldEventDueInMs()).toBe(0);
+
+      // The proactive tick consumes the event; the director's prompt carries
+      // the imperative and its narrate decision is voiced.
+      const spoke = await driver.driveProactive(speak);
+      expect(spoke).toBe(true);
+      expect(narrated).toEqual(["A log collapses; sparks climb the dark."]);
+      const userPrompt = exec.requests[exec.requests.length - 1]!.messages[1]!.content;
+      expect(userPrompt).toContain("A WORLD EVENT the chronicler scheduled has come due");
+      expect(userPrompt).toContain("A log collapses in a burst of sparks.");
+      // Spent: no pending events remain.
+      expect(driver.nextWorldEventDueInMs()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("guarantees a due event fires even when the director holds", async () => {
+    vi.useFakeTimers();
+    try {
+      const exec = fakeExecutor([
+        speakDecision("abraham"),
+        speakDecision("sarah"),
+        { action: "wait-for-user" },
+      ]);
+      const driver = SceneDriver.fromScene(TENT, {
+        resolveExecutor: exec.resolveExecutor,
+        resolveCharacter: fakeCharacters(),
+        dramaturgProvider: timedDramaturg(20, "Thunder rolls far off beyond the hills."),
+      });
+      const narrated: string[] = [];
+      driver.onNarrate((text) => {
+        narrated.push(text);
+      });
+      const { speak } = fakeSpeak(["Welcome.", "I heard you."]);
+      await driver.drive("Hello?", speak);
+      await driver.drive("Sarah?", speak);
+      await driver.settleReflection();
+      vi.advanceTimersByTime(21_000);
+
+      const spoke = await driver.driveProactive(speak);
+      expect(spoke).toBe(true);
+      // Director said wait → the event narrates its own direction verbatim.
+      expect(narrated).toEqual(["Thunder rolls far off beyond the hills."]);
+      expect(driver.nextWorldEventDueInMs()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("resolveDramaturgModel", () => {
+  it("keeps the default when unset", () => {
+    expect(resolveDramaturgModel(undefined)).toBe("claude-sonnet-4-5");
+    expect(resolveDramaturgModel("  ")).toBe("claude-sonnet-4-5");
+  });
+
+  it("accepts a registry model id", () => {
+    expect(resolveDramaturgModel("claude-haiku-4-5")).toBe("claude-haiku-4-5");
+  });
+
+  it("falls back to the default on an unknown id, with a warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(resolveDramaturgModel("claude-sonnet-4-5-typo")).toBe("claude-sonnet-4-5");
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('"claude-sonnet-4-5-typo" is not in the model registry'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

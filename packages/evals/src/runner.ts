@@ -317,6 +317,7 @@ async function callCharacter(ctx: ProbeRunContext): Promise<{
     maxTokens: effective.maxTokens,
     ...(typeof effective.temperature === "number" ? { temperature: effective.temperature } : {}),
     ...(typeof effective.topP === "number" ? { topP: effective.topP } : {}),
+    ...(effective.reasoningEffort ? { reasoningEffort: effective.reasoningEffort } : {}),
   });
 
   return {
@@ -366,6 +367,8 @@ function mergeModelConfig(
   if (typeof t === "number") result.temperature = t;
   const p = m.topP ?? base?.topP;
   if (typeof p === "number") result.topP = p;
+  const re = m.reasoningEffort ?? base?.reasoningEffort;
+  if (re) result.reasoningEffort = re;
   return result;
 }
 

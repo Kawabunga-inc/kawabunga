@@ -551,6 +551,53 @@ export const audioAssetsTable = pgTable(
   ],
 );
 
+// ── Prop assets (stage set-piece library) ───────────────────────────
+//
+// Reusable top-down set pieces for the scene canvas — "goat-hair tent",
+// "fire pit". Scene placement lives on scene_nodes (kind='artifact',
+// refId → this table); the asset holds the canonical visual (icon key
+// from the admin catalog, optional future sprite image URL) and default
+// footprint. Per-placement overrides go in the node's data, so the
+// asset stays the single source of truth. Same soft-delete semantics
+// as audio_assets: archived rows leave existing placements working.
+export const artifactAssetsTable = pgTable(
+  "artifact_assets",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    // LLM-facing description — what set-generation reads to decide reuse.
+    description: text("description"),
+    // Deprecated icon-catalog key from before sprite renditions; kept
+    // for old rows, no longer written.
+    icon: text("icon"),
+    // Generated top-down sprite renditions, keyed by art-style preset
+    // ("pixel" | "anime" | ...) -> public URL. A scene renders its own
+    // style's rendition and falls back to the icon when missing, so one
+    // shared asset can look different per scene.
+    images: jsonb("images").notNull().default({}),
+    // Default footprint in meters — either a radius (round pieces) or a
+    // width×height. Placements may override in node data.
+    defaultWidthM: real("default_width_m"),
+    defaultHeightM: real("default_height_m"),
+    defaultRadiusM: real("default_radius_m"),
+    // Hint that sound can emanate from this piece (fire, waterfall) —
+    // dormant until positional audio.
+    soundSource: boolean("sound_source").notNull().default(false),
+    tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+    // manual | generated (set-generation proposals accepted by a user).
+    source: text("source").notNull().default("manual"),
+    // The scene premise that produced a generated asset; null for manual.
+    generationPrompt: text("generation_prompt"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => usersTable.id, { onDelete: "set null" }),
+    updatedBy: text("updated_by").references(() => usersTable.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("artifact_assets_archived_at_idx").on(t.archivedAt)],
+);
+
 // ── Character versions (named snapshots of full config state) ───────
 //
 // One row per saved version. Version numbers are monotonic per character
@@ -877,9 +924,12 @@ export const sceneNodesTable = pgTable(
     index("scene_nodes_scene_idx").on(t.sceneId),
     index("scene_nodes_scene_kind_idx").on(t.sceneId, t.kind),
     index("scene_nodes_ref_idx").on(t.refId),
+    // One node per (scene, kind, ref) for library-backed kinds — except
+    // props, where the same set piece is legitimately placed many times
+    // (two tents from one prop asset).
     uniqueIndex("scene_nodes_scene_ref_uniq")
       .on(t.sceneId, t.kind, t.refId)
-      .where(sql`${t.refId} IS NOT NULL`),
+      .where(sql`${t.refId} IS NOT NULL AND ${t.kind} <> 'artifact'`),
   ],
 );
 

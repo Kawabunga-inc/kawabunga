@@ -161,6 +161,54 @@ export type Scene = z.infer<typeof sceneSchema>;
 // scene_nodes / scene_edges tables; the tables are the source of truth
 // for indexed lookup, the JSON snapshot is for fast reads.
 
+// ── Stage (overhead canvas) ──────────────────────────────────────────
+//
+// Every scene shares one world space: meters, origin at center, +x right,
+// +y up. Small scenes simply occupy a small region of it. Positions are
+// stored on scene_nodes.position in these units; anything outside the
+// world bounds is treated as unplaced (which also neutralizes legacy
+// React-Flow pixel coordinates without a data migration).
+
+export const STAGE_WORLD = {
+  widthM: 96,
+  heightM: 64,
+  defaultViewWidthM: 24,
+  defaultViewHeightM: 16,
+  defaultSnapM: 0.5,
+  defaultGridM: 1,
+} as const;
+
+export const stagePositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  z: z.number().optional(),
+  rotation: z.number().optional(),
+});
+
+export const stageConfigSchema = z.object({
+  groundColor: z.string().nullable().default(null),
+  // Art-style preset driving generated artifact sprites ("painterly",
+  // "pixel"). null = footprints only, no generated art.
+  artStyle: z.string().nullable().default(null),
+  // Scene-level art direction seeded into every artifact sprite prompt
+  // ("dusty golden hour, Bronze Age Canaan"). Rides alongside the style
+  // preset's clause.
+  styleDirection: z.string().nullable().default(null),
+  // Generated terrain plates covering the full world rect, keyed by art
+  // style (like artifact renditions). Terrain only — artifacts layer
+  // above with alpha, so placements stay live.
+  backgrounds: z.record(z.string(), z.string()).nullable().default(null),
+  snapM: z.number().positive().nullable().default(null),
+  viewport: z
+    .object({ cx: z.number(), cy: z.number(), zoom: z.number().positive() })
+    .nullable()
+    .default(null),
+  spawn: z.object({ x: z.number(), y: z.number() }).nullable().default(null),
+});
+
+export type StagePosition = z.infer<typeof stagePositionSchema>;
+export type StageConfig = z.infer<typeof stageConfigSchema>;
+
 export const sceneDefinitionNodeSchema = z.object({
   id: z.string().min(1),
   kind: z.string().min(1),
@@ -168,7 +216,7 @@ export const sceneDefinitionNodeSchema = z.object({
   label: z.string().min(1),
   summary: z.string().nullable().optional(),
   data: z.record(z.string(), z.unknown()).default({}),
-  position: z.object({ x: z.number(), y: z.number() }).nullable().optional(),
+  position: stagePositionSchema.nullable().optional(),
 });
 
 export const sceneDefinitionEdgeSchema = z.object({
@@ -194,6 +242,10 @@ export const sceneDefinitionSchema = z.object({
   // Authored intention on the scene root (see sceneSchema.objective/drive).
   objective: z.string().nullable().default(null),
   drive: z.enum(["gentle", "balanced", "insistent"]).nullable().default(null),
+  // Overhead-canvas stage settings (ground color, snap, saved viewport,
+  // spawn point). Nullable default keeps pre-stage definitions parsing
+  // unchanged; merge-patched via updateSceneConfig like everything else.
+  stage: stageConfigSchema.nullable().default(null),
   // Solo scene marker: the character this scene is the canonical one-actor
   // scene FOR (auto-provisioned by getOrCreateSoloScene). A character session
   // IS this scene — editing it (horizon, arc, audio nodes) configures the

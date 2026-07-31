@@ -175,8 +175,8 @@ export type CharacterIdentity = {
  * Anthropic's default temp/top_p and max_tokens 1024.
  *
  * Constraints:
- *   - `provider` is "anthropic", "openai", "cerebras", or "groq" today
- *     (the last two are OpenAI-compatible low-latency inference). New
+ *   - `provider` is "anthropic", "openai", "cerebras", "groq", "xai", or "gemini"
+ *     today (the last three are OpenAI-compatible endpoints). New
  *     providers welcome; widen the union here + the chat-providers
  *     factory + the L04 validation schema in lockstep.
  *   - `temperature` ∈ [0, 2]; `topP` ∈ [0, 1]; `maxTokens` ∈ [64, 4096].
@@ -185,7 +185,7 @@ export type CharacterIdentity = {
  *     and a future pass can wire it. The chat route ignores them for now.
  */
 export type CharacterBrainModel = {
-  provider?: "anthropic" | "openai" | "cerebras" | "groq";
+  provider?: "anthropic" | "openai" | "cerebras" | "groq" | "xai" | "gemini" | "fireworks" | "deepseek" | "baseten";
   /** Model id from MODEL_REGISTRY (e.g., "claude-sonnet-4-5", "gpt-5", "gpt-oss-120b"). */
   model?: string;
   /** 0 = deterministic, 1 = neutral, 2 = chaotic. Provider defaults to ~1. */
@@ -194,6 +194,10 @@ export type CharacterBrainModel = {
   topP?: number;
   /** Output ceiling. 64–4096; default 1024. */
   maxTokens?: number;
+  /** Reasoning budget for reasoning-first models (xAI Grok — "none"
+   *  disables thinking, the latency lever). Ignored by models without
+   *  the knob. Omit = model default. */
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   /**
    * Whether to apply Anthropic prompt caching to the cached system
    * envelope. Default true. Anthropic-only — OpenAI + Cerebras don't
@@ -208,7 +212,7 @@ export type CharacterBrainModel = {
    * can document intent and a future pass can wire retry.
    */
   fallbacks?: Array<{
-    provider: "anthropic" | "openai" | "cerebras" | "groq";
+    provider: "anthropic" | "openai" | "cerebras" | "groq" | "xai" | "gemini" | "fireworks" | "deepseek" | "baseten";
     model: string;
     /** What triggers this fallback. Default "5xx" (server errors). */
     trigger?: "5xx" | "rate_limit";
@@ -235,12 +239,13 @@ export type CharacterBrainModel = {
    * declaring a chain at this layer would shadow that without acting.
    */
   voice?: {
-    provider?: "anthropic" | "openai" | "cerebras" | "groq";
+    provider?: "anthropic" | "openai" | "cerebras" | "groq" | "xai" | "gemini" | "fireworks" | "deepseek" | "baseten";
     /** Voice-capable model id from MODEL_REGISTRY. */
     model?: string;
     temperature?: number;
     topP?: number;
     maxTokens?: number;
+    reasoningEffort?: "none" | "low" | "medium" | "high";
   };
 };
 

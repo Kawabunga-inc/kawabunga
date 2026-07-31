@@ -36,7 +36,7 @@ const CHAT_MODELS = MODEL_REGISTRY.filter((m) => m.modes.includes("chat"));
 // so the voice picker can't surface a model the voice-stream route would
 // 400 on.
 const VOICE_MODELS = modelsFor("voice").filter(
-  (m) => m.provider === "anthropic" || m.provider === "cerebras" || m.provider === "groq",
+  (m) => m.provider !== "openai",
 );
 
 const DEFAULTS = {
@@ -135,7 +135,12 @@ function L04Configure({ character }: { character: HarnessCharacter }) {
         provider === "anthropic" ||
         provider === "openai" ||
         provider === "cerebras" ||
-        provider === "groq"
+        provider === "groq" ||
+        provider === "xai" ||
+        provider === "gemini" ||
+        provider === "fireworks" ||
+        provider === "deepseek" ||
+        provider === "baseten"
       ) {
         brainModel.provider = provider;
       }
@@ -155,7 +160,12 @@ function L04Configure({ character }: { character: HarnessCharacter }) {
         if (
           voiceProvider === "anthropic" ||
           voiceProvider === "cerebras" ||
-          voiceProvider === "groq"
+          voiceProvider === "groq" ||
+          voiceProvider === "xai" ||
+          voiceProvider === "gemini" ||
+          voiceProvider === "fireworks" ||
+          voiceProvider === "deepseek" ||
+          voiceProvider === "baseten"
         ) {
           voice.provider = voiceProvider;
         }
@@ -1289,7 +1299,10 @@ function ModelPicker({ value, onChange }: { value: string; onChange: (v: string)
 
   // Stable provider order — anthropic first (today's daily driver), then
   // OpenAI-compatible low-latency providers.
-  const PROVIDER_ORDER = ["anthropic", "openai", "cerebras", "groq"];
+  const PROVIDER_ORDER = [
+    "anthropic", "openai", "cerebras", "groq", "xai", "gemini",
+    "fireworks", "deepseek", "baseten",
+  ];
   const sortedProviders = Array.from(byProvider.keys()).sort(
     (a, b) => PROVIDER_ORDER.indexOf(a) - PROVIDER_ORDER.indexOf(b),
   );

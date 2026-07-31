@@ -13,6 +13,9 @@ import {
   resolveSceneDecision,
   sanitizeOpeningNarration,
   selectAuthoredOpening,
+  mergeChronicle,
+  readSceneChronicleFromSnapshot,
+  sanitizeChronicle,
   updateSceneFacts,
   updateSceneMemory,
   type Scene,
@@ -860,5 +863,98 @@ describe("character presence", () => {
       .messages[0]!.content;
     expect(prompt).toContain("No longer in the scene");
     expect(prompt).toContain("ada");
+  });
+});
+
+
+describe("the chronicle", () => {
+  const CHRONICLE = {
+    story: "The traveler arrived at dusk and asked after the promise.",
+    threads: ["The promise is unanswered."],
+    world: ["Dusk; the fire is low."],
+    intents: [{ trigger: "the fire is mentioned", direction: "A log collapses in sparks." }],
+    timed: [{ afterSeconds: 40, direction: "The evening wind rises under the oaks." }],
+    drafts: ["The fire settles; somewhere beyond the oaks a night bird calls once."],
+  };
+
+  it("sanitizes caps and drops malformed intents; empty input is null", () => {
+    expect(sanitizeChronicle(null)).toBeNull();
+    expect(sanitizeChronicle({ story: "", threads: [], world: [], intents: [] })).toBeNull();
+    const dirty = sanitizeChronicle({
+      story: "x".repeat(700),
+      threads: Array.from({ length: 9 }, (_, i) => `t${i}`),
+      world: [42, "  real  "],
+      intents: [{ trigger: "ok", direction: "fine" }, { trigger: "", direction: "no" }],
+      timed: [
+        { afterSeconds: 3, direction: "too soon - clamped up" },
+        { afterSeconds: 10_000, direction: "too late - clamped down" },
+        { afterSeconds: 40, direction: "dropped - over the limit" },
+      ],
+    });
+    expect(dirty?.story.length).toBe(600);
+    expect(dirty?.threads).toHaveLength(5);
+    expect(dirty?.world).toEqual(["real"]);
+    expect(dirty?.intents).toEqual([{ trigger: "ok", direction: "fine" }]);
+    expect(dirty?.timed).toEqual([
+      { afterSeconds: 15, direction: "too soon - clamped up" },
+      { afterSeconds: 600, direction: "too late - clamped down" },
+    ]);
+    expect(dirty?.drafts).toEqual([]);
+  });
+
+  it("mergeChronicle replaces restated sections and keeps omitted ones", () => {
+    const next = { story: "", threads: ["A new thread."], world: [], intents: [], timed: [], drafts: [] };
+    expect(mergeChronicle(CHRONICLE, next)).toEqual({
+      story: CHRONICLE.story,
+      threads: ["A new thread."],
+      world: CHRONICLE.world,
+      intents: CHRONICLE.intents,
+      timed: CHRONICLE.timed,
+      drafts: CHRONICLE.drafts,
+    });
+    expect(mergeChronicle(null, CHRONICLE)).toEqual(CHRONICLE);
+    expect(mergeChronicle(CHRONICLE, null)).toEqual(CHRONICLE);
+  });
+
+  it("round-trips through the session snapshot", () => {
+    const state = createInitialSceneState(scene);
+    const snapshot = buildSceneSessionSnapshot(state, {
+      updatedAt: "2026-07-31T00:00:00.000Z",
+      chronicle: CHRONICLE,
+    });
+    expect(snapshot.chronicle).toEqual(CHRONICLE);
+    expect(readSceneChronicleFromSnapshot(snapshot, scene.id)).toEqual(CHRONICLE);
+    expect(readSceneChronicleFromSnapshot(snapshot, "other-scene")).toBeNull();
+    const bare = buildSceneSessionSnapshot(state, { updatedAt: "2026-07-31T00:00:00.000Z" });
+    expect(bare.chronicle).toBeUndefined();
+    expect(readSceneChronicleFromSnapshot(bare, scene.id)).toBeNull();
+  });
+
+  it("renders into the director prompt when present, silently absent otherwise", () => {
+    const state = createInitialSceneState(scene);
+    const withChronicle = buildSceneDecisionRequest({
+      scene,
+      sceneState: state,
+      chronicle: CHRONICLE,
+    }).messages[0]!.content;
+    expect(withChronicle).toContain("The chronicle - the story you are writing");
+    expect(withChronicle).toContain("So far: The traveler arrived at dusk");
+    expect(withChronicle).toContain("- The promise is unanswered.");
+    expect(withChronicle).toContain("when the fire is mentioned: A log collapses in sparks.");
+    expect(withChronicle).toContain("in ~40s: The evening wind rises under the oaks.");
+    expect(withChronicle).toContain("Drafted narration (pre-written by your slower self)");
+    expect(withChronicle).toContain("- The fire settles; somewhere beyond the oaks a night bird calls once.");
+    // A due event renders as an imperative in the USER prompt.
+    const withEvent = buildSceneDecisionRequest({
+      scene,
+      sceneState: state,
+      chronicle: CHRONICLE,
+      worldEventDirective: "The evening wind rises under the oaks.",
+    }).messages[1]!.content;
+    expect(withEvent).toContain("A WORLD EVENT the chronicler scheduled has come due");
+    expect(withEvent).toContain("The evening wind rises under the oaks.");
+    const without = buildSceneDecisionRequest({ scene, sceneState: state })
+      .messages[0]!.content;
+    expect(without).not.toContain("The chronicle");
   });
 });

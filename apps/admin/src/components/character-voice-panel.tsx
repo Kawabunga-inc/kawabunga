@@ -6,6 +6,7 @@ import {
   MoshiStreamingSttSession,
 } from "@/lib/moshi-client";
 import { Trace, type TracePayload } from "@/lib/voice-trace";
+import type { ProviderId } from "@kawabunga/engine";
 import { VOICE_PIPELINE_CONFIG } from "@/lib/voice-pipeline-config";
 
 const TTS_SAMPLE_RATE = 24000;
@@ -382,7 +383,7 @@ type Props = {
   moment: Moment | null;
   scene: Scene;
   /** LLM provider for per-turn voice replies (selected by the parent picker). */
-  provider: "cerebras" | "anthropic";
+  provider: ProviderId;
   /** Model id for `provider` (e.g. "llama-3.3-70b" or "claude-haiku-4-5"). */
   model: string;
   tokenBudget: number;

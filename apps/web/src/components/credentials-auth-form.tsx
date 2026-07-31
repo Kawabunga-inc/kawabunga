@@ -2,14 +2,18 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { register } from "@/app/auth/signin/actions";
 
 export function CredentialsAuthForm() {
+  const searchParams = useSearchParams();
+  const callbackUrl = normalizeCallbackUrl(searchParams.get("callbackUrl"));
+  const authError = formatAuthError(searchParams.get("error"));
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(authError);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -31,13 +35,14 @@ export function CredentialsAuthForm() {
         email,
         password,
         redirect: false,
+        callbackUrl,
       });
 
       if (result?.error) {
         setError("Invalid email or password");
         setLoading(false);
       } else {
-        window.location.href = "/dashboard";
+        window.location.href = normalizeCallbackUrl(result?.url ?? callbackUrl);
       }
     } catch {
       setError("Something went wrong");
@@ -109,7 +114,7 @@ export function CredentialsAuthForm() {
       </div>
 
       <button
-        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+        onClick={() => signIn("google", { callbackUrl })}
         className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 py-3 text-sm text-white transition hover:bg-white/10"
       >
         <svg viewBox="0 0 24 24" width="16" height="16">
@@ -140,4 +145,18 @@ export function CredentialsAuthForm() {
       </p>
     </div>
   );
+}
+
+function normalizeCallbackUrl(value: string | null) {
+  if (!value) return "/dashboard";
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  return "/dashboard";
+}
+
+function formatAuthError(value: string | null) {
+  if (!value) return null;
+  if (value === "OAuthAccountNotLinked") {
+    return "This email already has another sign-in method. Sign in with your original method first.";
+  }
+  return "Sign-in failed. Please try again.";
 }

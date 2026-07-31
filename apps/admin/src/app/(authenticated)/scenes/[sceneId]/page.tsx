@@ -9,6 +9,7 @@ import type {
 import {
   getAudioAssetStore,
   getCharacterStore,
+  getArtifactAssetStore,
   getSceneGraphStore,
   getSceneStore,
 } from "@kawabunga/db";
@@ -54,6 +55,21 @@ export type SceneLibrarySound = {
   durationS: number | null;
 };
 
+/** Compact prop-asset row for the canvas tray + ref-backed prop
+ * hydration (sprite renditions and footprint defaults; node data overrides). */
+export type SceneLibraryArtifact = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  /** Generated sprite renditions: art-style key -> public URL. */
+  images: Record<string, string>;
+  defaultWidthM: number | null;
+  defaultHeightM: number | null;
+  defaultRadiusM: number | null;
+  soundSource: boolean;
+};
+
 export default async function SceneDetailPage({
   params,
 }: {
@@ -64,10 +80,11 @@ export default async function SceneDetailPage({
   const scene = await getSceneStore().getSceneById(sceneId);
   if (!scene) notFound();
 
-  const [graph, library, soundLibrary] = await Promise.all([
+  const [graph, library, soundLibrary, artifactLibrary] = await Promise.all([
     getSceneGraphStore().getGraph(sceneId),
     getCharacterStore().list(),
     getAudioAssetStore().list(),
+    getArtifactAssetStore().list(),
   ]);
 
   const roster: SceneRosterEntry[] = graph.nodes
@@ -97,6 +114,18 @@ export default async function SceneDetailPage({
     durationS: a.durationS,
   }));
 
+  const libraryArtifacts: SceneLibraryArtifact[] = artifactLibrary.map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    description: p.description,
+    images: p.images,
+    defaultWidthM: p.defaultWidthM,
+    defaultHeightM: p.defaultHeightM,
+    defaultRadiusM: p.defaultRadiusM,
+    soundSource: p.soundSource,
+  }));
+
   return (
     <SceneEditor
       scene={{
@@ -113,11 +142,13 @@ export default async function SceneDetailPage({
         openingNarrationVariants: scene.definition.openingNarrationVariants,
         openingMode: scene.definition.openingMode,
         narrator: scene.definition.narrator,
+        stage: scene.definition.stage,
       }}
       roster={roster}
       graph={graph}
       libraryCharacters={libraryCharacters}
       librarySounds={librarySounds}
+      libraryArtifacts={libraryArtifacts}
     />
   );
 }

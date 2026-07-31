@@ -1,0 +1,167 @@
+"use client";
+
+import { useState } from "react";
+import type { SceneGraphPayload } from "@/app/(authenticated)/scenes/[sceneId]/page";
+import { AdminButton } from "@/components/admin-ui";
+import {
+  Field,
+  InspectorSection,
+  InspectorTile,
+  inputStyle,
+  ListDetailLayout,
+  NodeRow,
+  textareaStyle,
+} from "./shared";
+import { NodeInspector } from "./node-inspector";
+
+export function GameTab({
+  sceneId,
+  pending,
+  graphNodes,
+  scene,
+  selectedNodeId,
+  onSelect,
+  onSceneChange,
+  onAddEvent,
+  onRemoveNode,
+  onNodeSaved,
+}: {
+  sceneId: string;
+  pending: boolean;
+  graphNodes: SceneGraphPayload["nodes"];
+  scene: {
+    objective: string;
+    drive: "gentle" | "balanced" | "insistent";
+  };
+  selectedNodeId: string | null;
+  onSelect: (nodeId: string) => void;
+  onSceneChange: {
+    setObjective: (next: string) => void;
+    setDrive: (next: "gentle" | "balanced" | "insistent") => void;
+  };
+  onAddEvent: (input: { label: string; summary?: string }) => void;
+  onRemoveNode: (nodeId: string) => void;
+  onNodeSaved: (
+    nodeId: string,
+    patch: Partial<SceneGraphPayload["nodes"][number]>,
+  ) => void;
+}) {
+  const [beatLabel, setBeatLabel] = useState("");
+  const [beatSummary, setBeatSummary] = useState("");
+
+  const beats = graphNodes
+    .filter((n) => n.kind === "event")
+    .sort((a, b) => {
+      const ai = typeof a.data.timeIndex === "number" ? a.data.timeIndex : 0;
+      const bi = typeof b.data.timeIndex === "number" ? b.data.timeIndex : 0;
+      return ai - bi;
+    });
+  const selected = beats.find((n) => n.id === selectedNodeId) ?? beats[0] ?? null;
+
+  return (
+    <ListDetailLayout
+      emptyDetailHint="Add an arc beat, then select it to describe what it looks like when it lands."
+      list={
+        <>
+          <InspectorSection
+            title="Direction"
+            hint="Where the scene is going, and how hard the director presses."
+          >
+            <Field label="Scene objective">
+              <textarea
+                value={scene.objective}
+                onChange={(event) => onSceneChange.setObjective(event.target.value)}
+                rows={2}
+                placeholder="What the scene is driving toward — the director writes beats in service of this."
+                style={textareaStyle}
+              />
+            </Field>
+            <Field label="Director drive">
+              <select
+                value={scene.drive}
+                onChange={(event) =>
+                  onSceneChange.setDrive(
+                    event.target.value as "gentle" | "balanced" | "insistent",
+                  )
+                }
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="gentle">gentle — follow the user&apos;s lead</option>
+                <option value="balanced">balanced — default pacing</option>
+                <option value="insistent">insistent — press toward goals</option>
+              </select>
+            </Field>
+          </InspectorSection>
+
+          <InspectorSection
+            title="Arc"
+            hint="Ordered beats the dramaturg tracks; landed beats advance the director."
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+              {beats.map((node, index) => (
+                <NodeRow
+                  key={node.id}
+                  selected={selected?.id === node.id}
+                  onClick={() => onSelect(node.id)}
+                  label={node.label}
+                  meta={`beat ${index + 1}`}
+                  tile={
+                    <span style={{ transform: "scale(0.68)", transformOrigin: "center" }}>
+                      <InspectorTile kind="event" />
+                    </span>
+                  }
+                />
+              ))}
+            </div>
+            <Field label="Add arc beat">
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+                <input
+                  value={beatLabel}
+                  onChange={(event) => setBeatLabel(event.target.value)}
+                  placeholder="Beat name, e.g. Sarah's laugh — and the denial"
+                  style={inputStyle}
+                />
+                <textarea
+                  value={beatSummary}
+                  onChange={(event) => setBeatSummary(event.target.value)}
+                  rows={2}
+                  placeholder="What it looks like when this beat lands (optional)."
+                  style={textareaStyle}
+                />
+                <AdminButton
+                  type="button"
+                  variant="secondary"
+                  disabled={pending || !beatLabel.trim()}
+                  onClick={() => {
+                    onAddEvent({
+                      label: beatLabel.trim(),
+                      summary: beatSummary.trim() || undefined,
+                    });
+                    setBeatLabel("");
+                    setBeatSummary("");
+                  }}
+                >
+                  Add arc beat
+                </AdminButton>
+              </div>
+            </Field>
+          </InspectorSection>
+        </>
+      }
+      detail={
+        selected ? (
+          <NodeInspector
+            key={selected.id}
+            sceneId={sceneId}
+            pending={pending}
+            node={selected}
+            character={null}
+            sound={null}
+            onRemoveNode={onRemoveNode}
+            onNodeSaved={onNodeSaved}
+          />
+        ) : null
+      }
+    />
+  );
+}

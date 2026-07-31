@@ -28,7 +28,7 @@
  */
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
-import { warmLocalEmbedder } from "@kawabunga/engine";
+import { modelMetaFor, warmLocalEmbedder } from "@kawabunga/engine";
 import {
   type JobContext,
   WorkerOptions,
@@ -92,6 +92,42 @@ if (!process.send) {
 // (Single-character for A2; the world-agent will pick the character per turn.)
 const CHARACTER_ID = process.env.VOICE_AGENT_CHARACTER_ID;
 const STT_MODEL = process.env.VOICE_AGENT_STT ?? "deepgram/nova-3";
+// Brain-model override for every character turn this worker voices — the live
+// A/B knob. Rides runVoiceStream's request-level `model` input, so it outranks
+// each character's saved brainModel (same precedence as the wavefield UI's
+// live picker) without touching L04 config. Resolved once at startup:
+// an id the model registry doesn't know is dropped with a warning, because
+// runVoiceStream would otherwise 400 EVERY turn of every session.
+const BRAIN_MODEL_OVERRIDE = resolveBrainModelOverride(
+  process.env.VOICE_AGENT_BRAIN_MODEL,
+);
+
+function resolveBrainModelOverride(raw: string | undefined): string | null {
+  const id = raw?.trim();
+  if (!id) return null;
+  const meta = modelMetaFor(id);
+  if (!meta) {
+    console.warn(
+      `[voice-agent] VOICE_AGENT_BRAIN_MODEL="${id}" is not in the model registry — override IGNORED (characters keep their saved brainModel)`,
+    );
+    return null;
+  }
+  // Experiment knob, so tier mismatches warn rather than block — but say it
+  // loudly: a non-voice or slow model here is felt by every user in the room.
+  if (!meta.modes.includes("voice")) {
+    console.warn(
+      `[voice-agent] brain override "${id}" is not tagged for voice mode in the registry — proceeding anyway (experiment at your own latency)`,
+    );
+  } else if (meta.latencyTier !== "instant" && meta.latencyTier !== "fast") {
+    console.warn(
+      `[voice-agent] brain override "${id}" has latencyTier="${meta.latencyTier}" — expect slower turns`,
+    );
+  }
+  console.log(
+    `[voice-agent] brain override: ${id} (${meta.provider}) for ALL character turns this worker voices`,
+  );
+  return id;
+}
 // B4: speculative speaker-selection. Orchestrate off the partial transcript during
 // the endpoint hold so the multi-character speaker is usually already chosen when
 // the turn completes (hiding the ~0.5s orchestrate gap). Kill-switch: =0.
@@ -411,7 +447,17 @@ export default defineAgent({
       const turnId = crypto.randomUUID();
       let replyText = "";
       try {
-        for await (const ev of runVoiceStream({ ...streamInput, sessionId, turnId }, { signal })) {
+        for await (const ev of runVoiceStream(
+          {
+            ...streamInput,
+            sessionId,
+            turnId,
+            // Worker-level experiment override (VOICE_AGENT_BRAIN_MODEL) —
+            // request-level `model` outranks the character's saved brainModel.
+            ...(BRAIN_MODEL_OVERRIDE ? { model: BRAIN_MODEL_OVERRIDE } : {}),
+          },
+          { signal },
+        )) {
           if (signal.aborted) break;
           if (ev.event === "audio") {
             const d = ev.data as { pcm: string; sampleRate: number };
@@ -537,9 +583,29 @@ export default defineAgent({
       clearIdle();
       if (!PROACTIVE_ENABLED || sceneEnded) return;
       if (userIsSpeaking || speaking) return;
+      armWorldEvent();
       if (proactiveCount >= MAX_PROACTIVE) return; // bounded → wait for the user
       idleTimer = setTimeout(proactiveTick, IDLE_MS);
     };
+    // TIMED world events outlive the MAX_PROACTIVE brake: that brake stops
+    // characters monologuing at the user, but a chronicler-scheduled event is
+    // the WORLD acting once at its appointed time — it gets its own timer for
+    // the due moment (re-armed whenever a reflection schedules new events).
+    let worldEventTimer: ReturnType<typeof setTimeout> | null = null;
+    const armWorldEvent = () => {
+      if (worldEventTimer) {
+        clearTimeout(worldEventTimer);
+        worldEventTimer = null;
+      }
+      if (!PROACTIVE_ENABLED || sceneEnded) return;
+      const dueIn = sceneDriver.nextWorldEventDueInMs();
+      if (dueIn === null) return;
+      worldEventTimer = setTimeout(() => {
+        worldEventTimer = null;
+        proactiveTick();
+      }, Math.max(dueIn, 1000));
+    };
+    sceneDriver.onWorldEvents(() => armWorldEvent());
     const proactiveTick = () => {
       idleTimer = null;
       if (userIsSpeaking || speaking || sceneEnded) return; // someone already has the floor
@@ -564,6 +630,7 @@ export default defineAgent({
         )
         .then((spoke) => {
           if (spoke) armIdle(); // chain another bounded follow-up
+          else armWorldEvent(); // a hold must not orphan a pending world event
         });
     };
 
@@ -573,6 +640,10 @@ export default defineAgent({
       if (sceneEnded) return;
       sceneEnded = true;
       clearIdle();
+      if (worldEventTimer) {
+        clearTimeout(worldEventTimer);
+        worldEventTimer = null;
+      }
       console.log("[voice-agent] scene ended by director — going quiet");
     };
 
