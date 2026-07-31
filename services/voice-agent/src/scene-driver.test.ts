@@ -16,6 +16,7 @@ import type { OrchestratorDecision, Scene, SfxCue } from "@kawabunga/types";
 // tests that want reflection inject a fake provider via deps instead.
 vi.hoisted(() => {
   process.env.VOICE_AGENT_DRAMATURG = "0";
+  process.env.VOICE_AGENT_CASCADE_MAX = "3";
 });
 
 import { SceneDriver, resolveDramaturgModel, type SceneSpeakInput } from "./scene-driver";
@@ -957,6 +958,70 @@ describe("SceneDriver — timed world events", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("SceneDriver — momentum cascades", () => {
+  it("keeps advancing while decisions carry momentum, then stops when it clears", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "Dying words"), momentum: true },
+      { ...speakDecision("sarah", "Grief breaks"), momentum: true },
+      { action: "narrate", narration: "The camp wakes to the cry." }, // no momentum → cascade ends
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    const { speak, inputs } = fakeSpeak(["May the One watch over this place.", "Abraham!"]);
+
+    const outcome = await driver.drive("I strike him down.", speak);
+    expect(outcome.spoke).toBe(true);
+    // One user turn produced: abraham (primary), sarah (cascade), narration (cascade end).
+    expect(inputs.map((i) => i.speaker.slug)).toEqual(["abraham", "sarah"]);
+    expect(narrated).toEqual(["The camp wakes to the cry."]);
+    expect(exec.calls).toBe(3);
+    // The cascade steps carried the MOMENTUM marker, not a silence tick.
+    const lastUser = exec.requests[1]!.messages[1]!.content;
+    expect(lastUser).toContain("MID-CASCADE");
+  });
+
+  it("hard-caps a runaway cascade at VOICE_AGENT_CASCADE_MAX beats", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "beat"), momentum: true }, // primary
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(() => "…");
+
+    await driver.drive("Chaos!", speak);
+    // Primary + at most CASCADE_MAX(3) driver-initiated beats.
+    expect(inputs.length).toBe(4);
+  });
+
+  it("a wait-for-user mid-cascade resolves it cleanly", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { action: "wait-for-user" },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(["…"]);
+    const outcome = await driver.drive("Go on.", speak);
+    expect(outcome.spoke).toBe(true);
+    expect(inputs.length).toBe(1);
+    expect(exec.calls).toBe(2);
   });
 });
 

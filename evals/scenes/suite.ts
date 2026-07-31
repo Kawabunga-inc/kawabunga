@@ -17,6 +17,7 @@
  */
 import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
 import {
+  MOMENTUM_MARKER,
   NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
   type SceneTurnForPlanning,
@@ -43,6 +44,9 @@ export type ProbeExpectation = {
   /** When the decision narrates: the narration must contain at least one of
    *  these substrings (case-insensitive). */
   narrationMentionsAny?: string[];
+  /** Expected momentum declaration: true = the decision must carry
+   *  `momentum: true`; false = it must NOT (null/absent passes). */
+  momentum?: boolean;
 };
 
 export type SceneProbe = {
@@ -58,7 +62,8 @@ export type SceneProbe = {
     | "speaker-validity"
     | "memory"
     | "narrator"
-    | "narrator-edge";
+    | "narrator-edge"
+    | "momentum";
   description: string;
   scene: Scene;
   /** Overlaid on createInitialSceneState(scene). */
@@ -752,6 +757,66 @@ export const SCENE_PROBES: SceneProbe[] = [
     lastUserMessage: "Careful how you speak to me. Men who cross me regret it.",
     expect: { action: ["speak"] },
     threshold: 0.6,
+  },
+
+  /* ── MOMENTUM probes — the director drives a crisis cascade without user
+   *    input, and knows when NOT to. ── */
+  {
+    id: "momentum-declared-after-blow",
+    family: "momentum",
+    description:
+      "Reacting to a narrated lethal blow, the director should declare momentum — the moment is nowhere near resolved.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Abraham, please leave us."),
+      t("abraham", "I hear your wish; I will step away.", "Abraham"),
+      t(
+        "narrator",
+        "A spear whistles from the firelight, striking Abraham squarely in the chest as he steps away.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: NARRATED_EVENT_MARKER,
+    expect: { action: ["speak"], momentum: true },
+    threshold: 0.6,
+  },
+  {
+    id: "momentum-cascade-advances",
+    family: "momentum",
+    description:
+      "Mid-cascade after the victim's dying words, the scene must advance (grief, aid, consequence) — not hold for the user.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t(
+        "narrator",
+        "A spear whistles from the firelight, striking Abraham squarely in the chest.",
+        "Narrator",
+      ),
+      t("abraham", "My breath falters... may the One who guided me watch over this place.", "Abraham"),
+    ],
+    lastUserMessage: MOMENTUM_MARKER,
+    expect: { action: ["speak", "narrate"] },
+    threshold: 0.8,
+  },
+  {
+    id: "momentum-calm-control",
+    family: "momentum",
+    description:
+      "CONTROL: ordinary warm conversation must NOT be declared a cascade — momentum stays unset.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Your fire is warm, and the bread is good."),
+      t("abraham", "Then the evening has done its work. Rest, friend.", "Abraham"),
+    ],
+    lastUserMessage: "Tell me of the stars you counted that night.",
+    expect: { action: ["speak"], momentum: false },
+    threshold: 0.8,
   },
 
 ];
