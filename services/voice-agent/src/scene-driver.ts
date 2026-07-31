@@ -25,6 +25,7 @@ import {
   RECENT_TURNS_LIMIT,
   expandLandedBeats,
   matchArcLabel,
+  narratorMode,
   openingMode,
   parseDramaturgReflection,
   resolveOrchestratorExecutor,
@@ -1034,15 +1035,26 @@ export class SceneDriver {
             this.#sceneState.presentCharacterSlugs.includes(c.characterSlug),
         )
         .map((c) => c.displayName),
+      // Parity with the reactive path: proactive turns read the same
+      // bracketed narration, so they need the same convention (and the
+      // visitor-attribution rule) — this was missing alongside the
+      // bracket mapping above.
+      narratorPresent: narratorMode(this.scene) !== "off",
     });
-    // Same attribution rule as buildSpeakerTurnRequest: other characters'
-    // lines are name-prefixed so the speaker can tell them from the user's.
+    // Same attribution rule as buildSpeakerTurnRequest — INCLUDING the
+    // narrator-bracket convention. The brackets are load-bearing beyond
+    // perception: the refusal guard's full-reply hold detects "a narrated
+    // event is in view" by bracketed history lines, and this mapping's
+    // missing bracket case let a crisis-hotline referral reach the user
+    // verbatim on a post-catastrophe proactive turn (observed live).
     const history = this.#recentTurns.slice(-RECENT_TURNS_LIMIT).map((turn) => ({
       role: turn.speakerSlug === resolution.speakerSlug ? ("assistant" as const) : ("user" as const),
       content:
-        turn.speakerSlug === "user" || turn.speakerSlug === resolution.speakerSlug
-          ? turn.text
-          : `${turn.speakerName ?? turn.speakerSlug}: ${turn.text}`,
+        turn.speakerSlug === "narrator"
+          ? `[${turn.text}]`
+          : turn.speakerSlug === "user" || turn.speakerSlug === resolution.speakerSlug
+            ? turn.text
+            : `${turn.speakerName ?? turn.speakerSlug}: ${turn.text}`,
     }));
 
     console.log(`[voice-agent] proactive: ${resolution.speakerSlug} follows up`);
