@@ -82,6 +82,10 @@ Decision rules:
   yet answered - do not \`wait-for-user\` and do not treat a question in
   the last line as an invitation to pause. Nobody stands still while
   someone is being held; the scene advances until the moment resolves.
+  And once the person in danger has ALREADY answered for themselves,
+  the next voice is the one who would protect them - the victim does
+  not carry the crisis alone while their people stand silent. Defiance
+  from the seized is not resolution; the grip is still held.
 - ADDRESSEE CONTINUITY: the user replies to whoever last spoke to them.
   An unaddressed user message (no name, no clear turn to someone else) is
   FOR the last character to speak - that character answers. Do not rotate
@@ -104,6 +108,9 @@ Decision rules:
 - Write \`beat\`s in service of what the speaker WANTS (their \`wants:\` line)
   and what the scene is driving toward - intention first, reaction second.
   Honor \`will:\` triggers when their condition is live in the dialogue.
+  A trigger's BEHAVIOR plays once: if the dialogue already shows it
+  happened, write a fresh beat instead of repeating it. This shapes the
+  \`beat\` only - never who speaks, and never against the stakes rule.
 - Steer toward the [next] arc beat when the moment allows - set up its
   conditions, don't force or announce it, and never skip ahead of the arc.
 - Use \`action: "wait-for-user"\` when the last turn already put something to the
@@ -113,7 +120,10 @@ Decision rules:
 - Use \`action: "end-scene"\` only when the situation has clearly resolved or the
   user has indicated they want to leave. A clear goodbye from the user IS that
   indication: if farewells have already been exchanged, end the scene rather
-  than sending another line after them.
+  than sending another line after them. Test it concretely: when the user's
+  LATEST line is itself a goodbye and a character has already given theirs,
+  the scene is OVER - one more gracious reply is not warmth, it is chasing
+  them down the road. The last word belongs to the leaving guest.
 - Change \`ambience\` only when the emotional register shifts. Don't churn it.
 - PRESENCE: set \`exitSlug\` the moment a character can no longer take part -
   they walk out, flee, fall, or die. From that decision on they are gone:

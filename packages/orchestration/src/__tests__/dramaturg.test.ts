@@ -47,7 +47,7 @@ describe("buildDramaturgMessages", () => {
       previousNote: "Ada is stonewalling; give Turing an opening.",
     });
 
-    expect(request.system).toContain("DRAMATURG");
+    expect(request.system).toContain("CHRONICLER");
     expect(request.system).toContain("do NOT write dialogue");
     expect(request.user).toContain("Objective: Ada admits what the machine really measured.");
     expect(request.user).toContain("wants: protect the lab's secret");
@@ -119,12 +119,14 @@ describe("parseDramaturgReflection", () => {
       landed: [],
       facts: [],
       gone: [],
+      chronicle: null,
     });
     expect(parseDramaturgReflection("landed: Something Happened")).toEqual({
       note: null,
       landed: ["Something Happened"],
       facts: [],
       gone: [],
+      chronicle: null,
     });
   });
 
@@ -143,6 +145,119 @@ describe("parseDramaturgReflection", () => {
     ]);
     expect(landed).toEqual(["The laugh is named"]);
     expect(note).toBe("Press Abraham on whether he shares her doubt.");
+  });
+});
+
+describe("the chronicle in the chronicler reflection", () => {
+  it("parses STORY/THREAD/WORLD/INTENT sections alongside the legacy outputs", () => {
+    const parsed = parseDramaturgReflection(
+      [
+        "STORY: A traveler reached Ada's lab at dusk and asked about the machine.",
+        "THREAD: Ada has not admitted what the machine measured.",
+        "THREAD: The traveler's satchel is still unopened.",
+        "WORLD: Rain starting against the windows.",
+        "INTENT: when the machine is named again: Ada crosses to cover it.",
+        "FACT: The traveler gave the name Elm.",
+        "NOTE: Press Ada's secret; the satchel can wait.",
+      ].join("\n"),
+    );
+    expect(parsed.chronicle).toEqual({
+      story: "A traveler reached Ada's lab at dusk and asked about the machine.",
+      threads: [
+        "Ada has not admitted what the machine measured.",
+        "The traveler's satchel is still unopened.",
+      ],
+      world: ["Rain starting against the windows."],
+      intents: [
+        { trigger: "the machine is named again", direction: "Ada crosses to cover it." },
+      ],
+      timed: [],
+      drafts: [],
+    });
+    expect(parsed.facts).toEqual(["The traveler gave the name Elm."]);
+    expect(parsed.note).toBe("Press Ada's secret; the satchel can wait.");
+  });
+
+  it("joins wrapped STORY lines and tolerates arrow-separated intents", () => {
+    const parsed = parseDramaturgReflection(
+      [
+        "STORY: The scene opened quietly.",
+        "STORY: Then the machine was mentioned.",
+        "INTENT: when the rain is heard -> Turing glances at the window.",
+      ].join("\n"),
+    );
+    expect(parsed.chronicle?.story).toBe(
+      "The scene opened quietly. Then the machine was mentioned.",
+    );
+    expect(parsed.chronicle?.intents).toEqual([
+      { trigger: "the rain is heard", direction: "Turing glances at the window." },
+    ]);
+  });
+
+  it("parses TIMED lines in tolerant formats and clamps via sanitize", () => {
+    const parsed = parseDramaturgReflection(
+      [
+        "TIMED: in ~45s: The rain breaks into a downpour.",
+        "TIMED: 90 s - Turing returns from the archive.",
+        "TIMED: someday: never parses",
+      ].join("\n"),
+    );
+    expect(parsed.chronicle?.timed).toEqual([
+      { afterSeconds: 45, direction: "The rain breaks into a downpour." },
+      { afterSeconds: 90, direction: "Turing returns from the archive." },
+    ]);
+    expect(parsed.note).toBeNull();
+  });
+
+  it("parses DRAFT passages", () => {
+    const parsed = parseDramaturgReflection(
+      [
+        "DRAFT: The rain thickens; the lamp halos in the wet glass.",
+        "NOTE: Let the weather do the pressing.",
+      ].join("\n"),
+    );
+    expect(parsed.chronicle?.drafts).toEqual([
+      "The rain thickens; the lamp halos in the wet glass.",
+    ]);
+    expect(parsed.note).toBe("Let the weather do the pressing.");
+  });
+
+  it("drops malformed INTENT lines instead of leaking them into the note", () => {
+    const parsed = parseDramaturgReflection(
+      ["INTENT: something without a trigger", "NOTE: Keep pressing."].join("\n"),
+    );
+    expect(parsed.chronicle).toBeNull();
+    expect(parsed.note).toBe("Keep pressing.");
+  });
+
+  it("returns a null chronicle for legacy note-only replies", () => {
+    const parsed = parseDramaturgReflection("The pacing is fine; hold.");
+    expect(parsed.chronicle).toBeNull();
+    expect(parsed.note).toBe("The pacing is fine; hold.");
+  });
+
+  it("shows the current chronicle for revision and instructs restatement", () => {
+    const request = buildDramaturgMessages({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: [],
+      chronicle: {
+        story: "The traveler arrived at dusk.",
+        threads: ["The satchel is unopened."],
+        world: ["Rain at the windows."],
+        intents: [{ trigger: "thunder", direction: "Ada flinches." }],
+        timed: [{ afterSeconds: 60, direction: "The lamp gutters out." }],
+        drafts: ["The storm leans on the windows."],
+      },
+    });
+    expect(request.system).toContain("THE CHRONICLE");
+    expect(request.system).toContain("restate ALL FOUR sections");
+    expect(request.user).toContain("STORY: The traveler arrived at dusk.");
+    expect(request.user).toContain("THREAD: The satchel is unopened.");
+    expect(request.user).toContain("WORLD: Rain at the windows.");
+    expect(request.user).toContain("INTENT: when thunder: Ada flinches.");
+    expect(request.user).toContain("TIMED: in ~60s: The lamp gutters out.");
+    expect(request.user).toContain("DRAFT: The storm leans on the windows.");
   });
 });
 

@@ -593,6 +593,87 @@ async function playNarration(
     const detail = await resp.text().catch(() => "");
     throw new Error(`narrator ${resp.status}: ${detail.slice(0, 200)}`);
   }
+
+  // STREAMING path (library voices): NDJSON — a header line, then one line
+  // per PCM frame. Frames are enqueued as they arrive, so long narration
+  // starts playing at the first frame instead of after full synthesis.
+  if (resp.headers.get("content-type")?.includes("application/x-ndjson") && resp.body) {
+    const startedAt = performance.now();
+    let provider: string | null = null;
+    let sampleRate: number | null = null;
+    let audioSamples = 0;
+    let frameCount = 0;
+    let firstFrameMs: number | null = null;
+    let streamError: string | null = null;
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    const handleLine = (raw: string) => {
+      const trimmed = raw.trim();
+      if (!trimmed) return;
+      const msg = JSON.parse(trimmed) as {
+        kind?: string;
+        provider?: string;
+        pcm?: string;
+        sampleRate?: number;
+        error?: string;
+      };
+      if (msg.kind === "pcm-stream") {
+        provider = msg.provider ?? null;
+        return;
+      }
+      if (msg.error) {
+        streamError = msg.error;
+        return;
+      }
+      if (msg.pcm && typeof msg.sampleRate === "number") {
+        const samples = SceneAudioBus.decodeFloat32Base64(msg.pcm);
+        if (firstFrameMs === null) firstFrameMs = Math.round(performance.now() - startedAt);
+        sampleRate = msg.sampleRate;
+        audioSamples += samples.length;
+        frameCount += 1;
+        bus.enqueueVoiceFrame(samples, msg.sampleRate);
+      }
+    };
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffered += decoder.decode(value, { stream: true });
+      let newline = buffered.indexOf("\n");
+      while (newline !== -1) {
+        handleLine(buffered.slice(0, newline));
+        buffered = buffered.slice(newline + 1);
+        newline = buffered.indexOf("\n");
+      }
+    }
+    handleLine(buffered);
+    if (frameCount === 0) {
+      throw new Error(`narrator stream produced no audio${streamError ? `: ${streamError}` : ""}`);
+    }
+    if (streamError) {
+      // Partial narration played; surface the cut but don't fail the turn.
+      console.warn(`[scene-player] narration stream ended early: ${streamError}`);
+    }
+    await bus.voiceDrained();
+    return {
+      provider,
+      voiceId,
+      audioMetrics: {
+        kind: "pcm-stream",
+        sampleRate,
+        audioSamples,
+        durationMs:
+          sampleRate && audioSamples
+            ? Math.round((audioSamples / sampleRate) * 1000)
+            : null,
+        frameCount,
+        firstFrameMs,
+        ...(streamError ? { streamError } : {}),
+      },
+    };
+  }
+
   const payload = (await resp.json()) as
     | {
         kind: "pcm";
