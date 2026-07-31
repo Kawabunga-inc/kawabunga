@@ -1363,6 +1363,13 @@ function buildChronicleBlock(chronicle: SceneChronicle | null): string[] {
  *  not respond to a message. */
 export const PROACTIVE_SILENCE_MARKER = "(the user has gone quiet)";
 
+/** Sentinel passed as `lastUserMessage` when the scene has just OPENED —
+ *  the opening narration (if any) has played and the visitor has not yet
+ *  spoken. Distinct from the ordinary silence tick: this is the scene's
+ *  FIRST MOVE, and in most scenes it belongs to a character receiving the
+ *  visitor, not to a hold. */
+export const SCENE_OPEN_MARKER = "(the scene has just opened - the visitor has not yet spoken)";
+
 /** Sentinel passed as `lastUserMessage` on a MOMENTUM cascade step: the
  *  previous decision declared the moment unresolved, so the scene advances
  *  again NOW, without user input. Distinct from the silence tick (nobody is
@@ -1411,6 +1418,17 @@ function buildOrchestratorUserPrompt(
     lines.push("`beat` that reacts to the event itself, not to anything said.");
     lines.push("Do NOT `wait-for-user` here - the moment demands a response, and a");
     lines.push("pause after an event reads as the scene freezing.");
+  } else if (lastUserMessage === SCENE_OPEN_MARKER) {
+    lines.push("");
+    lines.push("The scene has just OPENED. The opening narration (if any) is above;");
+    lines.push("the visitor has arrived and not yet spoken. Decide the scene's FIRST");
+    lines.push("MOVE. In most scenes that move belongs to a CHARACTER: the host");
+    lines.push("receives the visitor - a greeting, an approach, an offer of water or");
+    lines.push("a place by the fire - in their own voice, serving their own wants.");
+    lines.push("An opening that merely restates the narration is wasted; make the");
+    lines.push("first line an invitation the visitor can answer. Hold with");
+    lines.push("`wait-for-user` only when the scene's premise clearly wants the");
+    lines.push("visitor to speak first (a vigil, an ambush, a scene of watching).");
   } else if (lastUserMessage === MOMENTUM_MARKER) {
     lines.push("");
     lines.push("The scene is MID-CASCADE: your previous decision declared the moment");

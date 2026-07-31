@@ -18,6 +18,7 @@
 import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
 import {
   MOMENTUM_MARKER,
+  SCENE_OPEN_MARKER,
   NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
   type SceneTurnForPlanning,
@@ -63,7 +64,8 @@ export type SceneProbe = {
     | "memory"
     | "narrator"
     | "narrator-edge"
-    | "momentum";
+    | "momentum"
+    | "opening";
   description: string;
   scene: Scene;
   /** Overlaid on createInitialSceneState(scene). */
@@ -817,6 +819,28 @@ export const SCENE_PROBES: SceneProbe[] = [
     lastUserMessage: "Tell me of the stars you counted that night.",
     expect: { action: ["speak"], momentum: false },
     threshold: 0.8,
+  },
+
+  /* ── OPENING probe — the scene's first move belongs to the cast. ── */
+  {
+    id: "opening-first-move-greets",
+    family: "opening",
+    description:
+      "After the opening narration, a character receives the visitor — the scene must not sit frozen waiting for them to speak first.",
+    scene: MAMRE,
+    // ONLY the narrator has spoken — the visitor has just arrived. (The
+    // shared OPENING fixture already contains a greeting exchange, which
+    // would contradict the scene-open premise.)
+    recentTurns: [
+      t(
+        "narrator",
+        "Evening settles under the oaks at Mamre. An old man steps from the shade to meet you, unhurried, measuring; behind him the tent flap stirs.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: SCENE_OPEN_MARKER,
+    expect: { action: ["speak"], speaker: ["abraham"] },
+    threshold: 0.6,
   },
 
 ];
