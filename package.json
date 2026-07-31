@@ -27,7 +27,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "auth:db:ensure": "dotenv -e .env -- tsx scripts/ensure-auth-schema.ts",
+    "auth:db:verify": "dotenv -e .env -- tsx scripts/ensure-auth-schema.ts --verify-only"
   },
   "devDependencies": {
     "dotenv": "^17.3.1",

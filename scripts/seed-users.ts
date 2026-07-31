@@ -1,9 +1,9 @@
 import { registerUser } from "@kawabunga/auth";
 
 const users = [
-  { name: "Binny Plotkin", email: "binnyplotkin@gmail.com", password: "adventure" },
-  { name: "Sam Kaminer", email: "sam.kaminer@gmail.com", password: "adventure" },
-  { name: "Jonathan Sassoon", email: "jsassoon23@gmail.com", password: "adventure" },
+  { name: "Binny Plotkin", email: "binnyplotkin@gmail.com", password: "adventure42" },
+  { name: "Sam Kaminer", email: "sam.kaminer@gmail.com", password: "adventure42" },
+  { name: "Jonathan Sassoon", email: "jsassoon23@gmail.com", password: "adventure42" },
 ];
 
 async function main() {

@@ -42,6 +42,11 @@ Create `.env.local` with:
 
 ```bash
 DATABASE_URL=postgresql://user:password@your-neon-endpoint/odyssey?sslmode=require
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+AUTH_SECRET=...
+AUTH_TRUST_HOST=true
+AUTH_GOOGLE_ID=...
+AUTH_GOOGLE_SECRET=...
 OPENAI_API_KEY=sk-...
 TTS_PROVIDER=openai
 TTS_ENABLE_FALLBACK=false
@@ -51,7 +56,25 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
 ```
 
-If `DATABASE_URL` is missing, the app falls back to in-memory persistence.
+Auth requires `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, and
+`AUTH_GOOGLE_SECRET`. Use `AUTH_TRUST_HOST=true` for local development and for
+deployments behind a trusted platform/proxy. Google OAuth must allow these
+callback URLs for local development:
+
+```text
+http://localhost:3000/api/auth/callback/google
+http://localhost:3001/api/auth/callback/google
+```
+
+`AUTH_SECRET` can be generated with:
+
+```bash
+npx auth secret
+```
+
+If `DATABASE_URL` is missing, some non-auth stores fall back to in-memory
+persistence, but sign-in, account creation, Google OAuth persistence, and admin
+user management require a working Postgres database.
 
 If `OPENAI_API_KEY` is missing, the app still runs with deterministic fallback narration/dialogue generation and disables real OpenAI STT/TTS behavior.
 
@@ -75,6 +98,13 @@ Generate or push the Drizzle schema:
 ```bash
 npm run db:generate
 npm run db:push
+```
+
+For auth-only database setup or verification:
+
+```bash
+npm run auth:db:ensure
+npm run auth:db:verify
 ```
 
 The schema lives in [`packages/db/src/schema.ts`](packages/db/src/schema.ts).

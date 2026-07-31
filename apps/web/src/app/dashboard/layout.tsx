@@ -8,7 +8,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if (!session?.user) redirect("/");
+  if (!session?.user) redirect("/auth/signin?callbackUrl=/dashboard");
 
   return (
     <div className="flex h-screen flex-col bg-[#0a0a0a] text-white md:flex-row" style={{ fontFamily: "var(--font-body)" }}>
