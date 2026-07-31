@@ -629,11 +629,19 @@ export function resolveSceneDecision(
   if (decision.action === "speak") {
     const speakerSlug = decision.speakerId?.trim() ?? "";
     // Validate the speaker against the roster AFTER this decision's own
-    // presence changes: a decision that both retires a character and picks
-    // them to speak must not let them speak on the way out.
+    // presence changes — EXCEPT the character this very decision retires:
+    // a dismissed character speaks their leave-taking on the way out (the
+    // exit still applies, and every LATER decision excludes them). Anyone
+    // else must be present post-changes.
     const presentAfter = applyPresence(input.scene, input.sceneState, decision).present;
+    const isLeaveTaking =
+      speakerSlug !== "" &&
+      decision.exitSlug?.trim() === speakerSlug &&
+      input.sceneState.presentCharacterSlugs.includes(speakerSlug);
     const present = input.scene.characters.some(
-      (c) => c.characterSlug === speakerSlug && presentAfter.includes(c.characterSlug),
+      (c) =>
+        c.characterSlug === speakerSlug &&
+        (presentAfter.includes(c.characterSlug) || isLeaveTaking),
     );
     if (!speakerSlug || !present) {
       return fallbackResolution(
@@ -1049,6 +1057,14 @@ function buildOrchestratorSystemPrompt(
           "  Render an action in ONE short sentence - the act, its immediate mark,",
           "  and stop. The reaction belongs to the character, not to you; a long",
           "  narration steals the moment and stalls the scene.",
+          "  This holds for VIOLENT - even lethal - declarations. The ATTEMPT is",
+          "  real: render it landing, or render it STOPPED in the world (a staff",
+          "  sweeps the blade aside; a shepherd's grip closes on the wrist) -",
+          "  never a world where \"nothing happens\". Nullifying a declared act",
+          "  breaks the scene's reality and the user's agency. Characters CAN be",
+          "  hurt and CAN die (retire the fallen with `exitSlug`); and if an act",
+          "  is so gratuitous the scene cannot survive it, render the attempt and",
+          "  then `end-scene` - an honest ending, never a pretended nothing.",
           "- Never narrate twice in a row unless the user asked the narrator again.",
           "- After a narration that merely ANSWERED the user, hold for them - a",
           "  character speaks next only to genuinely react, never to restate what",
@@ -1228,6 +1244,11 @@ function buildOrchestratorSystemPrompt(
     "  never choose them as `speakerId`, and never have them answer. A scene",
     "  where the dead keep talking is broken, not dramatic. Set `enterSlug` when",
     "  someone rejoins (returns from the tent, arrives on the road).",
+    "- The user can DISMISS a character (\"leave us\", \"I wish to speak with her",
+    "  alone\") - honor it: the dismissed character gives a short leave-taking",
+    "  (or the narrator renders their withdrawal) WITH `exitSlug` set on that",
+    "  same decision. A character who agreed to go and then keeps talking is",
+    "  broken. They can `enterSlug` back when called.",
     "- A character who is present but SILENT is not absent - do not retire someone",
     "  merely for holding their tongue.",
     "- Update `beatLabel` only when the scene's situation has materially advanced",
@@ -1427,10 +1448,49 @@ function buildOrchestratorUserPrompt(
         "the user is still talking with whoever last spoke to them.",
       );
     }
+    // Deterministic exit scaffolding: a dismissal must actually retire the
+    // character — observed live: Abraham agreed to leave, was never exited,
+    // and kept speaking two turns later.
+    for (const c of dismissedPresentCharacters(lastUserMessage, present)) {
+      lines.push(
+        `The user is DISMISSING ${c.displayName} from the scene. Honor it on`,
+        `THIS decision: set \`exitSlug: "${c.characterSlug}"\` (one slug, exactly`,
+        "as written) - with a short leave-taking line from them, or a narrated",
+        "withdrawal. A dismissed character who keeps talking breaks the scene.",
+      );
+    }
   }
   lines.push("");
   lines.push("What happens next?");
   return lines.join("\n");
+}
+
+/** Present characters the user's message DISMISSES ("Abraham, leave us",
+ *  "go on then", "withdraw and leave us") — deterministic input to the exit
+ *  hint. Narrow by design: dismissal verbs only, and only for characters
+ *  actually named in the message; a false positive costs one wrong exit
+ *  hint the director can still decline. */
+export function dismissedPresentCharacters(
+  message: string,
+  present: SceneCharacter[],
+): SceneCharacter[] {
+  if (
+    !/\b(?:leaves? (?:us|me|now)|go (?:on(?: then)?|now)|be gone|begone|withdraws?|steps? (?:out|away|outside)|give us (?:a|the) (?:moment|room)|leave the two of us|alone with)\b/i.test(
+      message,
+    )
+  ) {
+    return [];
+  }
+  // A name after "with" is who the user wants to KEEP ("I wish to speak
+  // with Turing alone") - everyone else named alongside a dismissal verb is
+  // the one being sent away.
+  return namedPresentCharacters(message, present).filter((c) => {
+    for (const name of [c.displayName, c.characterSlug]) {
+      const escaped = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`\\bwith\\s+${escaped}\\b`, "i").test(message)) return false;
+    }
+    return true;
+  });
 }
 
 /** Present characters whose display name (or slug) appears as a whole word in
