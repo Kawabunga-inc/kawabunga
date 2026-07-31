@@ -28,7 +28,10 @@ const T = {
 type SortKey = "label" | "provider" | "input" | "output" | "context" | "latency" | "quality";
 type SortDir = "asc" | "desc";
 
-const ALL_PROVIDERS: ProviderId[] = ["anthropic", "openai", "cerebras", "groq"];
+const ALL_PROVIDERS: ProviderId[] = [
+  "anthropic", "openai", "cerebras", "groq", "xai", "gemini",
+  "fireworks", "deepseek", "baseten",
+];
 const ALL_QUALITY_TIERS: QualityTier[] = ["frontier", "production", "budget"];
 const ALL_LATENCY_TIERS: LatencyTier[] = ["frontier", "balanced", "fast", "instant"];
 

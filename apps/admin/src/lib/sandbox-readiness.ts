@@ -861,6 +861,16 @@ function missingProviderEnv(provider: ProviderId): string | null {
       return process.env.CEREBRAS_API_KEY?.trim() ? null : "CEREBRAS_API_KEY";
     case "groq":
       return process.env.GROQ_API_KEY?.trim() ? null : "GROQ_API_KEY";
+    case "xai":
+      return process.env.XAI_API_KEY?.trim() ? null : "XAI_API_KEY";
+    case "gemini":
+      return process.env.GEMINI_API_KEY?.trim() ? null : "GEMINI_API_KEY";
+    case "fireworks":
+      return process.env.FIREWORKS_API_KEY?.trim() ? null : "FIREWORKS_API_KEY";
+    case "deepseek":
+      return process.env.DEEPSEEK_API_KEY?.trim() ? null : "DEEPSEEK_API_KEY";
+    case "baseten":
+      return process.env.BASETEN_API_KEY?.trim() ? null : "BASETEN_API_KEY";
   }
 }
 

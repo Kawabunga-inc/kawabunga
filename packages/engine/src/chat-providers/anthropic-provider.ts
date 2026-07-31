@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { modelMetaFor } from "../model-registry";
 import type {
   ChatProvider,
   ChatRequestOptions,
@@ -64,8 +65,7 @@ export class AnthropicChatProvider implements ChatProvider {
       messages: opts.messages,
       max_tokens: opts.maxTokens,
     };
-    if (typeof opts.temperature === "number") args.temperature = opts.temperature;
-    if (typeof opts.topP === "number") args.top_p = opts.topP;
+    applyCompatibleSampling(args, opts);
 
     // `messages.create` returns `Message | Stream`; we never set stream:true
     // so cast through the concrete type. Same trick the evals runner used
@@ -116,8 +116,7 @@ export class AnthropicChatProvider implements ChatProvider {
       messages: opts.messages,
       max_tokens: opts.maxTokens,
     };
-    if (typeof opts.temperature === "number") args.temperature = opts.temperature;
-    if (typeof opts.topP === "number") args.top_p = opts.topP;
+    applyCompatibleSampling(args, opts);
 
     try {
       const resp = this.client.messages.stream(args);
@@ -178,6 +177,22 @@ export class AnthropicChatProvider implements ChatProvider {
  * If no blocks are present, returns a single space (Anthropic rejects an
  * empty system; the space is harmless).
  */
+/** Capability-aware sampling, mirroring the OpenAI-compat base: the Claude 5
+ *  family (Fable/Opus/Sonnet 5, like Opus 4.7+) REJECTS temperature/top_p with
+ *  a 400 — a saved brainModel temperature must not take those models down.
+ *  The registry's capabilities field is the gate; unknown models pass through
+ *  unchanged (legacy behavior). */
+function applyCompatibleSampling(
+  args: { temperature?: number; top_p?: number },
+  opts: { model: string; temperature?: number; topP?: number },
+): void {
+  const meta = modelMetaFor(opts.model);
+  const allowTemp = meta?.capabilities.temperature ?? true;
+  const allowTopP = meta?.capabilities.topP ?? true;
+  if (allowTemp && typeof opts.temperature === "number") args.temperature = opts.temperature;
+  if (allowTopP && typeof opts.topP === "number") args.top_p = opts.topP;
+}
+
 function toAnthropicSystem(blocks: ChatSystemBlock[]) {
   if (blocks.length === 0) {
     return [{ type: "text" as const, text: " " }];
