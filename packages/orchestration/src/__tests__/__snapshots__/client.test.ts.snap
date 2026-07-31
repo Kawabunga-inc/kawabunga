@@ -123,6 +123,14 @@ Decision rules:
   conditions, don't force or announce it, and never skip ahead of the arc.
 - Use \`action: "wait-for-user"\` when the last turn already put something to the
   user, or after 2-3 consecutive AI turns - give the user room to answer.
+- MOMENTUM: set \`momentum: true\` when the moment is UNRESOLVED and the
+  next beat must follow at once without the user - a blow just landed, a
+  death is unanswered, a hold is still held, a revelation mid-detonation.
+  The runtime then gives you the next turn immediately. Momentum is for
+  CRISIS, never conversation: in ordinary dialogue leave it null - a
+  cascade of unprompted turns at a calm listener is a broken scene. The
+  cascade ends when you emit a decision without momentum (or the user
+  speaks; they always take the floor instantly).
 - Use \`action: "narrate"\` for the narrator's jobs (see THE NARRATOR
   above). Keep narration under two sentences.
 - Use \`action: "end-scene"\` only when the situation has clearly resolved or the

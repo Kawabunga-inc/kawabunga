@@ -112,6 +112,10 @@ function scoreDecision(probe: SceneProbe, sceneState: SceneState, raw: unknown):
       failures.push("beat-off-target");
     }
   }
+  if (expect.momentum !== undefined && !resolution.degraded) {
+    const declared = decision.momentum === true;
+    if (declared !== expect.momentum) failures.push(`momentum:${declared}`);
+  }
   // exitSlug can ride ANY action (speak, narrate, wait) — score it outside
   // the speak-only block.
   if (expect.exits && !resolution.degraded && decision.exitSlug?.trim() !== expect.exits) {

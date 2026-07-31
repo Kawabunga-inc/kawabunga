@@ -357,6 +357,13 @@ export const orchestratorDecisionSchema = z.object({
   // Must be on the scene's authored roster; unknown slugs are ignored.
   enterSlug: z.string().nullable().optional(),
 
+  // ── Momentum (always optional) ─────────────────────────────────
+  // TRUE = the moment is UNRESOLVED and the next beat must follow
+  // immediately, without waiting for the user (a blow just landed, a death
+  // is unanswered, a hold is still held). The driver keeps the cascade
+  // going — bounded, and always superseded the instant the user speaks.
+  momentum: z.boolean().nullable().optional(),
+
   // ── Audio bed (always optional) ────────────────────────────────
   ambience: z.string().nullable().optional(),
   sfx: z.array(sfxCueSchema).optional(),
@@ -393,6 +400,7 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     "ambience",
     "sfx",
     "beatLabel",
+    "momentum",
   ],
   properties: {
     action: {
@@ -419,5 +427,6 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
       },
     },
     beatLabel: { type: ["string", "null"] },
+    momentum: { type: ["boolean", "null"] },
   },
 } as const;

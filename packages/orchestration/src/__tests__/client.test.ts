@@ -170,6 +170,7 @@ describe("@kawabunga/orchestration client", () => {
       "ambience",
       "sfx",
       "beatLabel",
+      "momentum",
     ]);
     expect(request.trace.sceneId).toBe("test-scene");
   });

@@ -19,6 +19,7 @@ import {
   getScene,
   declaresUserAction,
   isNarratorAddressed,
+  MOMENTUM_MARKER,
   NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
   RECENT_TURNS_LIMIT,
@@ -99,6 +100,12 @@ const DRAMATURG_TIMEOUT_MS = 20_000;
 /** Session-open budget for a generated opening — nobody is mid-conversation,
  *  but the listener is waiting for the scene to start. */
 const OPENING_TIMEOUT_MS = 12_000;
+
+/** Hard ceiling on driver-initiated beats after one user turn (the narrate
+ *  chain + momentum continuations combined). The director ends a cascade by
+ *  omitting `momentum`; this cap is the backstop against a runaway director.
+ *  The user's voice supersedes a cascade instantly at every await. */
+const CASCADE_MAX = Math.max(1, Number(process.env.VOICE_AGENT_CASCADE_MAX ?? 4));
 
 /** Lowercase, collapse whitespace, drop trailing punctuation — for prefix matching
  *  a speculated partial against the final transcript. */
@@ -734,11 +741,19 @@ export class SceneDriver {
         chainResolution.decision.narration?.trim()
       ) {
         const voicedAgain = await this.#narrate(chainResolution.decision.narration.trim());
+        if (chainResolution.decision.momentum === true) {
+          const cascade = await this.#momentumCascade(1, speak, superseded);
+          return { action: "narrate", spoke: voiced || voicedAgain || cascade.spoke };
+        }
         return { action: "narrate", spoke: voiced || voicedAgain };
       }
       if (chainResolution.decision.action === "speak" && chainResolution.speakerSlug) {
         const spoke = await this.#speakTurn(chainResolution, speak, superseded);
         if (spoke === "superseded") return { action: "speak", spoke: voiced, superseded: true };
+        if (chainResolution.decision.momentum === true) {
+          const cascade = await this.#momentumCascade(1, speak, superseded);
+          return { action: "speak", spoke: voiced || spoke || cascade.spoke };
+        }
         return { action: "speak", spoke: voiced || spoke };
       }
       console.log(`[voice-agent] scene: narrate chain → ${chainResolution.decision.action}`);
@@ -752,6 +767,10 @@ export class SceneDriver {
 
     const spoke = await this.#speakTurn(resolution, speak, superseded);
     if (spoke === "superseded") return { action: "speak", spoke: false, superseded: true };
+    if (resolution.decision.momentum === true) {
+      const cascade = await this.#momentumCascade(0, speak, superseded);
+      return { action: "speak", spoke: spoke || cascade.spoke };
+    }
     return { action: "speak", spoke };
   }
 
@@ -1049,6 +1068,10 @@ export class SceneDriver {
       this.#trim();
       this.#maybeReflect();
     }
+    if (resolution.decision.momentum === true && !superseded()) {
+      const cascade = await this.#momentumCascade(1, speak, superseded);
+      return Boolean(replyText) || cascade.spoke;
+    }
     return Boolean(replyText);
   }
 
@@ -1125,7 +1148,7 @@ export class SceneDriver {
     // director decides off the transcript alone, whose last line is the
     // narration just voiced.
     userText: string | null,
-    phase: "final" | "speculate" | "proactive" | "chain" = "final",
+    phase: "final" | "speculate" | "proactive" | "chain" | "momentum" = "final",
     signal?: AbortSignal,
     extras?: { worldEventDirective?: string },
   ): Promise<DecideResult> {
@@ -1180,9 +1203,12 @@ export class SceneDriver {
       // or narrate — those are deliberate non-speak moves. Proactive solo:
       // respect `wait-for-user` too — that's the silence/monologue brake.
       const pinnable = decision.action === "speak" || decision.action === "wait-for-user";
+      // Momentum steps are exempt from the solo pin for the same reason as
+      // proactive ticks: nobody is waiting, and `wait-for-user` is how the
+      // director ENDS a cascade — pinning it to speak would loop forever.
       return {
         decision:
-          solo && phase !== "proactive" && pinnable
+          solo && phase !== "proactive" && phase !== "momentum" && pinnable
             ? { ...decision, action: "speak", speakerId: solo }
             : decision,
       };
@@ -1194,6 +1220,55 @@ export class SceneDriver {
         failed,
       };
     }
+  }
+
+  /**
+   * MOMENTUM cascade — the director declared the moment unresolved, so the
+   * scene keeps advancing without the user: decide → perform → repeat while
+   * each decision carries `momentum`, the budget holds, and no newer turn
+   * has taken the floor. `beatsUsed` counts driver-initiated beats already
+   * performed this user turn (the narrate chain counts toward the cap).
+   */
+  async #momentumCascade(
+    beatsUsed: number,
+    speak: SceneSpeakFn,
+    superseded: () => boolean,
+  ): Promise<{ spoke: boolean }> {
+    let spoke = false;
+    let beats = beatsUsed;
+    while (beats < CASCADE_MAX) {
+      if (superseded()) break;
+      const { decision } = await this.#decide(MOMENTUM_MARKER, "momentum");
+      if (superseded()) break;
+      const resolution = resolveSceneDecision(
+        { scene: this.scene, sceneState: this.#sceneState },
+        decision,
+      );
+      this.#sceneState = resolution.sceneState;
+      this.#persistState();
+      this.#emitSfx(resolution.decision.sfx);
+
+      if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
+        console.log(`[voice-agent] cascade beat ${beats + 1}: narrator`);
+        const voiced = await this.#narrate(resolution.decision.narration.trim());
+        spoke = spoke || voiced;
+      } else if (resolution.decision.action === "speak" && resolution.speakerSlug) {
+        console.log(`[voice-agent] cascade beat ${beats + 1}: ${resolution.speakerSlug}`);
+        const result = await this.#speakTurn(resolution, speak, superseded);
+        if (result === "superseded") break;
+        spoke = spoke || result;
+      } else {
+        // wait-for-user / end-scene — the moment resolved; the scene breathes.
+        console.log(`[voice-agent] cascade resolved: ${resolution.decision.action}`);
+        break;
+      }
+      beats += 1;
+      if (resolution.decision.momentum !== true) break;
+    }
+    if (beats >= CASCADE_MAX) {
+      console.log(`[voice-agent] cascade capped at ${CASCADE_MAX} beats — holding for the user`);
+    }
+    return { spoke };
   }
 
   /** Host hook: invoked when a reflection arms NEW timed world events, so

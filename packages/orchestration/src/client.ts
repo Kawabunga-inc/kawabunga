@@ -1215,6 +1215,14 @@ function buildOrchestratorSystemPrompt(
       : []),
     "- Use `action: \"wait-for-user\"` when the last turn already put something to the",
     "  user, or after 2-3 consecutive AI turns - give the user room to answer.",
+    "- MOMENTUM: set `momentum: true` when the moment is UNRESOLVED and the",
+    "  next beat must follow at once without the user - a blow just landed, a",
+    "  death is unanswered, a hold is still held, a revelation mid-detonation.",
+    "  The runtime then gives you the next turn immediately. Momentum is for",
+    "  CRISIS, never conversation: in ordinary dialogue leave it null - a",
+    "  cascade of unprompted turns at a calm listener is a broken scene. The",
+    "  cascade ends when you emit a decision without momentum (or the user",
+    "  speaks; they always take the floor instantly).",
     ...(narratorMode(scene) === "off"
       ? ["- Do not use `action: \"narrate\"` - this scene runs without a narrator."]
       : [
@@ -1352,6 +1360,12 @@ function buildChronicleBlock(chronicle: SceneChronicle | null): string[] {
  *  not respond to a message. */
 export const PROACTIVE_SILENCE_MARKER = "(the user has gone quiet)";
 
+/** Sentinel passed as `lastUserMessage` on a MOMENTUM cascade step: the
+ *  previous decision declared the moment unresolved, so the scene advances
+ *  again NOW, without user input. Distinct from the silence tick (nobody is
+ *  idly quiet - the drama is mid-motion). */
+export const MOMENTUM_MARKER = "(the scene is mid-cascade - the moment is not resolved)";
+
 /** Sentinel passed as `lastUserMessage` on a narrate→react CHAIN step: the
  *  narrator just rendered something that happened, and the scene needs a
  *  character to react to it now. Without this framing the director reads the
@@ -1394,6 +1408,14 @@ function buildOrchestratorUserPrompt(
     lines.push("`beat` that reacts to the event itself, not to anything said.");
     lines.push("Do NOT `wait-for-user` here - the moment demands a response, and a");
     lines.push("pause after an event reads as the scene freezing.");
+  } else if (lastUserMessage === MOMENTUM_MARKER) {
+    lines.push("");
+    lines.push("The scene is MID-CASCADE: your previous decision declared the moment");
+    lines.push("unresolved, and the user has not spoken. Advance the scene NOW -");
+    lines.push("the next beat of the crisis (a reaction, a consequence, the world");
+    lines.push("moving). Do NOT `wait-for-user` unless the moment has genuinely");
+    lines.push("resolved; if it has, emit `wait-for-user` (or `end-scene`) and no");
+    lines.push("momentum, and the scene will breathe.");
   } else if (lastUserMessage === PROACTIVE_SILENCE_MARKER) {
     lines.push("");
     lines.push("The user has gone quiet - no new message. Decide whether the scene");
