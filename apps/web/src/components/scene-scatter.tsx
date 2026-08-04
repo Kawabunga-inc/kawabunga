@@ -72,7 +72,7 @@ const CARDS: Card[] = [
     src: "/scatter/scene-mad-tea-party.webp",
     position: "50% 48%",
     kicker: "Fantasy · Wonderland",
-    kickerColor: "#8FD1CB",
+    kickerColor: "var(--color-accent-strong)",
     title: "The Mad Tea Party",
     titleSize: 32,
   },
@@ -743,7 +743,7 @@ function ScatterCard({
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden bg-[#0A0F12] shadow-[0_26px_58px_rgba(7,17,15,0.20)]"
+      className="relative h-full w-full overflow-hidden bg-[var(--color-accent-on)] shadow-[0_26px_58px_rgba(7,17,15,0.20)]"
       style={{ borderRadius: radius }}
     >
       {card.src ? (

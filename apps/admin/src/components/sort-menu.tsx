@@ -116,8 +116,7 @@ function SortMenuPanel<K extends string>({
         right: 0,
         minWidth: 240,
         padding: "var(--space-6)",
-        /* One solid global token — `--background`. Dark `#07090B` /
-         * light `#F5F6F4`. Solid, theme-flipping, no gradients. */
+        /* One solid global token. It theme-flips without gradients. */
         backgroundColor: "var(--background)",
         backgroundImage: "none",
         border: "1px solid var(--border-subtle)",

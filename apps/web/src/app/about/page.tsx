@@ -42,7 +42,7 @@ export default function AboutPage() {
               className="text-4xl font-semibold leading-[1.1] sm:text-5xl lg:text-[56px]"
               style={{ fontFamily: heading, letterSpacing: "-0.04em" }}
             >
-              <span className="text-[#8fd1cb]">Infinite Worlds.</span>
+              <span className="text-[var(--color-accent-strong)]">Infinite Worlds.</span>
               <br />
               One Engine.
               <br />
@@ -84,7 +84,7 @@ export default function AboutPage() {
             </div>
             <blockquote
               className="rounded-2xl border border-white/8 bg-white/[0.03] px-8 py-6 text-[22px] font-medium italic leading-[1.5]"
-              style={{ fontFamily: heading, color: "#8fd1cb" }}
+              style={{ fontFamily: heading, color: "var(--color-accent-strong)" }}
             >
               &ldquo;The most powerful technology disappears. What remains is the experience.&rdquo;
             </blockquote>
@@ -250,7 +250,7 @@ export default function AboutPage() {
               <p>
                 The loneliness at the top of the tower. The impossible calculus of mercy versus order. The moment you realize the throne doesn&apos;t grant wisdom — it demands it.
               </p>
-              <p className="text-[13px] italic text-[#8fd1cb]">
+              <p className="text-[13px] italic text-[var(--color-accent-strong)]">
                 This was the first question. The one that cracked the door open.
               </p>
             </div>
@@ -276,7 +276,7 @@ export default function AboutPage() {
               <p>
                 The thrill of the chase. The code that only matters when you choose to honor it. The discovery that freedom without purpose is just drift.
               </p>
-              <p className="text-[13px] italic text-[#8fd1cb]">
+              <p className="text-[13px] italic text-[var(--color-accent-strong)]">
                 This was the second question. The one that proved the first wasn&apos;t a fluke.
               </p>
             </div>

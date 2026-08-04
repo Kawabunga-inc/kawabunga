@@ -496,7 +496,7 @@ function phaseColor(phase: VoicePhase, voiceModeActive: boolean) {
     case "thinking":
       return T.accent;
     case "speaking":
-      return "#4ade80";
+      return "var(--color-status-live)";
     default:
       return T.muted;
   }
@@ -506,7 +506,7 @@ function startupStateColor(state: StartupStepState, activeColor = T.accent) {
   switch (state) {
     case "ready":
     case "active":
-      return "#4ade80";
+      return "var(--color-status-live)";
     case "pending":
       return activeColor;
     case "error":
@@ -629,13 +629,13 @@ function StatusRow({
 function segmentStateColor(state: PipelineSegmentState) {
   switch (state) {
     case "active":
-      return "#8FD1CB";
+      return "var(--color-accent-strong)";
     case "ready":
-      return "#4ade80";
+      return "var(--color-status-live)";
     case "waiting":
-      return "#FACC15";
+      return "var(--color-status-draft)";
     case "aborted":
-      return "#FACC15";
+      return "var(--color-status-draft)";
     case "error":
       return "#f87171";
     default:
@@ -1065,7 +1065,7 @@ function VoiceReadinessPanel({
           style={{
             fontFamily: T.fontMono,
             fontSize: 9.5,
-            color: ready ? "#4ade80" : T.muted,
+            color: ready ? "var(--color-status-live)" : T.muted,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
           }}
@@ -1153,7 +1153,7 @@ function VoiceReadinessPanel({
               ? "Grant microphone access, then retry voice mode"
               : status.error ?? "Waiting for all required signals"
         }
-        activeColor="#4ade80"
+        activeColor="var(--color-status-live)"
       />
       {status.micPermission === "error" ? (
         <div
@@ -3678,7 +3678,7 @@ ref,
                           fontFamily: T.fontMono,
                           fontSize: "var(--font-size-2xs)",
                           fontWeight: 600,
-                          color: "#FACC15",
+                          color: "var(--color-status-draft)",
                           letterSpacing: "0.08em",
                           textTransform: "uppercase",
                         }}

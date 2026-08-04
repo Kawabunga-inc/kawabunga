@@ -32,13 +32,9 @@ import { resolveAvatarGradient } from "@/lib/avatar-gradients";
 const FONT_HEAD = "'Inter', system-ui, sans-serif";
 const FONT_MONO = "'JetBrains Mono', ui-monospace, monospace";
 
-/* Brand mint, used for the accent surface throughout the node. Pulled
- * from the brand guidelines (`--accent-strong`); we use literal rgba in
- * `color-mix` substrates because the node is canvas-positioned and the
- * `var(--accent-strong)` token reads slightly differently on the dark
- * forest canvas background than against the page surface. */
-const MINT_HEX = "#8FD1CB";
-const CORAL_HEX = "#FCA5A5";
+/* Ocean contract colors used throughout the node. */
+const MINT_HEX = "var(--color-accent-strong)";
+const CORAL_HEX = "var(--color-status-error)";
 
 /* ── Public types ─────────────────────────────────────────────── */
 
@@ -202,8 +198,7 @@ export function CharacterNodeCard({
         /* `backgroundColor` (longhand) + explicit `backgroundImage:
          * none` so the value resolves as one solid color, never a
          * layered gradient. `--background` is the global page-surface
-         * token — solid `#F5F6F4` light / `#07090B` dark — and is the
-         * same token the React Flow viewport itself is painted with,
+         * token and the same token the React Flow viewport itself uses,
          * so the node merges with the canvas surface and the grid
          * (drawn inside React Flow's background pane at `z-index: -1`)
          * cannot bleed through. Visual separation between node and

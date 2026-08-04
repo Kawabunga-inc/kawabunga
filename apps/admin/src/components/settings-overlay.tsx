@@ -905,7 +905,7 @@ function AppearancePane({
     },
     {
       label: "Danger",
-      value: "#FF5A5A",
+      value: "var(--color-critical-crimson)",
       bg: "color-mix(in srgb, var(--status-error) 10%, transparent)",
       text: "var(--status-error)",
     },

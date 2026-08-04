@@ -1,8 +1,26 @@
 "use client";
 
 import { MeshGradient as PaperMeshGradient } from "@paper-design/shaders-react";
+import { useSyncExternalStore } from "react";
+
+const subscribeToTheme = () => () => undefined;
+const getServerAccent = () => "#ffffff";
+
+function getAccent() {
+  return (
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--color-accent-strong")
+      .trim() || getServerAccent()
+  );
+}
 
 export function MeshGradient({ className }: { className?: string }) {
+  const accent = useSyncExternalStore(
+    subscribeToTheme,
+    getAccent,
+    getServerAccent,
+  );
+
   return (
     <PaperMeshGradient
       className={className}
@@ -11,7 +29,7 @@ export function MeshGradient({ className }: { className?: string }) {
         "#ffffff",
         "#f1f7f5",
         "#dceeea",
-        "#8fd1cb",
+        accent,
         "#f8fbfa",
       ]}
       speed={0.8}

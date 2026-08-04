@@ -285,7 +285,7 @@ export function CharacterVoiceWavefield(props: Props) {
                       voiceState.phase === "listening"
                         ? "#ef4444"
                         : voiceState.phase === "speaking"
-                          ? "#4ade80"
+                          ? "var(--color-status-live)"
                           : "var(--accent-strong)",
                     boxShadow: "0 0 6px currentColor",
                   }}
@@ -455,10 +455,10 @@ export function CharacterVoiceWavefield(props: Props) {
                       borderRadius: "50%",
                       background:
                         warmStatus === "ready"
-                          ? "#4ade80"
+                          ? "var(--color-status-live)"
                           : warmStatus === "error"
                             ? "#f87171"
-                            : "#FACC15",
+                            : "var(--color-status-draft)",
                       boxShadow:
                         warmStatus === "ready"
                           ? "0 0 6px rgba(74,222,128,0.55)"

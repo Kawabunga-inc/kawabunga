@@ -30,23 +30,23 @@ const BORDER = "rgba(255, 255, 255, 0.08)";
 const BORDER_STRONG = "rgba(255, 255, 255, 0.12)";
 const DIVIDER = "rgba(255, 255, 255, 0.06)";
 
-const ACCENT = "#8FD1CB";
+const ACCENT = "var(--color-accent-strong)";
 const ACCENT_SOFT = "rgba(140, 231, 210, 0.06)";
 const ACCENT_RING = "rgba(140, 231, 210, 0.3)";
 
-const ADD = "#4ADE80";
+const ADD = "var(--color-status-live)";
 const ADD_SOFT = "rgba(74, 222, 128, 0.04)";
 const ADD_RING = "rgba(74, 222, 128, 0.3)";
 
-const WARN = "#FACC15";
+const WARN = "var(--color-status-draft)";
 const WARN_SOFT = "rgba(250, 204, 21, 0.04)";
 const WARN_RING = "rgba(250, 204, 21, 0.3)";
 
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--color-accent-strong)",
   event: "#60A5FA",
   concept: "#A78BFA",
-  relationship: "#FACC15",
+  relationship: "var(--color-status-draft)",
   timeline: "#2DD4BF",
   voice_identity: "#F472B6",
 };

@@ -802,14 +802,14 @@ function AssistantBubble({ turn }: { turn: Turn }) {
           background: "linear-gradient(135deg, var(--emissive-mint) 0%, var(--accent-strong) 100%)",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}>
-          <span style={{ fontFamily: T.fontHeading, fontSize: "var(--font-size-lg)", fontWeight: 600, color: "#0C0E14", lineHeight: "16px" }}>
+          <span style={{ fontFamily: T.fontHeading, fontSize: "var(--font-size-lg)", fontWeight: 600, color: "var(--color-accent-on)", lineHeight: "16px" }}>
             A
           </span>
         </div>
         {isStreaming && (
           <span style={{
             position: "absolute", bottom: -2, right: -2, width: 10, height: 10,
-            borderRadius: "50%", background: "#4ADE80", border: "2px solid var(--background)",
+            borderRadius: "50%", background: "var(--color-status-live)", border: "2px solid var(--background)",
           }}/>
         )}
       </div>
@@ -819,8 +819,8 @@ function AssistantBubble({ turn }: { turn: Turn }) {
             Abraham
           </span>
           {turn.status === "pending" && <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", color: T.muted }}>● curating…</span>}
-          {turn.status === "curator-done" && <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", color: "#4ADE80" }}>● speaking</span>}
-          {turn.status === "streaming" && <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", color: "#4ADE80" }}>● speaking</span>}
+          {turn.status === "curator-done" && <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", color: "var(--color-status-live)" }}>● speaking</span>}
+          {turn.status === "streaming" && <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", color: "var(--color-status-live)" }}>● speaking</span>}
         </div>
         {turn.status === "error" ? (
           <span style={{ fontFamily: T.fontBody, fontSize: "var(--font-size-md)", color: "#E89090" }}>
@@ -943,7 +943,7 @@ function Composer({
               width: 32, height: 32, borderRadius: "var(--radius-md)",
               background: "#E89090", border: "none", cursor: "pointer",
             }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0C0E14" strokeWidth="2.5" strokeLinecap="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-on)" strokeWidth="2.5" strokeLinecap="round"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
             </button>
           ) : (
             <button onClick={onSend} disabled={!input.trim()} style={{
@@ -952,7 +952,7 @@ function Composer({
               background: input.trim() ? "var(--accent-strong)" : "var(--surface-hover)",
               border: "none", cursor: input.trim() ? "pointer" : "not-allowed",
             }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0C0E14" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-on)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
             </button>
           )}
         </div>
@@ -1444,7 +1444,7 @@ function ScrubberPill({
 }) {
   let dotColor: string | null = null;
   if (dot) dotColor = "var(--accent-strong)";
-  else if (isLatest && status === "streaming") dotColor = "#4ADE80";
+  else if (isLatest && status === "streaming") dotColor = "var(--color-status-live)";
   else if (status === "error") dotColor = "#E89090";
 
   return (
@@ -1558,12 +1558,12 @@ function TraceContent({ curator, pageBySlug }: { curator: CuratorEvent; pageBySl
         <div style={{ display: "flex", height: 8, borderRadius: "var(--radius-xs)", overflow: "hidden", background: "var(--surface-hover)", marginBottom: "var(--space-8)" }}>
           <div style={{ width: `${Math.round(fullTokens / Math.max(1, curator.tokensUsed) * 100)}%`, background: "var(--accent-strong)" }}/>
           <div style={{ width: `${Math.round(summaryTokens / Math.max(1, curator.tokensUsed) * 100)}%`, background: "var(--status-draft)" }}/>
-          <div style={{ width: `${Math.round(titleTokens / Math.max(1, curator.tokensUsed) * 100)}%`, background: "#8B5CF6" }}/>
+          <div style={{ width: `${Math.round(titleTokens / Math.max(1, curator.tokensUsed) * 100)}%`, background: "var(--color-event-violet)" }}/>
         </div>
         <div style={{ display: "flex", gap: "var(--space-14)", fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", flexWrap: "wrap" }}>
           <span style={{ color: "var(--accent-strong)" }}>● {byRendering.full.length} full · {fullTokens}t</span>
           <span style={{ color: "var(--status-draft)" }}>● {byRendering.summary.length} summary · {summaryTokens}t</span>
-          <span style={{ color: "#8B5CF6" }}>● {byRendering.title.length} title · {titleTokens}t</span>
+          <span style={{ color: "var(--color-event-violet)" }}>● {byRendering.title.length} title · {titleTokens}t</span>
           <span style={{ color: T.muted, marginLeft: "auto" }}>{curator.tokensUsed}/{curator.tokensBudget} used</span>
         </div>
         <div style={{ marginTop: "var(--space-10)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -1667,7 +1667,7 @@ function CharacterAvatar({ character, size }: { character: CharacterProp; size: 
       background: "linear-gradient(135deg, var(--emissive-mint) 0%, var(--accent-strong) 100%)",
       display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
     }}>
-      <span style={{ fontFamily: T.fontHeading, fontSize: Math.round(size * 0.45), fontWeight: 600, color: "#0C0E14" }}>
+      <span style={{ fontFamily: T.fontHeading, fontSize: Math.round(size * 0.45), fontWeight: 600, color: "var(--color-accent-on)" }}>
         {character.title.charAt(0).toUpperCase()}
       </span>
     </div>

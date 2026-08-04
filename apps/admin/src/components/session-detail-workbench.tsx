@@ -152,6 +152,7 @@ export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective =
 
   return (
     <div
+      className="ocean-session-workbench"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -406,7 +407,7 @@ function ReplayButton() {
         border: "none",
         borderRadius: "var(--radius-md)",
         padding: "8px 14px",
-        color: "#06110f",
+        color: "var(--color-accent-on)",
         fontFamily: FONT_BODY,
         fontSize: "var(--font-size-base)",
         fontWeight: 700,
@@ -433,10 +434,10 @@ function Avatar({
   const initial = (label?.charAt(0) ?? "·").toUpperCase();
   const bg =
     variant === "user"
-      ? "linear-gradient(135deg, #E5C49A 0%, #B07F4F 100%)"
+      ? "linear-gradient(135deg, color-mix(in srgb, var(--color-warning-amber) 45%, white) 0%, color-mix(in srgb, var(--color-warning-amber) 65%, black) 100%)"
       : variant === "assistant"
-        ? "linear-gradient(135deg, #8FD1CB 0%, #105A59 100%)"
-        : "linear-gradient(135deg, #8FD1CB 0%, #3A8B7A 100%)";
+        ? "linear-gradient(135deg, var(--color-accent-strong) 0%, color-mix(in srgb, var(--color-accent-strong) 38%, black) 100%)"
+        : "linear-gradient(135deg, var(--color-accent-strong) 0%, color-mix(in srgb, var(--color-accent-strong) 62%, black) 100%)";
   return (
     <div
       style={{
@@ -448,7 +449,7 @@ function Avatar({
         alignItems: "center",
         justifyContent: "center",
         flexShrink: 0,
-        color: "#06110f",
+        color: "var(--color-accent-on)",
         fontFamily: FONT_DISPLAY,
         fontWeight: 700,
         fontSize: Math.round(size * 0.42),
@@ -1016,10 +1017,10 @@ function TurnEntry({
         flexDirection: "column",
         gap: "var(--space-14)",
         padding: "16px 18px 18px",
-        borderRadius: "var(--radius-2xl)",
+        borderRadius: "var(--radius-card)",
         border: `1px solid ${C.mintMid}`,
         background: C.mintBg,
-        boxShadow: `0 0 0 4px rgba(140,231,210,0.04)`,
+        boxShadow: `0 0 0 4px ${C.mintBg}`,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-14)", flexWrap: "wrap" }}>
@@ -1159,7 +1160,7 @@ function Stat({ label, value, mint }: { label: string; value: string; mint?: boo
 }
 
 function Pill({ children, tone }: { children: React.ReactNode; tone?: "amber" | "mint" }) {
-  const bg = tone === "amber" ? C.amberSoft : tone === "mint" ? C.mintSoft : "rgba(255,255,255,0.04)";
+  const bg = tone === "amber" ? C.amberSoft : tone === "mint" ? C.mintSoft : C.panelStrong;
   const color = tone === "amber" ? C.amber : tone === "mint" ? C.mint : C.textHigh;
   return (
     <span
@@ -1170,7 +1171,7 @@ function Pill({ children, tone }: { children: React.ReactNode; tone?: "amber" | 
         borderRadius: "var(--radius-pill)",
         background: bg,
         color,
-        border: `1px solid ${tone === "amber" ? "rgba(229,184,90,0.2)" : tone === "mint" ? C.mintMid : C.border}`,
+        border: `1px solid ${tone === "amber" ? "color-mix(in srgb, var(--color-warning-amber) 20%, transparent)" : tone === "mint" ? C.mintMid : C.border}`,
         fontFamily: FONT_MONO,
         fontSize: "var(--font-size-xs)",
         letterSpacing: "0.04em",
@@ -1898,7 +1899,7 @@ function PipelineLanes({ items, totalMs }: { items: LaneItem[]; totalMs: number 
 function LaneBar({ item, totalMs }: { item: LaneItem; totalMs: number }) {
   const left = (item.startMs / totalMs) * 100;
   const width = Math.max(((item.endMs - item.startMs) / totalMs) * 100, 0.3);
-  const fill = item.amber ? C.amberDeep : item.highlight ? C.mint : "rgba(140,231,210,0.45)";
+  const fill = item.amber ? C.amberDeep : item.highlight ? C.mint : C.mintGlow;
   return (
     <>
       <div
@@ -1925,7 +1926,7 @@ function LaneBar({ item, totalMs }: { item: LaneItem; totalMs: number }) {
             width: 6,
             height: 6,
             borderRadius: "50%",
-            background: item.amber ? C.amber : "rgba(140,231,210,0.85)",
+            background: item.amber ? C.amber : C.mint,
           }}
         />
       ))}
@@ -1971,7 +1972,10 @@ function HeadlineMetrics({ metrics }: { metrics: { label: string; value: string;
             flexDirection: "column",
             gap: "var(--space-3)",
             borderRight: i < metrics.length - 1 ? `1px solid ${C.borderSoft}` : "none",
-            background: m.tone === "amber" ? "rgba(229,184,90,0.06)" : "transparent",
+            background:
+              m.tone === "amber"
+                ? "color-mix(in srgb, var(--color-warning-amber) 6%, transparent)"
+                : "transparent",
           }}
         >
           <span style={{ fontFamily: FONT_MONO, fontSize: "var(--font-size-xs)", color: C.textLow, letterSpacing: "0.16em", textTransform: "uppercase" }}>
@@ -2254,7 +2258,7 @@ function KnowledgeGraphViz({
                 y1={nearest.y}
                 x2={n.x}
                 y2={n.y}
-                stroke={n.kind === "time-gated" ? C.amber : "rgba(255,255,255,0.35)"}
+                stroke={n.kind === "time-gated" ? C.amber : C.textMid}
                 strokeOpacity={0.45}
                 strokeWidth={1}
                 strokeDasharray="4 3"
@@ -2297,16 +2301,16 @@ function GraphNodeShape({
   const isSelectedKind = node.kind === "selected";
   const fill = isSelectedKind
     ? node.isSeed
-      ? "rgba(140,231,210,0.35)"
-      : "rgba(140,231,210,0.18)"
+      ? C.mintMid
+      : C.mintSoft
     : node.kind === "time-gated"
-      ? "rgba(229,184,90,0.18)"
-      : "rgba(255,255,255,0.06)";
+      ? "color-mix(in srgb, var(--color-warning-amber) 18%, transparent)"
+      : C.borderSoft;
   const stroke = isSelectedKind
     ? C.mint
     : node.kind === "time-gated"
       ? C.amber
-      : "rgba(255,255,255,0.32)";
+      : C.textLow;
   const strokeDash = node.kind === "score-dropped" || node.kind === "budget-dropped" ? "3 3" : undefined;
   const labelColor = isSelectedKind ? C.text : node.kind === "time-gated" ? C.amber : C.textMid;
   const showLabel = isSelectedKind || node.kind === "time-gated";
@@ -2359,7 +2363,7 @@ function NodeInspector({ node, center }: { node: GraphNode; center: GraphNode | 
         right: 10,
         top: 14,
         width: 220,
-        background: "rgba(12,14,20,0.92)",
+        background: "color-mix(in srgb, var(--color-background) 92%, transparent)",
         border: `1px solid ${C.borderStrong}`,
         borderRadius: "var(--radius-lg)",
         padding: "12px 14px",
@@ -2392,10 +2396,10 @@ function NodeInspector({ node, center }: { node: GraphNode; center: GraphNode | 
 function Legend() {
   const items = [
     { dot: C.mint, label: "selected" },
-    { dot: "rgba(140,231,210,0.55)", outline: true, label: "seed (entry point)" },
+    { dot: C.mintGlow, outline: true, label: "seed (entry point)" },
     { dot: C.amber, label: "time-gated" },
-    { dot: "rgba(255,255,255,0.4)", dashed: true, label: "budget-dropped" },
-    { dot: "rgba(255,255,255,0.4)", dashed: true, label: "score-dropped" },
+    { dot: C.textMid, dashed: true, label: "budget-dropped" },
+    { dot: C.textMid, dashed: true, label: "score-dropped" },
     { line: true, dashed: false, label: "edge contribution" },
     { line: true, dashed: true, label: "weak edge" },
   ];
@@ -2423,7 +2427,7 @@ function Legend() {
                 width: 22,
                 height: 0,
                 borderTop: it.dashed
-                  ? `1px dashed rgba(255,255,255,0.45)`
+                  ? `1px dashed ${C.textMid}`
                   : `1px solid ${C.mint}`,
               }}
             />
@@ -2888,7 +2892,7 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
         margin: 0,
         marginTop: "var(--space-10)",
         padding: "var(--space-14)",
-        background: "#06080C",
+        background: "var(--color-deep)",
         border: `1px solid ${C.borderSoft}`,
         borderRadius: "var(--radius-md)",
         color: C.textHigh,

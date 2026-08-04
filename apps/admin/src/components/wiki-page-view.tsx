@@ -48,7 +48,7 @@ const BORDER_STRONG = "rgba(255, 255, 255, 0.12)";
 const DIVIDER = "rgba(255, 255, 255, 0.06)";
 const INPUT_BG = "rgba(255, 255, 255, 0.02)";
 
-const ACCENT = "#8FD1CB";
+const ACCENT = "var(--color-accent-strong)";
 const ACCENT_SOFT = "rgba(140, 231, 210, 0.06)";
 const ACCENT_RING = "rgba(140, 231, 210, 0.3)";
 
@@ -57,10 +57,10 @@ const DANGER_SOFT = "rgba(248, 113, 113, 0.06)";
 const DANGER_RING = "rgba(248, 113, 113, 0.36)";
 
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--color-accent-strong)",
   event: "#60A5FA",
   concept: "#A78BFA",
-  relationship: "#FACC15",
+  relationship: "var(--color-status-draft)",
   timeline: "#2DD4BF",
   voice_identity: "#F472B6",
 };

@@ -9,11 +9,11 @@ const T = {
   muted: "#FFFFFF80",
   faint: "#FFFFFF66",
   panel: "#161A24",
-  panelInner: "#0C0E14",
+  panelInner: "var(--color-background)",
   panelRaised: "#1E2230",
   border: "#FFFFFF14",
   borderSoft: "#FFFFFF0A",
-  accent: "#8FD1CB",
+  accent: "var(--color-accent-strong)",
   accentInk: "#04231E",
   green: "#6FCFA0",
   red: "#F37272",
@@ -183,7 +183,7 @@ export function EditProfileModal({ open, target, isSelf, onClose, onSaved }: Pro
             borderRadius: "var(--radius-lg)",
             background: "rgba(243,114,114,0.08)",
             border: "1px solid rgba(243,114,114,0.20)",
-            fontFamily: T.fontBody, fontSize: "var(--font-size-base)", color: "#F4A8A8",
+            fontFamily: T.fontBody, fontSize: "var(--font-size-base)", color: "var(--color-status-error)",
           }}>
             {error}
           </div>

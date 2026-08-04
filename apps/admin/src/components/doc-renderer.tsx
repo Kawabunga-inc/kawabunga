@@ -217,7 +217,7 @@ function DocStyles() {
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.06em;
-        color: var(--accent, #8fd1cb);
+        color: var(--color-accent-strong);
       }
       .doc-toc-list {
         list-style: none;

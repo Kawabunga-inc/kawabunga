@@ -15,8 +15,8 @@ const T = {
 };
 
 /** Tier color — matches the Paper design.
- * T1 = phosphor (existing app uses #8FD1CB as accent-strong, very close to
- * the design's #8DFCCB). T2 = amber. SM = violet. Test = neutral. */
+ * T1 = phosphor via the Ocean accent token. T2 = amber. SM = violet.
+ * Test = neutral. */
 function tierColor(tier: LayerTier): string {
   switch (tier) {
     case "t1": return "rgba(140,231,210,0.85)";
