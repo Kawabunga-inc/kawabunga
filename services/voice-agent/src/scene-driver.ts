@@ -35,8 +35,13 @@ import {
   selectAuthoredOpening,
   updateSceneFacts,
   updateSceneMemory,
+  buildDecisionJournalEntries,
+  buildReflectionJournalEntry,
+  buildWorldEventArmedJournalEntry,
   type OrchestratorExecutorResolution,
   type SceneChronicle,
+  type SceneDecisionJournalExtras,
+  type SceneJournalSink,
   type SceneSessionSnapshot,
   type SceneTurnForPlanning,
 } from "@kawabunga/orchestration";
@@ -171,8 +176,15 @@ const defaultDeps: SceneDriverDeps = {
 };
 
 /** What #decide resolves to: the decision, plus the failure it papered over
- *  (executor error / timeout) so the caller can recover instead of waiting. */
-type DecideResult = { decision: OrchestratorDecision; failed?: string };
+ *  (executor error / timeout) so the caller can recover instead of waiting —
+ *  and the call's provenance (latency, provider, model) for the journal. */
+type DecideResult = {
+  decision: OrchestratorDecision;
+  failed?: string;
+  latencyMs?: number;
+  provider?: string;
+  model?: string;
+};
 
 /**
  * The NARRATOR's runtime — drives a multi-character SCENE over a LiveKit room.
@@ -219,6 +231,10 @@ export class SceneDriver {
   } | null = null;
   // Optional persistence hook — invoked with a fresh snapshot after every decision.
   #onState: ((snapshot: SceneSessionSnapshot) => void) | null = null;
+  // The scene journal sink — receives typed entries for every decision,
+  // reflection, and world-event arming (the session's flight recorder).
+  // Fire-and-forget: never awaited, throws swallowed.
+  #journal: SceneJournalSink | null = null;
   #onSfx: ((cues: SfxCue[]) => void) | null = null;
   // Voices a `narrate` decision. Optional — unset = narration is recorded in
   // the transcript (so the director keeps continuity) but not spoken.
@@ -354,6 +370,14 @@ export class SceneDriver {
     this.#onState = cb;
   }
 
+  /** Wire the scene journal sink: receives a typed entry for every director
+   *  decision, chronicler reflection, and timed-event arming. The host
+   *  persists them to scene_session_events (fire-and-forget). Optional —
+   *  unset = the session leaves no journal. */
+  onJournal(cb: SceneJournalSink): void {
+    this.#journal = cb;
+  }
+
   /** Wire a callback invoked with the decision's (roster-validated) sfx cues,
    *  fired BEFORE the speaker's turn so `at:"now"` cues truly precede the voice.
    *  Optional — unset = sfx decisions are ignored (e.g. non-LiveKit hosts). */
@@ -415,6 +439,36 @@ export class SceneDriver {
     }
   }
 
+  #emitJournal(entries: ReturnType<typeof buildDecisionJournalEntries>): void {
+    if (!this.#journal) return;
+    for (const entry of entries) {
+      try {
+        this.#journal(entry);
+      } catch {
+        // best-effort — the journal must never disrupt the turn
+      }
+    }
+  }
+
+  /** Journal one resolved decision with its runtime context. Called after
+   *  the resolution's state has been applied, alongside #persistState. */
+  #journalDecision(
+    resolution: ReturnType<typeof resolveSceneDecision>,
+    extras: SceneDecisionJournalExtras & { decide?: DecideResult },
+  ): void {
+    if (!this.#journal) return;
+    const { decide, ...rest } = extras;
+    this.#emitJournal(
+      buildDecisionJournalEntries(resolution, {
+        ...rest,
+        ...(decide?.latencyMs !== undefined ? { latencyMs: decide.latencyMs } : {}),
+        ...(decide?.provider ? { provider: decide.provider } : {}),
+        ...(decide?.model ? { model: decide.model } : {}),
+        ...(decide?.failed ? { failure: decide.failed } : {}),
+      }),
+    );
+  }
+
   /**
    * The dramaturg tick — fire-and-forget after a spoken turn lands. Every
    * DRAMATURG_EVERY turns (single-flight), review the scene with a strong
@@ -444,6 +498,10 @@ export class SceneDriver {
 
     this.#reflecting = true;
     const startedAt = Date.now();
+    // Chronicle at request-build time — the journal's before-image. Safe:
+    // only reflections write the chronicle, and reflections are single-flight.
+    const chronicleBefore = this.#chronicle;
+    const spokenTurnsAtFire = this.#spokenTurns;
     const request = buildDramaturgMessages({
       scene: this.scene,
       sceneState: this.#sceneState,
@@ -504,6 +562,32 @@ export class SceneDriver {
         const mergedChronicle = mergeChronicle(this.#chronicle, chronicle);
         const chronicleChanged =
           JSON.stringify(mergedChronicle) !== JSON.stringify(this.#chronicle);
+        // Journal the reflection — computed BEFORE the stores mutate so the
+        // added-facts diff is against the pre-reflection store. Emitted on
+        // the no-op path too: a reflection that changed nothing is signal.
+        const factsAdded = mergedFacts.filter((f) => !this.#sceneFacts.includes(f));
+        const journalReflection = () => {
+          if (!this.#journal) return;
+          try {
+            this.#journal(
+              buildReflectionJournalEntry({
+                sceneId: this.scene.id,
+                model: DRAMATURG_MODEL,
+                latencyMs: Date.now() - startedAt,
+                raw: response.text,
+                note,
+                factsAdded,
+                landedAdded: newlyLanded,
+                gone: departed,
+                chronicleBefore,
+                chronicleAfter: chronicleChanged ? mergedChronicle : chronicleBefore,
+                spokenTurns: spokenTurnsAtFire,
+              }),
+            );
+          } catch {
+            // best-effort — the journal must never disrupt the reflection
+          }
+        };
         if (
           !note &&
           newlyLanded.length === 0 &&
@@ -511,6 +595,7 @@ export class SceneDriver {
           !presenceChanged &&
           !chronicleChanged
         ) {
+          journalReflection();
           return;
         }
         if (chronicleChanged && mergedChronicle) {
@@ -559,12 +644,34 @@ export class SceneDriver {
             : {}),
         };
         this.#persistState();
+        journalReflection();
         if (note) {
           console.log(`[dramaturg] note (${Date.now() - startedAt}ms): ${note}`);
         }
       })
       .catch((err) => {
         console.warn(`[dramaturg] reflection failed: ${(err as Error).message}`);
+        if (this.#journal) {
+          try {
+            this.#journal(
+              buildReflectionJournalEntry({
+                sceneId: this.scene.id,
+                model: DRAMATURG_MODEL,
+                latencyMs: Date.now() - startedAt,
+                note: null,
+                factsAdded: [],
+                landedAdded: [],
+                gone: [],
+                chronicleBefore,
+                chronicleAfter: chronicleBefore,
+                spokenTurns: spokenTurnsAtFire,
+                error: (err as Error).message,
+              }),
+            );
+          } catch {
+            // best-effort
+          }
+        }
       })
       .finally(() => {
         this.#reflecting = false;
@@ -645,13 +752,23 @@ export class SceneDriver {
     // hidden). Otherwise pay the orchestrate on the final transcript.
     let rawDecision: OrchestratorDecision | null = null;
     let decideFailed: string | undefined;
+    let decideResult: DecideResult | null = null;
+    let speculation: NonNullable<SceneDecisionJournalExtras["speculation"]> = {
+      outcome: "none",
+    };
     if (spec && this.#acceptsSpeculation(spec.basedOnText, userText)) {
       const waitedAt = Date.now();
       const result = await spec.promise;
       if (!result.failed) {
         rawDecision = result.decision;
+        decideResult = result;
+        speculation = {
+          outcome: "hit",
+          basedOnText: spec.basedOnText,
+          waitedMs: Date.now() - waitedAt,
+        };
         console.log(
-          `[voice-agent] speculative HIT (waited ${Date.now() - waitedAt}ms) → ${rawDecision.action} ${rawDecision.speakerId ?? ""}`.trimEnd(),
+          `[voice-agent] speculative HIT (waited ${speculation.waitedMs}ms) → ${rawDecision.action} ${rawDecision.speakerId ?? ""}`.trimEnd(),
         );
       } else {
         console.log(
@@ -660,12 +777,14 @@ export class SceneDriver {
       }
     } else if (spec) {
       spec.abort.abort(); // cancel the stale in-flight speculation
+      speculation = { outcome: "miss", basedOnText: spec.basedOnText };
       console.log("[voice-agent] speculative MISS — orchestrating on final transcript");
     }
     if (!rawDecision) {
       const result = await this.#decide(userText);
       rawDecision = result.decision;
       decideFailed = result.failed;
+      decideResult = result;
     }
     // A newer turn owns the scene now — applying this decision would clobber
     // its state (double turnIndex bump, stale beat) and interleave transcripts.
@@ -680,6 +799,7 @@ export class SceneDriver {
     // RECOVERY: the user just said something — a decision lost to an executor
     // failure or an invalid shape must not resolve to silence. Let the
     // character they were talking with (or the first present) answer plainly.
+    let recovered: SceneDecisionJournalExtras["recovered"];
     if (
       (decideFailed || resolution.degraded) &&
       resolution.decision.action === "wait-for-user"
@@ -693,10 +813,18 @@ export class SceneDriver {
           { scene: this.scene, sceneState: this.#sceneState },
           { action: "speak", speakerId: fallback },
         );
+        recovered = "fallback-speaker";
       }
     }
     this.#sceneState = resolution.sceneState;
     this.#persistState();
+    this.#journalDecision(resolution, {
+      trigger: "user-turn",
+      userText,
+      speculation,
+      ...(recovered ? { recovered } : {}),
+      decide: decideResult ?? undefined,
+    });
     this.#emitSfx(resolution.decision.sfx);
 
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
@@ -722,6 +850,7 @@ export class SceneDriver {
       // (observed: 4.1s after a narrated punch, the reaction arriving as a
       // proactive turn). The prompt asks for a reaction; this guarantees one.
       let chainDecision = chain.decision;
+      let chainRecovered: SceneDecisionJournalExtras["recovered"];
       if (chainDecision.action === "wait-for-user") {
         const reactor = this.#fallbackSpeaker();
         if (reactor) {
@@ -729,6 +858,7 @@ export class SceneDriver {
             `[voice-agent] scene: chain returned wait after an event — ${reactor} reacts instead`,
           );
           chainDecision = { action: "speak", speakerId: reactor };
+          chainRecovered = "chain-reactor";
         }
       }
       const chainResolution = resolveSceneDecision(
@@ -737,6 +867,12 @@ export class SceneDriver {
       );
       this.#sceneState = chainResolution.sceneState;
       this.#persistState();
+      this.#journalDecision(chainResolution, {
+        trigger: "chain",
+        cascadeDepth: 1,
+        ...(chainRecovered ? { recovered: chainRecovered } : {}),
+        decide: chain,
+      });
       this.#emitSfx(chainResolution.decision.sfx);
       if (
         chainResolution.decision.action === "narrate" &&
@@ -962,9 +1098,15 @@ export class SceneDriver {
     const marker = hasUserTurn ? PROACTIVE_SILENCE_MARKER : SCENE_OPEN_MARKER;
     // Proactive failures stay a hold — nobody is waiting, so silence is the
     // correct degraded behavior (unlike the reactive path's recovery).
-    const { decision } = await this.#decide(marker, "proactive", undefined, {
+    const decideResult = await this.#decide(marker, "proactive", undefined, {
       worldEventDirective: worldEvent?.direction,
     });
+    const { decision } = decideResult;
+    const trigger: SceneDecisionJournalExtras["trigger"] = worldEvent
+      ? "world-event"
+      : hasUserTurn
+        ? "proactive"
+        : "scene-open";
     // The user started talking (or a new turn began) while we deliberated —
     // the floor is theirs; don't apply the proactive decision. A consumed
     // world event is restored: its moment will come again on a later lull.
@@ -987,8 +1129,15 @@ export class SceneDriver {
       // Narrate the direction itself: chronicler directions read as stage
       // prose ("a log collapses in sparks"), which is exactly narration.
       console.log(`[voice-agent] proactive: world event narrated directly - ${worldEvent.direction}`);
+      this.#journalDecision(resolution, {
+        trigger,
+        worldEventDirective: worldEvent.direction,
+        recovered: "world-event-narrated",
+        decide: decideResult,
+      });
       return await this.#narrate(worldEvent.direction);
     }
+    let recovered: SceneDecisionJournalExtras["recovered"];
     if (resolution.decision.action === "wait-for-user") {
       const witness = this.#silentWitnessToEvent();
       if (witness) {
@@ -999,10 +1148,17 @@ export class SceneDriver {
           { scene: this.scene, sceneState: this.#sceneState },
           { action: "speak", speakerId: witness },
         );
+        recovered = "silent-witness";
       }
     }
     this.#sceneState = resolution.sceneState;
     this.#persistState();
+    this.#journalDecision(resolution, {
+      trigger,
+      ...(worldEvent ? { worldEventDirective: worldEvent.direction } : {}),
+      ...(recovered ? { recovered } : {}),
+      decide: decideResult,
+    });
     this.#emitSfx(resolution.decision.sfx);
 
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
@@ -1230,6 +1386,9 @@ export class SceneDriver {
           solo && phase !== "proactive" && phase !== "momentum" && pinnable
             ? { ...decision, action: "speak", speakerId: solo }
             : decision,
+        latencyMs: Date.now() - startedAt,
+        provider: executor.provider,
+        model: executor.model,
       };
     } catch (err) {
       const failed = err instanceof Error ? err.message : String(err);
@@ -1237,6 +1396,9 @@ export class SceneDriver {
       return {
         decision: soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState),
         failed,
+        latencyMs: Date.now() - startedAt,
+        provider: executor.provider,
+        model: executor.model,
       };
     }
   }
@@ -1257,7 +1419,8 @@ export class SceneDriver {
     let beats = beatsUsed;
     while (beats < CASCADE_MAX) {
       if (superseded()) break;
-      const { decision } = await this.#decide(MOMENTUM_MARKER, "momentum");
+      const decideResult = await this.#decide(MOMENTUM_MARKER, "momentum");
+      const { decision } = decideResult;
       if (superseded()) break;
       const resolution = resolveSceneDecision(
         { scene: this.scene, sceneState: this.#sceneState },
@@ -1265,6 +1428,11 @@ export class SceneDriver {
       );
       this.#sceneState = resolution.sceneState;
       this.#persistState();
+      this.#journalDecision(resolution, {
+        trigger: "momentum",
+        cascadeDepth: beats + 1,
+        decide: decideResult,
+      });
       this.#emitSfx(resolution.decision.sfx);
 
       if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
@@ -1316,9 +1484,24 @@ export class SceneDriver {
       if (existing) {
         next.push(existing);
       } else {
-        next.push({ dueAt: now + t.afterSeconds * 1000, direction: t.direction, fired: false });
+        const dueAt = now + t.afterSeconds * 1000;
+        next.push({ dueAt, direction: t.direction, fired: false });
         armedNew = true;
         console.log(`[chronicler] timed event armed (~${t.afterSeconds}s): ${t.direction}`);
+        if (this.#journal) {
+          try {
+            this.#journal(
+              buildWorldEventArmedJournalEntry({
+                sceneId: this.scene.id,
+                direction: t.direction,
+                afterSeconds: t.afterSeconds,
+                dueAt: new Date(dueAt).toISOString(),
+              }),
+            );
+          } catch {
+            // best-effort
+          }
+        }
       }
     }
     this.#timedSchedule = next;

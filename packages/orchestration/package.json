@@ -12,6 +12,10 @@
       "types": "./src/client.ts",
       "default": "./src/client.ts"
     },
+    "./journal": {
+      "types": "./src/journal.ts",
+      "default": "./src/journal.ts"
+    },
     "./server": {
       "types": "./src/server.ts",
       "default": "./src/server.ts"
