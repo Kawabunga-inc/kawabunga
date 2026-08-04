@@ -57,7 +57,7 @@ function bucketOf(source: WikiSourceRecord): Bucket {
 }
 
 const BUCKET_COLOR: Record<Bucket, string> = {
-  primary: "#8FD1CB",
+  primary: "var(--accent-strong)",
   secondary: "#E0B352",
   tertiary: "#9AA4B2",
 };

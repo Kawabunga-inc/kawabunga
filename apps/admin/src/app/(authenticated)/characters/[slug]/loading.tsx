@@ -17,7 +17,7 @@ import { useHeaderContent } from "@/components/header-context";
 // Right side: sticky 480 ConfigSidebar shell — header, tabs, sections,
 // footer — unchanged from before.
 
-const MINT = "#8FD1CB";
+const MINT = "var(--accent-strong)";
 
 function NodeIdentityBarSkeleton() {
   return (

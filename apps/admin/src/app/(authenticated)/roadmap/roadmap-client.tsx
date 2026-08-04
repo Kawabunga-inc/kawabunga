@@ -152,7 +152,8 @@ const AVATAR_COLORS = ["#8B7EB5", "#5B9E82", "#5B7FB5", "#C8875A", "#C45C5C", "#
 
 const FEATURE_COLORS = [
   "#7C5CFC", "#5B7FB5", "#5B9E82", "#C8875A", "#C45C5C",
-  "#8B7EB5", "#3B82F6", "#8FD1CB", "#F59E0B", "#EF4444",
+  // Persisted per-version, so no var(); canonical Ocean mint accent.
+  "#8B7EB5", "#3B82F6", "rgb(143 209 203)", "#F59E0B", "#EF4444",
   "#A855F7", "#EC4899", "#14B8A6", "#64748B", "#F97316",
 ];
 
@@ -262,7 +263,7 @@ function statusDot(status: string) {
       <span
         style={{
           width: 8, height: 8, borderRadius: "50%",
-          background: "var(--status-live, #8FD1CB)", flexShrink: 0,
+          background: "var(--status-live)", flexShrink: 0,
         }}
       />
     );
@@ -272,8 +273,8 @@ function statusDot(status: string) {
       <span
         style={{
           width: 8, height: 8, borderRadius: "50%",
-          background: "var(--accent, #8fd1cb)",
-          boxShadow: "0 0 6px var(--accent, #8fd1cb)",
+          background: "var(--accent)",
+          boxShadow: "0 0 6px var(--accent)",
           flexShrink: 0,
           animation: "pulse-dot 2s ease-in-out infinite",
         }}
@@ -292,8 +293,8 @@ function statusDot(status: string) {
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; bg: string; color: string }> = {
-    done: { label: "Complete", bg: "color-mix(in srgb, var(--color-accent-strong) 15%, transparent)", color: "var(--status-live, #8FD1CB)" },
-    active: { label: "In Progress", bg: "rgba(143, 209, 203, 0.15)", color: "var(--accent, #8fd1cb)" },
+    done: { label: "Complete", bg: "color-mix(in srgb, var(--color-accent-strong) 15%, transparent)", color: "var(--status-live)" },
+    active: { label: "In Progress", bg: "color-mix(in srgb, var(--color-accent-strong) 15%, transparent)", color: "var(--accent)" },
     planned: { label: "Upcoming", bg: "var(--border-subtle)", color: "var(--text-tertiary)" },
   };
   const s = map[status] ?? map.planned;
@@ -1445,7 +1446,7 @@ export default function RoadmapClient({ versions: initialVersions, team = [] }: 
             <div style={{ fontSize: "0.65rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-tertiary)", marginBottom: "0.25rem" }}>
               Completed
             </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--status-live, #8FD1CB)" }}>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--status-live)" }}>
               {doneFeatures}
               <span style={{ fontSize: "0.85rem", fontWeight: 400, color: "var(--text-tertiary)" }}> / {totalFeatures}</span>
             </div>
@@ -1454,7 +1455,7 @@ export default function RoadmapClient({ versions: initialVersions, team = [] }: 
             <div style={{ fontSize: "0.65rem", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-tertiary)", marginBottom: "0.25rem" }}>
               Active
             </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--accent, #8fd1cb)" }}>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--accent)" }}>
               {activeFeatures}
             </div>
           </div>
@@ -1469,7 +1470,7 @@ export default function RoadmapClient({ versions: initialVersions, team = [] }: 
               const active = v.features.filter((f) => f.status === "active").length;
               const fill = v.features.length > 0 ? (done + active * 0.5) / v.features.length : 0;
               return (
-                <div key={v.id} style={{ flex: weight, position: "relative", background: `${v.color}1a` }}>
+                <div key={v.id} style={{ flex: weight, position: "relative", background: `color-mix(in srgb, ${v.color} 10%, transparent)` }}>
                   <div style={{ position: "absolute", inset: 0, width: `${fill * 100}%`, background: v.color, opacity: 0.8, transition: "width 0.4s ease" }} />
                 </div>
               );
@@ -1490,7 +1491,7 @@ export default function RoadmapClient({ versions: initialVersions, team = [] }: 
                   key={v.id}
                   style={{
                     background: "var(--surface-1)",
-                    border: `1px solid ${isExpanded ? v.color + "33" : "var(--border)"}`,
+                    border: `1px solid ${isExpanded ? `color-mix(in srgb, ${v.color} 20%, transparent)` : "var(--border)"}`,
                     borderRadius: "var(--radius-xl)", overflow: "hidden",
                     transition: "border-color 0.2s ease",
                   }}
@@ -1506,7 +1507,7 @@ export default function RoadmapClient({ versions: initialVersions, team = [] }: 
                     <span style={{
                       display: "flex", alignItems: "center", justifyContent: "center",
                       width: 32, height: 32, borderRadius: "50%",
-                      background: `${v.color}1a`, color: v.color,
+                      background: `color-mix(in srgb, ${v.color} 10%, transparent)`, color: v.color,
                       fontSize: "0.8rem", fontWeight: 700, flexShrink: 0,
                     }}>
                       {vi + 1}

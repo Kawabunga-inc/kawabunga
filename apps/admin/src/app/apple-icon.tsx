@@ -14,13 +14,14 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0C0E14",
+          // Static PNG render, so no var(); canonical Ocean background + mint.
+          background: "#13181D",
           borderRadius: 36,
         }}
       >
         <svg width="144" height="108" viewBox="0 -105.402 315.009 236.299" fill="none">
           {KAWABUNGA_ICON_PATHS.map((path) => (
-            <path key={path} d={path} fill="#8fd1cb" />
+            <path key={path} d={path} fill="rgb(143 209 203)" />
           ))}
         </svg>
       </div>

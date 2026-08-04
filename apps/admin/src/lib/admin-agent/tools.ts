@@ -1775,7 +1775,8 @@ const mutationTools = [
         tag: z.string().trim().min(1),
         title: z.string().trim().min(1),
         description: nullableString,
-        color: z.string().trim().min(1).default("#8FD1CB"),
+        // Persisted default, so no var(); canonical Ocean mint accent.
+        color: z.string().trim().min(1).default("rgb(143 209 203)"),
         status: z.string().trim().min(1).default("planned"),
         startDate: nullableString,
         endDate: nullableString,
