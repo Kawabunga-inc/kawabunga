@@ -23,6 +23,7 @@ export default defineConfig({
       "@kawabunga/wiki-curator": path.resolve(__dirname, "packages/wiki-curator/src"),
       "@kawabunga/orchestration": path.resolve(__dirname, "packages/orchestration/src"),
       "@kawabunga/orchestration/client": path.resolve(__dirname, "packages/orchestration/src/client.ts"),
+      "@kawabunga/orchestration/journal": path.resolve(__dirname, "packages/orchestration/src/journal.ts"),
       "@kawabunga/orchestration/server": path.resolve(__dirname, "packages/orchestration/src/server.ts"),
       "@": path.resolve(__dirname, "apps/admin/src"),
     },

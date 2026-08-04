@@ -338,6 +338,26 @@ export default defineAgent({
       }
     });
 
+    // The scene journal — every director decision, chronicler reflection, and
+    // timed-event arming lands as a typed scene_session_events row (the
+    // session's flight recorder; read by the /sessions workbench). Persisted
+    // unconditionally, like turn rows: it IS the session's debugging record —
+    // matching the browser orchestrate route, which has always persisted its
+    // decision events.
+    sceneDriver.onJournal((entry) => {
+      void sessionStore
+        .appendEvent({
+          sessionId,
+          turnId: entry.turnId ?? null,
+          type: entry.type,
+          source: entry.source,
+          payload: entry.payload,
+        })
+        .catch((err) =>
+          console.warn(`[voice-agent] journal append failed: ${(err as Error).message}`),
+        );
+    });
+
     // Phase 3: the director's sfx cues (already roster-validated by
     // resolveSceneDecision). Fired before the speaker's turn — "now" cues
     // precede the voice; "with-speaker" cues park until first audio.

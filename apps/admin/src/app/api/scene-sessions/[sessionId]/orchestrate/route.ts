@@ -14,6 +14,7 @@ import {
   type SceneDecisionResolution,
   updateSceneMemory,
 } from "@kawabunga/orchestration/client";
+import { SCENE_JOURNAL_VERSION } from "@kawabunga/orchestration/journal";
 import { resolveOrchestratorExecutor } from "@/lib/orchestrator-executor";
 import { resolveScene } from "@/lib/scene-orchestration";
 import { TraceEnvelope } from "@/lib/voice-trace";
@@ -134,6 +135,7 @@ export async function POST(
   const respond = async (
     resolution: SceneDecisionResolution,
     orchestrator: { provider: string; model: string } | null,
+    meta?: { latencyMs?: number },
   ) => {
     const degraded = resolution.degraded || undefined;
     try {
@@ -148,7 +150,21 @@ export async function POST(
           source: event.source,
           payload: {
             ...event.payload,
-            ...(orchestrator ? { orchestrator } : {}),
+            // Journal parity with the voice path (scene-driver.ts) so the
+            // workbench reads one uniform stream from both transports.
+            journalVersion: SCENE_JOURNAL_VERSION,
+            trigger: body.lastUserMessage?.trim() ? "user-turn" : "player",
+            ...(body.lastUserMessage?.trim()
+              ? { userText: body.lastUserMessage.trim() }
+              : {}),
+            ...(meta?.latencyMs !== undefined ? { latencyMs: meta.latencyMs } : {}),
+            ...(orchestrator
+              ? {
+                  orchestrator,
+                  provider: orchestrator.provider,
+                  model: orchestrator.model,
+                }
+              : {}),
             requestTrace: decisionRequest.trace,
             trace: trace.toJSON(),
           },
@@ -244,7 +260,9 @@ export async function POST(
       provider: executor.provider,
       model: executor.model,
     });
+    const llmStartedAt = Date.now();
     const rawDecision = await executor.execute(decisionRequest);
+    const llmLatencyMs = Date.now() - llmStartedAt;
     trace.mark("orchestrate.llm.done", {
       provider: executor.provider,
       model: executor.model,
@@ -258,10 +276,14 @@ export async function POST(
       turnIndex: resolution.sceneState.turnIndex,
     });
 
-    return respond(resolution, {
-      provider: executor.provider,
-      model: executor.model,
-    });
+    return respond(
+      resolution,
+      {
+        provider: executor.provider,
+        model: executor.model,
+      },
+      { latencyMs: llmLatencyMs },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     trace.mark("orchestrate.error", {
