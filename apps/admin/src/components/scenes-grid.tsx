@@ -507,6 +507,9 @@ function SceneCard({ scene }: { scene: SceneSummary }) {
           </div>
           <span
             style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: "var(--space-10)",
               color: "var(--text-tertiary)",
               fontFamily: FONT_MONO,
               fontSize: "var(--font-size-xs)",
@@ -514,7 +517,25 @@ function SceneCard({ scene }: { scene: SceneSummary }) {
               textTransform: "uppercase",
             }}
           >
-            updated {formatShortDate(scene.updatedAt)}
+            <span>updated {formatShortDate(scene.updatedAt)}</span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                router.push(`${path}/sessions`);
+              }}
+              style={{
+                all: "unset",
+                cursor: "pointer",
+                color: "var(--accent-strong)",
+                fontFamily: FONT_MONO,
+                fontSize: "var(--font-size-xs)",
+                letterSpacing: "0.10em",
+                textTransform: "uppercase",
+              }}
+            >
+              sessions →
+            </button>
           </span>
         </div>
       </div>

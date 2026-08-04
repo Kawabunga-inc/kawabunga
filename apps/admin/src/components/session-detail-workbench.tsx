@@ -11,52 +11,40 @@ import type {
   SceneSessionTurnRecord,
 } from "@kawabunga/db";
 import { useHeaderContent } from "@/components/header-context";
+import { C, FONT_BODY, FONT_DISPLAY, FONT_MONO } from "@/components/session-workbench-theme";
+import {
+  ChroniclePanel,
+  DirectorPanel,
+  JournalRailRow,
+  parseJournalItems,
+  type SessionJournalItem,
+} from "@/components/session-journal";
+import { SessionPulse, type PulseTurn, type SceneArcBeat } from "@/components/session-pulse";
 
 type Props = {
   detail: SceneSessionDetailRecord;
+  /** The authored arc of the session's scene (empty when the session has no
+   *  scene, the scene is gone, or the scene has no arc). */
+  sceneArc?: SceneArcBeat[];
+  sceneObjective?: string | null;
 };
 
-const FONT_DISPLAY = '"Space Grotesk", system-ui, sans-serif';
-const FONT_MONO = '"JetBrains Mono", ui-monospace, monospace';
-const FONT_BODY = '"Inter", system-ui, sans-serif';
-
-const C = {
-  bg: "#0C0E14",
-  bgRail: "#0A0C12",
-  border: "rgba(255,255,255,0.08)",
-  borderSoft: "rgba(255,255,255,0.05)",
-  borderStrong: "rgba(255,255,255,0.12)",
-  panel: "rgba(255,255,255,0.025)",
-  panelStrong: "rgba(255,255,255,0.04)",
-  text: "rgba(255,255,255,0.94)",
-  textHigh: "rgba(255,255,255,0.65)",
-  textMid: "rgba(255,255,255,0.45)",
-  textLow: "rgba(255,255,255,0.35)",
-  mint: "#8FD1CB",
-  mintSoft: "rgba(140,231,210,0.12)",
-  mintMid: "rgba(140,231,210,0.20)",
-  mintBg: "rgba(140,231,210,0.06)",
-  greenDot: "#4ADE80",
-  amber: "#E5B85A",
-  amberSoft: "rgba(229,184,90,0.16)",
-  amberDeep: "#C9A04A",
-  red: "#F4A8A8",
-} as const;
-
-type TabKey = "pipeline" | "graph" | "prompt" | "voice" | "eval" | "raw";
+type TabKey = "pipeline" | "graph" | "prompt" | "voice" | "eval" | "raw" | "director" | "chronicle";
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
   { key: "pipeline", label: "Pipeline", icon: "1" },
-  { key: "graph", label: "Graph", icon: "2" },
-  { key: "prompt", label: "Prompt", icon: "3" },
-  { key: "voice", label: "Voice", icon: "4" },
-  { key: "eval", label: "Eval", icon: "5" },
-  { key: "raw", label: "Raw", icon: "6" },
+  { key: "director", label: "Director", icon: "2" },
+  { key: "chronicle", label: "Chronicle", icon: "3" },
+  { key: "graph", label: "Graph", icon: "4" },
+  { key: "prompt", label: "Prompt", icon: "5" },
+  { key: "voice", label: "Voice", icon: "6" },
+  { key: "eval", label: "Eval", icon: "7" },
+  { key: "raw", label: "Raw", icon: "8" },
 ];
 
 type ConvFilter = "all" | "issues" | "slow";
 
-export function SessionDetailWorkbench({ detail }: Props) {
+export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective = null }: Props) {
   const { session, user, contextBuilds, turns, events, audioArtifacts } = detail;
   const { setFlush } = useHeaderContent();
 
@@ -67,6 +55,7 @@ export function SessionDetailWorkbench({ detail }: Props) {
 
   const [activeTab, setActiveTab] = useState<TabKey>("pipeline");
   const [convFilter, setConvFilter] = useState<ConvFilter>("all");
+  const [activeJournalId, setActiveJournalId] = useState<string | null>(null);
   const [activeTurnId, setActiveTurnId] = useState<string | null>(() => {
     const interrupted = turns.find((t) => t.status === "interrupted" || t.status === "error");
     if (interrupted) return interrupted.id;
@@ -91,6 +80,58 @@ export function SessionDetailWorkbench({ detail }: Props) {
 
   const stats = useMemo(() => computeStats(detail), [detail]);
   const filteredTurns = useMemo(() => filterTurns(turns, convFilter, events), [turns, convFilter, events]);
+  const journalItems = useMemo(() => parseJournalItems(events), [events]);
+  const activeJournalItem =
+    journalItems.find((item) => item.id === activeJournalId) ?? null;
+
+  // Landed arc beats — the session snapshot is authoritative; journal
+  // decisions and reflections fill in for sessions without a snapshot.
+  const arcLanded = useMemo(() => {
+    const snapshot = asRecord(asRecord(session.currentScene)?.sceneState);
+    const fromSnapshot = asArray(snapshot?.arcLanded).filter(
+      (v): v is string => typeof v === "string",
+    );
+    if (fromSnapshot.length) return fromSnapshot;
+    for (let i = journalItems.length - 1; i >= 0; i -= 1) {
+      const item = journalItems[i]!;
+      if (item.kind === "decision" && item.nextState?.arcLanded.length) {
+        return item.nextState.arcLanded;
+      }
+    }
+    const landed: string[] = [];
+    for (const item of journalItems) {
+      if (item.kind === "reflection") {
+        for (const label of item.landedAdded) {
+          if (!landed.includes(label)) landed.push(label);
+        }
+      }
+    }
+    return landed;
+  }, [session.currentScene, journalItems]);
+
+  const pulseTurns = useMemo<PulseTurn[]>(
+    () =>
+      turns.map((turn, index) => ({
+        id: turn.id,
+        at: Date.parse(turn.startedAt) || 0,
+        index: turn.turnIndex ?? index,
+        speakerSlug: turn.speakerSlug ?? null,
+        firstAudioMs: firstAudioMs(turn),
+        status: turn.status,
+      })),
+    [turns],
+  );
+
+  // Selecting a journal row focuses its inspector tab; selecting a turn
+  // returns the inspector to the turn-scoped tabs.
+  const selectJournalItem = (item: SessionJournalItem) => {
+    setActiveJournalId(item.id);
+    setActiveTab(item.kind === "decision" ? "director" : "chronicle");
+  };
+  const selectTurn = (id: string) => {
+    setActiveTurnId(id);
+    if (activeTab === "director" || activeTab === "chronicle") setActiveTab("pipeline");
+  };
 
   const sessionDate = formatDate(session.startedAt);
   const sessionTime = formatTime(session.startedAt);
@@ -147,12 +188,19 @@ export function SessionDetailWorkbench({ detail }: Props) {
           characterName={characterDisplay}
           turns={filteredTurns}
           activeTurnId={activeTurn?.id ?? null}
-          onSelectTurn={setActiveTurnId}
+          onSelectTurn={selectTurn}
           filter={convFilter}
           onFilterChange={setConvFilter}
           events={events}
           contextBuilds={contextBuilds}
           audioArtifacts={audioArtifacts}
+          journalItems={journalItems}
+          activeJournalId={activeJournalId}
+          onSelectJournalItem={selectJournalItem}
+          pulseTurns={pulseTurns}
+          sceneArc={sceneArc}
+          sceneObjective={sceneObjective}
+          arcLanded={arcLanded}
         />
 
         <InspectorRail
@@ -165,6 +213,9 @@ export function SessionDetailWorkbench({ detail }: Props) {
           events={events}
           audioArtifacts={audioArtifacts}
           contextBuilds={contextBuilds}
+          journalItems={journalItems}
+          activeJournalItem={activeJournalItem}
+          onSelectJournalId={setActiveJournalId}
         />
       </div>
     </div>
@@ -671,6 +722,13 @@ function ConversationColumn({
   events,
   contextBuilds,
   audioArtifacts,
+  journalItems,
+  activeJournalId,
+  onSelectJournalItem,
+  pulseTurns,
+  sceneArc,
+  sceneObjective,
+  arcLanded,
 }: {
   session: SceneSessionDetailRecord["session"];
   userName: string;
@@ -683,8 +741,44 @@ function ConversationColumn({
   events: SceneSessionEventRecord[];
   contextBuilds: SceneSessionContextBuildRecord[];
   audioArtifacts: SceneSessionAudioArtifactRecord[];
+  journalItems: SessionJournalItem[];
+  activeJournalId: string | null;
+  onSelectJournalItem: (item: SessionJournalItem) => void;
+  pulseTurns: PulseTurn[];
+  sceneArc: SceneArcBeat[];
+  sceneObjective: string | null;
+  arcLanded: string[];
 }) {
   const totalDuration = computeDuration(session);
+  // Journal rows ride the same chronological rail as turns: all of them on
+  // "all", only the problems on "issues", none on "slow" (a latency view).
+  const visibleJournal =
+    filter === "all"
+      ? journalItems
+      : filter === "issues"
+        ? journalItems.filter(
+            (item) =>
+              (item.kind === "decision" &&
+                (item.degraded || item.failure != null || item.recovered != null)) ||
+              (item.kind === "reflection" && item.error != null),
+          )
+        : [];
+  const rail: Array<
+    | { kind: "turn"; at: number; turn: SceneSessionTurnRecord; index: number }
+    | { kind: "journal"; at: number; item: SessionJournalItem }
+  > = [
+    ...turns.map((turn, index) => ({
+      kind: "turn" as const,
+      at: Date.parse(turn.startedAt) || 0,
+      turn,
+      index,
+    })),
+    ...visibleJournal.map((item) => ({
+      kind: "journal" as const,
+      at: item.createdMs,
+      item,
+    })),
+  ].sort((a, b) => (a.at === b.at ? (a.kind === "journal" ? -1 : 1) : a.at - b.at));
   return (
     <section
       className="session-detail-conversation"
@@ -707,25 +801,51 @@ function ConversationColumn({
         onFilterChange={onFilterChange}
       />
 
+      <SessionPulse
+        turns={pulseTurns}
+        journalItems={journalItems}
+        arc={sceneArc}
+        arcLanded={arcLanded}
+        activeTurnId={activeTurnId}
+        activeJournalId={activeJournalId}
+        onSelectTurn={onSelectTurn}
+        onSelectJournalItem={onSelectJournalItem}
+      />
+      {sceneObjective ? (
+        <div style={{ fontFamily: FONT_BODY, fontSize: "var(--font-size-sm)", color: C.textMid, padding: "0 2px" }}>
+          <span style={{ fontFamily: FONT_MONO, fontSize: "var(--font-size-xs)", letterSpacing: "0.14em", textTransform: "uppercase", color: C.textLow }}>objective · </span>
+          {sceneObjective}
+        </div>
+      ) : null}
+
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-14)" }}>
-        {turns.length === 0 ? (
+        {rail.length === 0 ? (
           <EmptyHint>No turns recorded for this session.</EmptyHint>
         ) : (
-          turns.map((turn, index) => (
-            <TurnEntry
-              key={turn.id}
-              turn={turn}
-              index={index}
-              focused={turn.id === activeTurnId}
-              onSelect={() => onSelectTurn(turn.id)}
-              events={events}
-              contextBuilds={contextBuilds}
-              audioArtifacts={audioArtifacts}
-              sessionId={session.id}
-              userName={userName}
-              characterName={characterName}
-            />
-          ))
+          rail.map((entry) =>
+            entry.kind === "turn" ? (
+              <TurnEntry
+                key={entry.turn.id}
+                turn={entry.turn}
+                index={entry.index}
+                focused={entry.turn.id === activeTurnId}
+                onSelect={() => onSelectTurn(entry.turn.id)}
+                events={events}
+                contextBuilds={contextBuilds}
+                audioArtifacts={audioArtifacts}
+                sessionId={session.id}
+                userName={userName}
+                characterName={characterName}
+              />
+            ) : (
+              <JournalRailRow
+                key={entry.item.id}
+                item={entry.item}
+                selected={entry.item.id === activeJournalId}
+                onSelect={() => onSelectJournalItem(entry.item)}
+              />
+            ),
+          )
         )}
       </div>
     </section>
@@ -1073,6 +1193,9 @@ function InspectorRail({
   events,
   audioArtifacts,
   contextBuilds,
+  journalItems,
+  activeJournalItem,
+  onSelectJournalId,
 }: {
   session: SceneSessionDetailRecord["session"];
   activeTurn: SceneSessionTurnRecord | null;
@@ -1083,11 +1206,27 @@ function InspectorRail({
   events: SceneSessionEventRecord[];
   audioArtifacts: SceneSessionAudioArtifactRecord[];
   contextBuilds: SceneSessionContextBuildRecord[];
+  journalItems: SessionJournalItem[];
+  activeJournalItem: SessionJournalItem | null;
+  onSelectJournalId: (id: string) => void;
 }) {
   const turnIndex = activeTurn ? turns.findIndex((t) => t.id === activeTurn.id) : -1;
-  const turnLabel = turnIndex >= 0 ? `Turn ${String(turnIndex + 1).padStart(2, "0")}` : "No turn";
+  const journalScoped = activeTab === "director" || activeTab === "chronicle";
+  const turnLabel = journalScoped
+    ? activeTab === "director"
+      ? "Director"
+      : "Chronicler"
+    : turnIndex >= 0
+      ? `Turn ${String(turnIndex + 1).padStart(2, "0")}`
+      : "No turn";
   const inspectorHeadline = inspectorHeadlineFor(activeTab);
   const turnEvents = activeTurn ? events.filter((e) => e.turnId === activeTurn.id) : [];
+  // The director tab shows the selected decision, or the latest one so the
+  // tab is never empty on a journaled session.
+  const activeDecision =
+    activeJournalItem?.kind === "decision"
+      ? activeJournalItem
+      : [...journalItems].reverse().find((i) => i.kind === "decision") ?? null;
 
   return (
     <section
@@ -1112,6 +1251,18 @@ function InspectorRail({
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-14)", minWidth: 0 }}>
         {activeTab === "pipeline" ? (
           <PipelinePanel turn={activeTurn} context={activeContext} events={turnEvents} />
+        ) : null}
+        {activeTab === "director" ? (
+          <DirectorPanel
+            item={activeDecision?.kind === "decision" ? activeDecision : null}
+          />
+        ) : null}
+        {activeTab === "chronicle" ? (
+          <ChroniclePanel
+            items={journalItems}
+            activeId={activeJournalItem?.id ?? null}
+            onSelect={onSelectJournalId}
+          />
         ) : null}
         {activeTab === "graph" ? <GraphPanel context={activeContext} /> : null}
         {activeTab === "prompt" ? <PromptInspectorPanel context={activeContext} /> : null}
@@ -1148,6 +1299,8 @@ function InspectorRail({
 
 function inspectorHeadlineFor(tab: TabKey): string {
   if (tab === "pipeline") return "Why this turn was slow";
+  if (tab === "director") return "Why the scene moved the way it did";
+  if (tab === "chronicle") return "How the story was written";
   if (tab === "graph") return "What knowledge fed this turn";
   if (tab === "prompt") return "How the prompt was constructed";
   if (tab === "voice") return "Did the engine hear what was said";
