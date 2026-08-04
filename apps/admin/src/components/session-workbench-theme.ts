@@ -11,7 +11,8 @@ export const C = {
   bgRail: "var(--color-sidebar)",
   border: "var(--color-border-medium)",
   borderSoft: "var(--color-border-subtle)",
-  borderStrong: "var(--color-border-active)",
+  borderStrong:
+    "color-mix(in srgb, var(--color-text-primary) 13%, transparent)",
   panel: "var(--ink-wash)",
   panelStrong: "var(--ink-soft)",
   text: "var(--color-text-primary)",
