@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type React from "react";
 import type {
   SceneSessionAudioArtifactRecord,
@@ -12,6 +19,7 @@ import type {
 } from "@kawabunga/db";
 import { useHeaderContent } from "@/components/header-context";
 import { C, FONT_BODY, FONT_DISPLAY, FONT_MONO } from "@/components/session-workbench-theme";
+import { useLiveSessionDetail } from "@/components/use-live-session-detail";
 import {
   ChroniclePanel,
   DirectorPanel,
@@ -20,6 +28,11 @@ import {
   type SessionJournalItem,
 } from "@/components/session-journal";
 import { SessionPulse, type PulseTurn, type SceneArcBeat } from "@/components/session-pulse";
+import {
+  initialLiveWorkbenchFollowState,
+  liveWorkbenchFollowReducer,
+} from "@/lib/live-workbench-follow";
+import { aggregateSessionJournalHealth } from "@/lib/session-journal-health";
 
 type Props = {
   detail: SceneSessionDetailRecord;
@@ -44,16 +57,35 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 
 type ConvFilter = "all" | "issues" | "slow";
 
-export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective = null }: Props) {
+export function SessionDetailWorkbench({
+  detail: initialDetail,
+  sceneArc = [],
+  sceneObjective = null,
+}: Props) {
+  const { detail, isLive, lastEventAgeMs, paused, setPaused } =
+    useLiveSessionDetail(initialDetail);
   const { session, user, contextBuilds, turns, events, audioArtifacts } = detail;
   const { setFlush } = useHeaderContent();
+  const [followState, dispatchFollow] = useReducer(
+    liveWorkbenchFollowReducer,
+    initialLiveWorkbenchFollowState,
+  );
+  const [elapsedNowMs, setElapsedNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     setFlush(true);
     return () => setFlush(false);
   }, [setFlush]);
 
-  const [activeTab, setActiveTab] = useState<TabKey>("pipeline");
+  useEffect(() => {
+    if (!isLive) return;
+    const timer = window.setInterval(() => setElapsedNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [isLive]);
+
+  const [activeTab, setActiveTab] = useState<TabKey>(() =>
+    isLive ? "director" : "pipeline",
+  );
   const [convFilter, setConvFilter] = useState<ConvFilter>("all");
   const [activeJournalId, setActiveJournalId] = useState<string | null>(null);
   const [activeTurnId, setActiveTurnId] = useState<string | null>(() => {
@@ -71,18 +103,33 @@ export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective =
     return slowest?.id ?? turns.at(0)?.id ?? null;
   });
 
+  const stats = useMemo(() => computeStats(detail), [detail]);
+  const journalHealth = useMemo(
+    () => aggregateSessionJournalHealth(events),
+    [events],
+  );
+  const filteredTurns = useMemo(() => filterTurns(turns, convFilter, events), [turns, convFilter, events]);
+  const journalItems = useMemo(() => parseJournalItems(events), [events]);
+  const newestDecision = [...journalItems]
+    .reverse()
+    .find((item) => item.kind === "decision");
+  const newestTurn = turns.at(-1) ?? null;
+  const effectiveTurnId =
+    isLive && followState.following && newestTurn
+      ? newestTurn.id
+      : activeTurnId;
+  const effectiveJournalId =
+    isLive && followState.following && newestDecision
+      ? newestDecision.id
+      : activeJournalId;
   const activeTurn =
-    turns.find((t) => t.id === activeTurnId) ?? turns.at(0) ?? null;
+    turns.find((turn) => turn.id === effectiveTurnId) ?? turns.at(0) ?? null;
+  const activeJournalItem =
+    journalItems.find((item) => item.id === effectiveJournalId) ?? null;
   const activeContext = useMemo(
     () => pickActiveContext(contextBuilds, activeTurn),
     [contextBuilds, activeTurn],
   );
-
-  const stats = useMemo(() => computeStats(detail), [detail]);
-  const filteredTurns = useMemo(() => filterTurns(turns, convFilter, events), [turns, convFilter, events]);
-  const journalItems = useMemo(() => parseJournalItems(events), [events]);
-  const activeJournalItem =
-    journalItems.find((item) => item.id === activeJournalId) ?? null;
 
   // Landed arc beats — the session snapshot is authoritative; journal
   // decisions and reflections fill in for sessions without a snapshot.
@@ -125,12 +172,22 @@ export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective =
   // Selecting a journal row focuses its inspector tab; selecting a turn
   // returns the inspector to the turn-scoped tabs.
   const selectJournalItem = (item: SessionJournalItem) => {
+    if (isLive) dispatchFollow({ type: "select" });
     setActiveJournalId(item.id);
     setActiveTab(item.kind === "decision" ? "director" : "chronicle");
   };
   const selectTurn = (id: string) => {
+    if (isLive) dispatchFollow({ type: "select" });
     setActiveTurnId(id);
     if (activeTab === "director" || activeTab === "chronicle") setActiveTab("pipeline");
+  };
+  const selectJournalId = (id: string) => {
+    if (isLive) dispatchFollow({ type: "select" });
+    setActiveJournalId(id);
+  };
+  const resumeFollowing = () => {
+    dispatchFollow({ type: "resume" });
+    setActiveTab("director");
   };
 
   const sessionDate = formatDate(session.startedAt);
@@ -172,6 +229,12 @@ export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective =
         sessionTime={sessionTime}
         contextBuilds={contextBuilds}
         stats={stats}
+        journalHealth={isLive ? journalHealth : null}
+        isLive={isLive}
+        lastEventAgeMs={lastEventAgeMs}
+        paused={paused}
+        onPausedChange={setPaused}
+        elapsed={isLive ? elapsedLabel(session.startedAt, elapsedNowMs) : null}
       />
 
       <div
@@ -196,12 +259,15 @@ export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective =
           contextBuilds={contextBuilds}
           audioArtifacts={audioArtifacts}
           journalItems={journalItems}
-          activeJournalId={activeJournalId}
+          activeJournalId={activeJournalItem?.id ?? null}
           onSelectJournalItem={selectJournalItem}
           pulseTurns={pulseTurns}
           sceneArc={sceneArc}
           sceneObjective={sceneObjective}
           arcLanded={arcLanded}
+          isLive={isLive}
+          following={followState.following}
+          onResumeFollowing={resumeFollowing}
         />
 
         <InspectorRail
@@ -216,7 +282,9 @@ export function SessionDetailWorkbench({ detail, sceneArc = [], sceneObjective =
           contextBuilds={contextBuilds}
           journalItems={journalItems}
           activeJournalItem={activeJournalItem}
-          onSelectJournalId={setActiveJournalId}
+          onSelectJournalId={selectJournalId}
+          isLive={isLive}
+          following={followState.following}
         />
       </div>
     </div>
@@ -235,6 +303,12 @@ function HeaderRail({
   sessionTime,
   contextBuilds,
   stats,
+  journalHealth,
+  isLive,
+  lastEventAgeMs,
+  paused,
+  onPausedChange,
+  elapsed,
 }: {
   session: SceneSessionDetailRecord["session"];
   userLabel: string;
@@ -245,6 +319,12 @@ function HeaderRail({
   sessionTime: string;
   contextBuilds: SceneSessionContextBuildRecord[];
   stats: ReturnType<typeof computeStats>;
+  journalHealth: ReturnType<typeof aggregateSessionJournalHealth> | null;
+  isLive: boolean;
+  lastEventAgeMs: number | null;
+  paused: boolean;
+  onPausedChange: (paused: boolean) => void;
+  elapsed: string | null;
 }) {
   const statusColor =
     session.status === "ended" || session.status === "completed"
@@ -278,7 +358,21 @@ function HeaderRail({
         background: C.bg,
       }}
     >
-      <TopRow characterCrumb={characterCrumb} characterSlug={characterSlug} sessionShort={sessionShort} />
+      <TopRow
+        characterCrumb={characterCrumb}
+        characterSlug={characterSlug}
+        sessionShort={sessionShort}
+        liveCluster={
+          isLive ? (
+            <LiveCluster
+              session={session}
+              lastEventAgeMs={lastEventAgeMs}
+              paused={paused}
+              onPausedChange={onPausedChange}
+            />
+          ) : null
+        }
+      />
       <IdentityStrip
         statusColor={statusColor}
         statusLabel={statusLabel}
@@ -289,8 +383,9 @@ function HeaderRail({
         sessionDate={sessionDate}
         sessionTime={sessionTime}
         subTags={subTags}
+        elapsed={elapsed}
       />
-      <KpiStrip stats={stats} />
+      <KpiStrip stats={stats} journalHealth={journalHealth} elapsed={elapsed} />
     </header>
   );
 }
@@ -299,10 +394,12 @@ function TopRow({
   characterCrumb,
   characterSlug,
   sessionShort,
+  liveCluster,
 }: {
   characterCrumb: string;
   characterSlug: string;
   sessionShort: string;
+  liveCluster?: ReactNode;
 }) {
   return (
     <div
@@ -361,11 +458,117 @@ function TopRow({
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", flexShrink: 0 }}>
-        <NavButton label="Prev" />
-        <NavButton label="Next" />
-        <ReplayButton />
+      {liveCluster ? (
+        liveCluster
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)", flexShrink: 0 }}>
+          <NavButton label="Prev" />
+          <NavButton label="Next" />
+          <ReplayButton />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveCluster({
+  session,
+  lastEventAgeMs,
+  paused,
+  onPausedChange,
+}: {
+  session: SceneSessionDetailRecord["session"];
+  lastEventAgeMs: number | null;
+  paused: boolean;
+  onPausedChange: (paused: boolean) => void;
+}) {
+  const source =
+    stringField(session.metadata, "source") ||
+    (session.mode === "voice" ? "livekit" : "sandbox");
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "var(--space-10)",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        aria-label={`Live, ${formatLiveAge(lastEventAgeMs)}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-8)",
+          padding: "5px 14px",
+          border: `1px solid ${C.mintMid}`,
+          borderRadius: "var(--radius-pill)",
+          background: C.mintBg,
+          fontFamily: FONT_MONO,
+          fontSize: "var(--font-size-sm)",
+          lineHeight: "14px",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: C.greenDot,
+            boxShadow: `0 0 8px ${C.greenDot}`,
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            color: C.mint,
+            fontWeight: 700,
+            letterSpacing: "0.16em",
+          }}
+        >
+          LIVE
+        </span>
+        <span style={{ color: C.textMid }}>{formatLiveAge(lastEventAgeMs)}</span>
       </div>
+
+      <button
+        type="button"
+        onClick={() => onPausedChange(!paused)}
+        aria-pressed={paused}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "5px 14px",
+          border: `1px solid ${C.borderStrong}`,
+          borderRadius: "var(--radius-pill)",
+          background: paused ? C.panelStrong : "transparent",
+          color: C.textHigh,
+          fontFamily: FONT_MONO,
+          fontSize: "var(--font-size-sm)",
+          letterSpacing: "0.1em",
+          lineHeight: "14px",
+          cursor: "pointer",
+        }}
+      >
+        {paused ? "▶ RESUME FEED" : "❚❚ PAUSE FEED"}
+      </button>
+
+      <span
+        style={{
+          padding: "5px 12px",
+          border: `1px solid ${C.border}`,
+          borderRadius: "var(--radius-pill)",
+          color: C.textLow,
+          fontFamily: FONT_MONO,
+          fontSize: "var(--font-size-sm)",
+          letterSpacing: "0.1em",
+          lineHeight: "14px",
+        }}
+      >
+        {session.mode} · {source}
+      </span>
     </div>
   );
 }
@@ -471,6 +674,7 @@ function IdentityStrip({
   sessionDate,
   sessionTime,
   subTags,
+  elapsed,
 }: {
   statusColor: string;
   statusLabel: string;
@@ -481,6 +685,7 @@ function IdentityStrip({
   sessionDate: string;
   sessionTime: string;
   subTags: string[];
+  elapsed: string | null;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-10)" }}>
@@ -535,7 +740,9 @@ function IdentityStrip({
             letterSpacing: "0.02em",
           }}
         >
-          {sessionDate} · {sessionTime}
+          {elapsed
+            ? `started ${sessionTime} · ${elapsed} elapsed`
+            : `${sessionDate} · ${sessionTime}`}
         </div>
       </div>
 
@@ -588,9 +795,17 @@ function Eyebrow({
 
 // ───────────── KPI strip ─────────────
 
-function KpiStrip({ stats }: { stats: ReturnType<typeof computeStats> }) {
+function KpiStrip({
+  stats,
+  journalHealth,
+  elapsed,
+}: {
+  stats: ReturnType<typeof computeStats>;
+  journalHealth: ReturnType<typeof aggregateSessionJournalHealth> | null;
+  elapsed: string | null;
+}) {
   const items: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "default" | "mint" | "amber" }[] = [
-    { label: "Duration", value: stats.duration },
+    { label: "Duration", value: elapsed ?? stats.duration },
     { label: "Turns", value: stats.turnCount },
     {
       label: "P50 first-audio",
@@ -598,6 +813,38 @@ function KpiStrip({ stats }: { stats: ReturnType<typeof computeStats> }) {
       sub: stats.p50FirstAudio.sub,
       tone: "mint",
     },
+    ...(journalHealth
+      ? [
+          { label: "Decisions", value: journalHealth.decisionCount || "—" },
+          {
+            label: "Degraded",
+            value: journalHealth.decisionCount
+              ? journalHealth.degradedCount
+              : "—",
+            tone: journalHealth.degradedCount > 0 ? ("amber" as const) : undefined,
+          },
+          {
+            label: "Spec hit",
+            value:
+              journalHealth.specHitRate == null
+                ? "—"
+                : `${Math.round(journalHealth.specHitRate * 100)}%`,
+            tone: "mint" as const,
+          },
+          {
+            label: "Reflections",
+            value: journalHealth.reflectionCount || "—",
+            sub:
+              journalHealth.reflectionFailures > 0
+                ? `${journalHealth.reflectionFailures} failed`
+                : undefined,
+            tone:
+              journalHealth.reflectionFailures > 0
+                ? ("amber" as const)
+                : undefined,
+          },
+        ]
+      : []),
     {
       label: "Tokens",
       value: stats.tokens.value,
@@ -730,6 +977,9 @@ function ConversationColumn({
   sceneArc,
   sceneObjective,
   arcLanded,
+  isLive,
+  following,
+  onResumeFollowing,
 }: {
   session: SceneSessionDetailRecord["session"];
   userName: string;
@@ -749,7 +999,11 @@ function ConversationColumn({
   sceneArc: SceneArcBeat[];
   sceneObjective: string | null;
   arcLanded: string[];
+  isLive: boolean;
+  following: boolean;
+  onResumeFollowing: () => void;
 }) {
+  const railEndRef = useRef<HTMLDivElement | null>(null);
   const totalDuration = computeDuration(session);
   // Journal rows ride the same chronological rail as turns: all of them on
   // "all", only the problems on "issues", none on "slow" (a latency view).
@@ -780,6 +1034,17 @@ function ConversationColumn({
       item,
     })),
   ].sort((a, b) => (a.at === b.at ? (a.kind === "journal" ? -1 : 1) : a.at - b.at));
+  const newestTurnVersion = turns.at(-1)?.updatedAt ?? "";
+  const newestJournalId = journalItems.at(-1)?.id ?? "";
+
+  useEffect(() => {
+    if (!isLive || !following) return;
+    const frame = window.requestAnimationFrame(() => {
+      railEndRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [following, isLive, newestJournalId, newestTurnVersion]);
+
   return (
     <section
       className="session-detail-conversation"
@@ -811,6 +1076,8 @@ function ConversationColumn({
         activeJournalId={activeJournalId}
         onSelectTurn={onSelectTurn}
         onSelectJournalItem={onSelectJournalItem}
+        isLive={isLive}
+        onResumeFollowing={onResumeFollowing}
       />
       {sceneObjective ? (
         <div style={{ fontFamily: FONT_BODY, fontSize: "var(--font-size-sm)", color: C.textMid, padding: "0 2px" }}>
@@ -848,8 +1115,66 @@ function ConversationColumn({
             ),
           )
         )}
+        {isLive ? <div ref={railEndRef} aria-hidden="true" /> : null}
       </div>
+      {isLive ? (
+        <FollowControl
+          following={following}
+          onResume={onResumeFollowing}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function FollowControl({
+  following,
+  onResume,
+}: {
+  following: boolean;
+  onResume: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        paddingTop: "var(--space-12)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={onResume}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "var(--space-8)",
+          padding: "6px 16px",
+          border: `1px solid ${following ? C.mintMid : C.borderStrong}`,
+          borderRadius: "var(--radius-pill)",
+          background: following ? C.mintBg : C.panelStrong,
+          color: following ? C.mint : C.textHigh,
+          fontFamily: FONT_MONO,
+          fontSize: "var(--font-size-sm)",
+          letterSpacing: "0.08em",
+          lineHeight: "14px",
+          cursor: following ? "default" : "pointer",
+        }}
+      >
+        <span aria-hidden="true">{following ? "●" : "❚❚"}</span>
+        <span>{following ? "FOLLOWING LIVE" : "FOLLOWING PAUSED"}</span>
+        <span
+          style={{
+            color: C.textMid,
+            fontFamily: FONT_BODY,
+            fontSize: "var(--font-size-base)",
+            letterSpacing: 0,
+          }}
+        >
+          {following ? "— select any row to pause following" : "— resume"}
+        </span>
+      </button>
+    </div>
   );
 }
 
@@ -948,6 +1273,19 @@ function TurnEntry({
   const startedAt = formatTimecode(turn.startedAt, turn.startedAt);
   const completedAt = turn.completedAt ? formatTimecode(turn.startedAt, turn.completedAt) : null;
   const turnContext = contextBuilds.find((c) => c.turnId === turn.id) ?? null;
+
+  if (isStreamingTurn(turn)) {
+    return (
+      <StreamingTurnEntry
+        turn={turn}
+        turnNum={turnNum}
+        startedAt={startedAt}
+        speakerName={turn.speakerSlug || characterName}
+        focused={focused}
+        onSelect={onSelect}
+      />
+    );
+  }
 
   if (!focused) {
     return (
@@ -1100,6 +1438,148 @@ function TurnEntry({
   );
 }
 
+function StreamingTurnEntry({
+  turn,
+  turnNum,
+  startedAt,
+  speakerName,
+  focused,
+  onSelect,
+}: {
+  turn: SceneSessionTurnRecord;
+  turnNum: string;
+  startedAt: string;
+  speakerName: string;
+  focused: boolean;
+  onSelect: () => void;
+}) {
+  const progress = ttsProgress(turn.audioMetrics);
+  const partialText = turn.assistantText || turn.userText || "Waiting for words…";
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-current={focused ? "true" : undefined}
+      style={{
+        all: "unset",
+        boxSizing: "border-box",
+        cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-6)",
+        padding: "14px 18px",
+        border: `1px dashed ${C.mintGlow}`,
+        borderRadius: "var(--radius-button)",
+        background: C.mintBg,
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "var(--space-12)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: "var(--space-12)",
+            fontFamily: FONT_MONO,
+            fontSize: "var(--font-size-sm)",
+            letterSpacing: "0.04em",
+          }}
+        >
+          <span style={{ color: C.text, fontWeight: 700 }}>
+            TURN {turnNum} · {speakerName.toUpperCase()}
+          </span>
+          <span style={{ color: C.textLow }}>{startedAt}</span>
+        </div>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--space-6)",
+            color: C.mint,
+            fontFamily: FONT_MONO,
+            fontSize: "var(--font-size-xs)",
+            letterSpacing: "0.12em",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: C.greenDot,
+            }}
+          />
+          STREAMING
+        </span>
+      </div>
+
+      <div
+        style={{
+          color: C.text,
+          fontFamily: FONT_BODY,
+          fontSize: "var(--font-size-md)",
+          lineHeight: "20px",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {partialText}
+        <span aria-hidden="true" style={{ color: C.mint }}>
+          ▍
+        </span>
+      </div>
+
+      {progress != null ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-4)",
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              height: 3,
+              borderRadius: 2,
+              background: C.mintSoft,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${Math.round(progress * 100)}%`,
+                height: "100%",
+                borderRadius: 2,
+                background: C.mint,
+              }}
+            />
+          </div>
+          <span
+            style={{
+              color: C.textLow,
+              fontFamily: FONT_MONO,
+              fontSize: "var(--font-size-xs)",
+              lineHeight: "12px",
+            }}
+          >
+            tts {Math.round(progress * 100)}%
+          </span>
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
 function Speaker({
   side,
   avatarLabel,
@@ -1197,6 +1677,8 @@ function InspectorRail({
   journalItems,
   activeJournalItem,
   onSelectJournalId,
+  isLive,
+  following,
 }: {
   session: SceneSessionDetailRecord["session"];
   activeTurn: SceneSessionTurnRecord | null;
@@ -1210,6 +1692,8 @@ function InspectorRail({
   journalItems: SessionJournalItem[];
   activeJournalItem: SessionJournalItem | null;
   onSelectJournalId: (id: string) => void;
+  isLive: boolean;
+  following: boolean;
 }) {
   const turnIndex = activeTurn ? turns.findIndex((t) => t.id === activeTurn.id) : -1;
   const journalScoped = activeTab === "director" || activeTab === "chronicle";
@@ -1294,6 +1778,34 @@ function InspectorRail({
           <TraceMarksPanel turn={activeTurn} events={turnEvents} />
         ) : null}
       </div>
+
+      {isLive ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-10)",
+            padding: "2px 4px",
+            color: C.textMid,
+            fontFamily: FONT_BODY,
+            fontSize: "var(--font-size-base)",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: following ? C.greenDot : C.textLow,
+              flexShrink: 0,
+            }}
+          />
+          {following
+            ? "Inspector updates in place while following — new decisions replace this view unless a row is pinned."
+            : "Inspector pinned to your selection — resume following from the conversation rail or NOW marker."}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -2943,6 +3455,41 @@ function CopyButton({ text }: { text: string }) {
 }
 
 // ───────────── Computations ─────────────
+
+function formatLiveAge(ageMs: number | null): string {
+  if (ageMs == null) return "last event —";
+  if (ageMs < 1500) return "last event just now";
+  return `last event ${Math.floor(ageMs / 1000)}s ago`;
+}
+
+function elapsedLabel(startIso: string, nowMs: number): string {
+  const startedMs = Date.parse(startIso);
+  const totalSeconds = Number.isFinite(startedMs)
+    ? Math.max(0, Math.floor((nowMs - startedMs) / 1000))
+    : 0;
+  const minutes = Math.floor(totalSeconds / 60);
+  return `${minutes}m ${String(totalSeconds % 60).padStart(2, "0")}s`;
+}
+
+function isStreamingTurn(turn: SceneSessionTurnRecord): boolean {
+  if (turn.status === "streaming" || turn.status === "in_progress") return true;
+  return (
+    turn.completedAt == null &&
+    !["completed", "succeeded", "error", "interrupted"].includes(turn.status)
+  );
+}
+
+function ttsProgress(value: unknown): number | null {
+  const metrics = asRecord(value);
+  const tts = asRecord(metrics?.tts);
+  const raw =
+    numberField(metrics, "ttsProgress") ??
+    numberField(metrics, "progress") ??
+    numberField(tts, "progress");
+  if (raw == null) return null;
+  const fraction = raw > 1 ? raw / 100 : raw;
+  return Math.max(0, Math.min(1, fraction));
+}
 
 function computeStats(detail: SceneSessionDetailRecord) {
   const { session, turns, events, audioArtifacts, contextBuilds } = detail;
