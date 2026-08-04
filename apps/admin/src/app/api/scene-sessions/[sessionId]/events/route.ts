@@ -15,6 +15,32 @@ type EventInput = {
 
 type Body = EventInput | { events?: EventInput[] };
 
+/**
+ * GET /api/scene-sessions/:sessionId/events?prefix=scene.
+ *
+ * The live journal feed: returns the session's events (optionally filtered
+ * by a type prefix), oldest first. The sandbox polls this while a session
+ * runs so the Narrator journal streams in as decisions and reflections
+ * persist — same rows the /sessions workbench reads afterward.
+ */
+export async function GET(
+  req: NextRequest,
+  ctx: { params: Promise<{ sessionId: string }> },
+) {
+  const { sessionId } = await ctx.params;
+  const prefix = req.nextUrl.searchParams.get("prefix")?.trim() || undefined;
+  try {
+    const events = await getSceneSessionStore().listEventsForSessions(
+      [sessionId],
+      prefix,
+    );
+    return NextResponse.json({ events });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ sessionId: string }> },

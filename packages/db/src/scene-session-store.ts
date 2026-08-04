@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, ne, sql } from "drizzle-orm";
 import { getDb } from "./client";
 import { retryRead } from "./retry";
 import {
@@ -203,6 +203,17 @@ export interface SceneSessionStore {
   getSession(id: string): Promise<SceneSessionRecord | null>;
   listSessions(limit?: number): Promise<SceneSessionRecord[]>;
   listSessionSummaries(limit?: number): Promise<SceneSessionSummaryRecord[]>;
+  /** Sessions of one scene, newest-active first — the scene rollup's list. */
+  listSessionsForScene(sceneId: string, limit?: number): Promise<SceneSessionRecord[]>;
+  /** Events across many sessions (optionally filtered by a type prefix,
+   *  e.g. "scene.") so the scene rollup computes journal health stats
+   *  without an N+1 query per session. */
+  listEventsForSessions(
+    sessionIds: string[],
+    typePrefix?: string,
+  ): Promise<SceneSessionEventRecord[]>;
+  /** Turns across many sessions — the rollup's latency + status source. */
+  listTurnsForSessions(sessionIds: string[]): Promise<SceneSessionTurnRecord[]>;
   getSessionDetail(id: string): Promise<SceneSessionDetailRecord | null>;
   updateCurrentScene(input: UpdateSceneSessionSceneInput): Promise<void>;
   recordContextBuild(input: RecordContextBuildInput): Promise<void>;
@@ -410,6 +421,59 @@ function memoryStore(): SceneSessionStore {
         turnCount: turns.filter((row) => row.sessionId === session.id).length,
         eventCount: memory.events.filter((row) => row.sessionId === session.id).length,
       }));
+    },
+    async listSessionsForScene(sceneId, limit = 50) {
+      return Array.from(memory.sessions.values())
+        .filter((session) => session.sceneId === sceneId)
+        .sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))
+        .slice(0, limit);
+    },
+    async listEventsForSessions(sessionIds, typePrefix) {
+      const ids = new Set(sessionIds);
+      const now = new Date().toISOString();
+      return memory.events
+        .filter(
+          (row) =>
+            ids.has(row.sessionId) && (!typePrefix || row.type.startsWith(typePrefix)),
+        )
+        .map((row) => ({
+          id: row.id ?? "",
+          sessionId: row.sessionId,
+          turnId: row.turnId,
+          type: row.type,
+          source: row.source,
+          payload: row.payload ?? {},
+          createdAt: row.createdAt ?? now,
+        }))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+    async listTurnsForSessions(sessionIds) {
+      const ids = new Set(sessionIds);
+      const now = new Date().toISOString();
+      return Array.from(memory.turns.values())
+        .filter((row) => ids.has(row.sessionId))
+        .map((row) => ({
+          id: row.id,
+          sessionId: row.sessionId,
+          turnIndex: row.turnIndex,
+          inputMode: row.inputMode,
+          speakerSlug: row.speakerSlug,
+          userText: row.userText,
+          assistantText: row.assistantText,
+          provider: row.provider,
+          model: row.model,
+          status: row.status,
+          startedAt: row.startedAt ?? now,
+          completedAt: row.completedAt,
+          tokenUsage: row.tokenUsage ?? {},
+          audioMetrics: row.audioMetrics ?? {},
+          latencySummary: row.latencySummary ?? {},
+          trace: row.trace ?? {},
+          metadata: row.metadata ?? {},
+          createdAt: now,
+          updatedAt: now,
+        }))
+        .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
     },
     async getSessionDetail(id) {
       const session = memory.sessions.get(id);
@@ -661,6 +725,64 @@ function neonStore(): SceneSessionStore {
             };
           }),
         );
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listSessionsForScene(sceneId, limit = 50) {
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionsTable)
+            .where(eq(sceneSessionsTable.sceneId, sceneId))
+            .orderBy(desc(sceneSessionsTable.lastActiveAt))
+            .limit(limit),
+        );
+        return rows.map(normalizeSession);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listEventsForSessions(sessionIds, typePrefix) {
+      if (sessionIds.length === 0) return [];
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionEventsTable)
+            .where(
+              typePrefix
+                ? and(
+                    inArray(sceneSessionEventsTable.sessionId, sessionIds),
+                    like(sceneSessionEventsTable.type, `${typePrefix}%`),
+                  )
+                : inArray(sceneSessionEventsTable.sessionId, sessionIds),
+            )
+            .orderBy(asc(sceneSessionEventsTable.createdAt)),
+        );
+        return rows.map(normalizeEvent);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listTurnsForSessions(sessionIds) {
+      if (sessionIds.length === 0) return [];
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionTurnsTable)
+            .where(inArray(sceneSessionTurnsTable.sessionId, sessionIds))
+            .orderBy(asc(sceneSessionTurnsTable.startedAt)),
+        );
+        return rows.map(normalizeTurn);
       } catch (error) {
         if (isMissingTableError(error)) return [];
         throw error;

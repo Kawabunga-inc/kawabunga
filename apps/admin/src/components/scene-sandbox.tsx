@@ -12,6 +12,10 @@ import {
 import { captureMic } from "@/lib/sandbox-streams";
 import { useSceneMicCapture } from "@/lib/scene-mic";
 import {
+  SessionJournalLivePanel,
+  useSessionJournal,
+} from "@/components/session-journal";
+import {
   AdminButton,
   AdminKicker,
   AdminPanel,
@@ -233,6 +237,12 @@ function SceneSandboxRunner({
   const [sessionClosed, setSessionClosed] = useState(false);
   const [endedSession, setEndedSession] = useState<EndedSceneSandboxSession | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
+  // The Narrator journal, streamed from scene_session_events while the
+  // session runs (poll pauses when the panel is closed or the session ends).
+  const journal = useSessionJournal(sessionId, {
+    live: journalOpen && !sessionClosed,
+  });
   const [readiness, setReadiness] = useState<SceneSandboxReadinessReport | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(true);
   const [readinessError, setReadinessError] = useState<string | null>(null);
@@ -516,6 +526,9 @@ function SceneSandboxRunner({
           {runner.currentSpeakerSlug ? ` · ${speakerName(runner.currentSpeakerSlug)}` : ""}
         </AdminStatusPill>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
+          <AdminButton variant="secondary" onClick={() => setJournalOpen((open) => !open)}>
+            {journalOpen ? "Hide journal" : "Journal"}
+          </AdminButton>
           <AdminButton variant="secondary" onClick={() => setDiagnosticsOpen((open) => !open)}>
             {diagnosticsOpen ? "Hide diagnostics" : "Diagnostics"}
           </AdminButton>
@@ -712,6 +725,15 @@ function SceneSandboxRunner({
           Send
         </AdminButton>
       </div>
+
+      {journalOpen && (
+        <SessionJournalLivePanel
+          sessionId={sessionId}
+          items={journal.items}
+          error={journal.error}
+          live={!sessionClosed}
+        />
+      )}
 
       {diagnosticsOpen && (
         <SceneDiagnosticsPanel
