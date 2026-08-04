@@ -4,7 +4,9 @@ import { MeshGradient as PaperMeshGradient } from "@paper-design/shaders-react";
 import { useSyncExternalStore } from "react";
 
 const subscribeToTheme = () => () => undefined;
-const getServerAccent = () => "#ffffff";
+// CSS custom properties are unavailable during SSR, so use the canonical
+// Ocean accent RGB value until the computed token is available on the client.
+const getServerAccent = () => "rgb(143 209 203)";
 
 function getAccent() {
   return (

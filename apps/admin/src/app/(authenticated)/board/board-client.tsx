@@ -253,7 +253,7 @@ function PriorityTag({ priority }: { priority: TicketPriority }) {
       style={{
         borderRadius: "var(--radius-xs)",
         padding: "2px 6px",
-        background: "rgba(140, 231, 210, 0.08)",
+        background: "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)",
         fontSize: "var(--font-size-2xs)",
         fontFamily: "var(--font-mono, ui-monospace, monospace)",
         fontWeight: 500,
@@ -430,7 +430,7 @@ function FilterDropdown({
             gap: "var(--space-8)",
             width: "100%",
             padding: "6px 12px",
-            background: active === opt ? "rgba(140, 231, 210, 0.08)" : "none",
+            background: active === opt ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "none",
             border: "none",
             cursor: "pointer",
             color:
@@ -538,7 +538,7 @@ function InlineSelect<T extends string>({
             style={{
               display: "flex", alignItems: "center", gap: "var(--space-8)",
               width: "100%", padding: "7px 12px",
-              background: value === "" ? "rgba(140, 231, 210, 0.08)" : "none",
+              background: value === "" ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "none",
               border: "none", cursor: "pointer", textAlign: "left",
               color: value === "" ? "var(--accent-strong)" : "var(--text-quaternary)",
               fontSize: "var(--font-size-sm)", fontFamily: "inherit",
@@ -556,7 +556,7 @@ function InlineSelect<T extends string>({
                 style={{
                   display: "flex", alignItems: "center", gap: "var(--space-8)",
                   width: "100%", padding: "7px 12px",
-                  background: isActive ? "rgba(140, 231, 210, 0.08)" : "none",
+                  background: isActive ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "none",
                   border: "none", cursor: "pointer", textAlign: "left",
                   color: isActive ? "var(--accent-strong)" : "var(--text-secondary)",
                   fontSize: "var(--font-size-sm)", fontFamily: "inherit",
@@ -701,7 +701,7 @@ function ModalSelect<T extends string>({
               onClick={() => { onChange("" as T | ""); setOpen(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: "var(--space-8)",
-                width: "100%", padding: "7px 12px", background: value === "" ? "rgba(140, 231, 210, 0.08)" : "none",
+                width: "100%", padding: "7px 12px", background: value === "" ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "none",
                 border: "none", cursor: "pointer", textAlign: "left",
                 color: value === "" ? "var(--accent-strong)" : "var(--text-quaternary)",
                 fontSize: "var(--font-size-sm)", fontFamily: "inherit",
@@ -719,7 +719,7 @@ function ModalSelect<T extends string>({
                   style={{
                     display: "flex", alignItems: "center", gap: "var(--space-8)",
                     width: "100%", padding: "7px 12px",
-                    background: isActive ? "rgba(140, 231, 210, 0.08)" : "none",
+                    background: isActive ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "none",
                     border: "none", cursor: "pointer", textAlign: "left",
                     color: isActive ? "var(--accent-strong)" : "var(--text-secondary)",
                     fontSize: "var(--font-size-sm)", fontFamily: "inherit",
@@ -1696,9 +1696,9 @@ export default function BoardClient({ initialTickets, features = [], team = [] }
                   style={{
                     padding: "5px 12px",
                     borderRadius: "var(--radius-md)",
-                    border: `1px solid ${isActive ? "rgba(140, 231, 210, 0.3)" : "var(--border-subtle)"}`,
+                    border: `1px solid ${isActive ? "var(--color-accent-border)" : "var(--border-subtle)"}`,
                     background: isActive
-                      ? "rgba(140, 231, 210, 0.08)"
+                      ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)"
                       : "var(--control-bg)",
                     color: isActive
                       ? "#8FD1CB"
@@ -1915,7 +1915,7 @@ export default function BoardClient({ initialTickets, features = [], team = [] }
                 flexDirection: "column",
                 borderRadius: "var(--radius-2xl)",
                 background: "var(--material-card)",
-                border: `1px solid ${isDragTarget ? "rgba(140, 231, 210, 0.2)" : "var(--border-subtle)"}`,
+                border: `1px solid ${isDragTarget ? "color-mix(in srgb, var(--color-accent-strong) 20%, transparent)" : "var(--border-subtle)"}`,
                 transition: "border-color 0.15s ease",
                 overflow: "hidden",
               }}

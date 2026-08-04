@@ -112,7 +112,7 @@ export type MatterIngestionState = {
   color: string;
 };
 
-const COLOR_TEAL = "rgba(140,231,210,1)";
+const COLOR_TEAL = "var(--color-accent-strong)";
 const COLOR_SUCCESS = "rgba(74,222,128,1)";
 const COLOR_DANGER = "rgba(248,113,113,1)";
 const RGB_NEURAL_COLOR: [number, number, number] = [111, 191, 136];
@@ -354,14 +354,14 @@ const PARTICLE_FADE_IN = 0.55;
 const PARTICLE_FADE_OUT = 1.05;
 
 const KIND_COLOR_RGB: Record<string, [number, number, number]> = {
-  entity: [140, 231, 210],
+  entity: [143, 209, 203],
   event: [96, 165, 250],
   concept: [167, 139, 250],
   relationship: [250, 204, 21],
   timeline: [45, 212, 191],
   voice_identity: [244, 114, 182],
-  bible: [140, 231, 210],
-  primary: [140, 231, 210],
+  bible: [143, 209, 203],
+  primary: [143, 209, 203],
   commentary: [129, 140, 248],
   midrash: [167, 139, 250],
   annotation: [250, 204, 21],
@@ -1065,7 +1065,7 @@ function renderAscii(
   }
 }
 
-function parseCssColorToRgb(color: string, fallback = "140,231,210"): string {
+function parseCssColorToRgb(color: string, fallback = "143,209,203"): string {
   const c = color.trim();
   if (c.startsWith("#")) {
     if (c.length !== 4 && c.length !== 7) return fallback;
@@ -1122,7 +1122,7 @@ function parseCssColorToRgb(color: string, fallback = "140,231,210"): string {
 function resolveCssColorToRgb(
   host: Element,
   color: string,
-  fallback = "140,231,210",
+  fallback = "143,209,203",
 ): string {
   const c = color.trim();
   if (!c.startsWith("var(")) return parseCssColorToRgb(c, fallback);
@@ -1434,7 +1434,7 @@ export function ASCIIMatterCanvas({
   amplitude = 0,
   particleCount = 3500,
   maxAttractors = 220,
-  color = "rgba(140,231,210,1)",
+  color = "var(--color-accent-strong)",
   inactiveColor,
   backgroundColor = null,
   baseFieldColor,

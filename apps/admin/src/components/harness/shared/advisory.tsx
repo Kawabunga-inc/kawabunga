@@ -45,9 +45,9 @@ export function AdvisoryStack({ advisories }: { advisories: Advisory[] }) {
                 label: "advisory",
               }
             : {
-                bg: "rgba(140,231,210,0.03)",
-                border: "rgba(140,231,210,0.14)",
-                accent: "rgba(140,231,210,0.85)",
+                bg: "color-mix(in srgb, var(--color-accent-strong) 3%, transparent)",
+                border: "var(--color-accent-fill)",
+                accent: "color-mix(in srgb, var(--color-accent-strong) 85%, transparent)",
                 glyph: "i",
                 label: "guidance",
               };

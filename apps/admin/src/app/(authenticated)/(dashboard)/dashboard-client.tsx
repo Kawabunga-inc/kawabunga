@@ -96,7 +96,7 @@ const PRIORITY_COLORS: Record<string, { label: string; color: string }> = {
 
 const VERSION_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   planned: { label: "Planned", color: "#64748B", bg: "rgba(100, 116, 139, 0.15)" },
-  active:  { label: "Active",  color: "#8FD1CB", bg: "rgba(140, 231, 210, 0.15)" },
+  active:  { label: "Active",  color: "#8FD1CB", bg: "color-mix(in srgb, var(--color-accent-strong) 15%, transparent)" },
   done:    { label: "Done",    color: "#22C55E", bg: "rgba(34, 197, 94, 0.15)" },
 };
 
@@ -220,7 +220,7 @@ function ActivitySection({ data }: { data: ActivityData }) {
                       justifyContent: "flex-end",
                       padding: "2px 3px 0 0",
                       boxSizing: "border-box",
-                      border: day.isToday ? "1px solid rgba(140,231,210,0.7)" : "none",
+                      border: day.isToday ? "1px solid color-mix(in srgb, var(--color-accent-strong) 70%, transparent)" : "none",
                     }}
                   >
                     <span style={{ fontSize: "var(--font-size-3xs)", color: numColor, fontWeight: level >= 3 ? 600 : 500 }}>
@@ -626,7 +626,7 @@ export default function DashboardClient({
                   >
                     <span style={{
                       width: 28, height: 28, borderRadius: "var(--radius-sm)",
-                      background: "rgba(140, 231, 210, 0.08)",
+                      background: "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: "var(--font-size-base)", flexShrink: 0, color: "#8FD1CB",
                     }}>

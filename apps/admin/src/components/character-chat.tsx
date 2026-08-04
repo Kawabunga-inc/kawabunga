@@ -852,8 +852,8 @@ function TraceFooter({ turn }: { turn: Turn }) {
     return null;
   }
   const accent = turn.status === "done" ? "var(--text-quaternary)" : turn.status === "error" ? "var(--status-error)" : "var(--accent-strong)";
-  const bg = turn.status === "streaming" || turn.status === "curator-done" ? "rgba(140,231,210,0.06)" : "rgba(255,255,255,0.03)";
-  const border = turn.status === "streaming" || turn.status === "curator-done" ? "rgba(140,231,210,0.2)" : T.border;
+  const bg = turn.status === "streaming" || turn.status === "curator-done" ? "var(--color-accent-wash)" : "rgba(255,255,255,0.03)";
+  const border = turn.status === "streaming" || turn.status === "curator-done" ? "color-mix(in srgb, var(--color-accent-strong) 20%, transparent)" : T.border;
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: "var(--space-10)",
@@ -1179,7 +1179,7 @@ function SystemPromptPanel({
                 title="Curator runs with a placeholder query so you can see the prompt before sending a turn."
                 style={{
                   padding: "1px 7px", borderRadius: "var(--radius-pill)",
-                  background: "rgba(140,231,210,0.1)", border: "1px solid rgba(140,231,210,0.25)",
+                  background: "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-accent-strong) 25%, transparent)",
                   fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)", fontWeight: 600, color: "var(--accent-strong)",
                   letterSpacing: "0.06em", textTransform: "uppercase",
                 }}
@@ -1455,7 +1455,7 @@ function ScrubberPill({
         display: "inline-flex", alignItems: "center", gap: "var(--space-5)",
         padding: "3px 10px", borderRadius: "var(--radius-pill)",
         border: active ? "none" : `1px solid ${T.border}`,
-        background: active ? "rgba(140,231,210,0.12)" : "transparent",
+        background: active ? "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)" : "transparent",
         color: active ? "var(--accent-strong)" : T.muted,
         fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", fontWeight: active ? 600 : 500,
         letterSpacing: "0.04em", textTransform: "uppercase",
@@ -1472,7 +1472,7 @@ function TabPill({ active, onClick, label }: { active: boolean; onClick: () => v
   return (
     <button onClick={onClick} style={{
       padding: "4px 10px", borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer",
-      background: active ? "rgba(140,231,210,0.1)" : "transparent",
+      background: active ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "transparent",
       color: active ? "var(--accent-strong)" : T.muted,
       fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", fontWeight: active ? 600 : 500,
       letterSpacing: "0.06em", textTransform: "uppercase",

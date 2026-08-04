@@ -31,8 +31,8 @@ const BORDER_STRONG = "rgba(255, 255, 255, 0.12)";
 const DIVIDER = "rgba(255, 255, 255, 0.06)";
 
 const ACCENT = "var(--color-accent-strong)";
-const ACCENT_SOFT = "rgba(140, 231, 210, 0.06)";
-const ACCENT_RING = "rgba(140, 231, 210, 0.3)";
+const ACCENT_SOFT = "var(--color-accent-wash)";
+const ACCENT_RING = "var(--color-accent-border)";
 
 const ADD = "var(--color-status-live)";
 const ADD_SOFT = "rgba(74, 222, 128, 0.04)";

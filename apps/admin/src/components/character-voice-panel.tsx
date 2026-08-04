@@ -3282,9 +3282,9 @@ ref,
       : phase === "speaking"
         ? "rgba(74, 222, 128, 0.5)"
         : phase === "thinking"
-          ? "rgba(140, 231, 210, 0.5)"
+          ? "color-mix(in srgb, var(--color-accent-strong) 50%, transparent)"
           : phase === "warming"
-            ? "rgba(140, 231, 210, 0.4)"
+            ? "var(--color-accent-glow)"
             : "rgba(255, 255, 255, 0.2)"
     : "transparent";
 
@@ -3329,7 +3329,7 @@ ref,
                   ? "rgba(239, 68, 68, 0.12)"
                   : phase === "speaking"
                     ? "rgba(74, 222, 128, 0.12)"
-                    : "rgba(140, 231, 210, 0.10)"
+                    : "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)"
                 : T.panel,
               color: T.fg,
               cursor: "pointer",
@@ -3483,7 +3483,7 @@ ref,
               padding: "6px 10px",
               borderRadius: "var(--radius-md)",
               border: `1px solid ${T.border}`,
-              background: transcriptPanelHidden ? "rgba(140,231,210,0.1)" : "transparent",
+              background: transcriptPanelHidden ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "transparent",
               color: transcriptPanelHidden ? T.accent : T.muted,
               fontFamily: T.fontMono,
               fontSize: "var(--font-size-xs)",

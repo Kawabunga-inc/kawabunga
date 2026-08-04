@@ -576,13 +576,13 @@ function L04Presets({ character }: { character: HarnessCharacter }) {
           const isApplied = matches(preset);
           const isApplying = applyingId === preset.id;
           const accentBg = {
-            phosphor: "rgba(140,231,210,0.06)",
+            phosphor: "var(--color-accent-wash)",
             pink: "rgba(255,122,155,0.06)",
             gray: "rgba(255,255,255,0.04)",
             muted: "var(--control-bg)",
           }[preset.accent];
           const accentBorder = {
-            phosphor: "rgba(140,231,210,0.25)",
+            phosphor: "color-mix(in srgb, var(--color-accent-strong) 25%, transparent)",
             pink: "rgba(255,122,155,0.25)",
             gray: "rgba(255,255,255,0.12)",
             muted: "var(--control-border)",
@@ -627,7 +627,7 @@ function L04Presets({ character }: { character: HarnessCharacter }) {
                         fontSize: 9.5,
                         padding: "1px 6px",
                         borderRadius: "var(--radius-xs)",
-                        background: "rgba(140,231,210,0.12)",
+                        background: "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)",
                         color: "var(--accent-strong)",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -662,9 +662,9 @@ function L04Presets({ character }: { character: HarnessCharacter }) {
                   background: isApplied
                     ? "transparent"
                     : isApplying
-                      ? "rgba(140,231,210,0.06)"
-                      : "rgba(140,231,210,0.14)",
-                  border: `1px solid ${isApplied ? "var(--control-border)" : "rgba(140,231,210,0.4)"}`,
+                      ? "var(--color-accent-wash)"
+                      : "var(--color-accent-fill)",
+                  border: `1px solid ${isApplied ? "var(--control-border)" : "var(--color-accent-glow)"}`,
                   color: isApplied ? "var(--text-quaternary)" : "var(--accent-strong)",
                   borderRadius: "var(--radius-xs)",
                   cursor: isApplied || isApplying ? "default" : "pointer",
@@ -822,7 +822,7 @@ function L04Runs({ character }: { character: HarnessCharacter }) {
               padding: "12px 16px",
               borderBottom: "1px solid var(--border-subtle)",
               alignItems: "center",
-              background: g.isCurrent ? "rgba(140,231,210,0.04)" : "transparent",
+              background: g.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)" : "transparent",
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)", minWidth: 0 }}>
@@ -844,7 +844,7 @@ function L04Runs({ character }: { character: HarnessCharacter }) {
                       fontSize: "var(--font-size-2xs)",
                       padding: "1px 5px",
                       borderRadius: "var(--radius-xs)",
-                      background: "rgba(140,231,210,0.12)",
+                      background: "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)",
                       color: "var(--accent-strong)",
                       letterSpacing: "0.08em",
                       textTransform: "uppercase",
@@ -1007,8 +1007,8 @@ function L04History({ character }: { character: HarnessCharacter }) {
               key={entry.configHash}
               style={{
                 padding: "14px 18px",
-                background: entry.isCurrent ? "rgba(140,231,210,0.04)" : "var(--material-card)",
-                border: `1px solid ${entry.isCurrent ? "rgba(140,231,210,0.25)" : "var(--border-subtle)"}`,
+                background: entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)" : "var(--material-card)",
+                border: `1px solid ${entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 25%, transparent)" : "var(--border-subtle)"}`,
                 borderRadius: "var(--radius-md)",
                 display: "flex",
                 gap: "var(--space-16)",
@@ -1027,7 +1027,7 @@ function L04History({ character }: { character: HarnessCharacter }) {
                         fontSize: "var(--font-size-2xs)",
                         padding: "1px 6px",
                         borderRadius: "var(--radius-xs)",
-                        background: "rgba(140,231,210,0.12)",
+                        background: "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)",
                         color: "var(--accent-strong)",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -1172,8 +1172,8 @@ function SaveBar({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: isDirty ? "rgba(140,231,210,0.14)" : "var(--control-bg)",
-          border: `1px solid ${isDirty ? "rgba(140,231,210,0.4)" : "var(--control-border)"}`,
+          background: isDirty ? "var(--color-accent-fill)" : "var(--control-bg)",
+          border: `1px solid ${isDirty ? "var(--color-accent-glow)" : "var(--control-border)"}`,
           color: isDirty ? "var(--accent-strong)" : "var(--text-tertiary)",
           borderRadius: "var(--radius-xs)",
           cursor: isDirty && save.status !== "saving" ? "pointer" : "default",
@@ -1214,7 +1214,7 @@ function Card({
 }) {
   const borderMap = {
     gray: "rgba(255,255,255,0.10)",
-    phosphor: "rgba(140,231,210,0.18)",
+    phosphor: "color-mix(in srgb, var(--color-accent-strong) 18%, transparent)",
     pink: "rgba(255,122,155,0.18)",
     muted: "var(--border-subtle)",
   };
@@ -1335,8 +1335,8 @@ function ModelPicker({ value, onChange }: { value: string; onChange: (v: string)
                   justifyContent: "space-between",
                   gap: "var(--space-12)",
                   padding: "14px 16px",
-                  background: active ? "rgba(140,231,210,0.08)" : "var(--control-bg)",
-                  border: `1px solid ${active ? "rgba(140,231,210,0.4)" : "var(--control-border)"}`,
+                  background: active ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "var(--control-bg)",
+                  border: `1px solid ${active ? "var(--color-accent-glow)" : "var(--control-border)"}`,
                   borderRadius: "var(--radius-sm)",
                   cursor: "pointer",
                   color: "inherit",
@@ -1754,8 +1754,8 @@ function Toggle({
         alignItems: "center",
         gap: "var(--space-8)",
         padding: "5px 10px",
-        background: value ? "rgba(140,231,210,0.08)" : "rgba(255,255,255,0.04)",
-        border: `1px solid ${value ? "rgba(140,231,210,0.3)" : "var(--control-border)"}`,
+        background: value ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "rgba(255,255,255,0.04)",
+        border: `1px solid ${value ? "var(--color-accent-border)" : "var(--control-border)"}`,
         borderRadius: "var(--radius-xs)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,

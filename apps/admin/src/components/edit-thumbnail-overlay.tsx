@@ -446,7 +446,7 @@ export function EditThumbnailOverlay({
               width: 36,
               height: 36,
               borderRadius: "50%",
-              background: "rgba(140,231,210,0.08)",
+              background: "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

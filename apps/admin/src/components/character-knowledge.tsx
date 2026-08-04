@@ -422,7 +422,7 @@ export function CharacterKnowledge({
                 y1={a.y}
                 x2={b.x}
                 y2={b.y}
-                stroke={emphasized ? "rgba(140,231,210,0.85)" : "rgba(140,231,210,0.22)"}
+                stroke={emphasized ? "color-mix(in srgb, var(--color-accent-strong) 85%, transparent)" : "color-mix(in srgb, var(--color-accent-strong) 22%, transparent)"}
                 strokeWidth={emphasized ? 1.4 : 0.7}
                 strokeOpacity={dimmed ? 0.25 : 1}
                 vectorEffect="non-scaling-stroke"

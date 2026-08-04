@@ -459,7 +459,7 @@ function FilterStrip({
                 <span style={{ letterSpacing: "0.1em" }}>ALL</span>
                 <span
                   style={{
-                    color: active ? "rgba(140,231,210,0.6)" : TEXT_FADED,
+                    color: active ? "color-mix(in srgb, var(--color-accent-strong) 60%, transparent)" : TEXT_FADED,
                   }}
                 >
                   {count}
