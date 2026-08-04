@@ -496,7 +496,7 @@ function phaseColor(phase: VoicePhase, voiceModeActive: boolean) {
     case "thinking":
       return T.accent;
     case "speaking":
-      return "#4ade80";
+      return "var(--color-status-live)";
     default:
       return T.muted;
   }
@@ -506,7 +506,7 @@ function startupStateColor(state: StartupStepState, activeColor = T.accent) {
   switch (state) {
     case "ready":
     case "active":
-      return "#4ade80";
+      return "var(--color-status-live)";
     case "pending":
       return activeColor;
     case "error":
@@ -629,13 +629,13 @@ function StatusRow({
 function segmentStateColor(state: PipelineSegmentState) {
   switch (state) {
     case "active":
-      return "#8FD1CB";
+      return "var(--color-accent-strong)";
     case "ready":
-      return "#4ade80";
+      return "var(--color-status-live)";
     case "waiting":
-      return "#FACC15";
+      return "var(--color-status-draft)";
     case "aborted":
-      return "#FACC15";
+      return "var(--color-status-draft)";
     case "error":
       return "#f87171";
     default:
@@ -1065,7 +1065,7 @@ function VoiceReadinessPanel({
           style={{
             fontFamily: T.fontMono,
             fontSize: 9.5,
-            color: ready ? "#4ade80" : T.muted,
+            color: ready ? "var(--color-status-live)" : T.muted,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
           }}
@@ -1153,7 +1153,7 @@ function VoiceReadinessPanel({
               ? "Grant microphone access, then retry voice mode"
               : status.error ?? "Waiting for all required signals"
         }
-        activeColor="#4ade80"
+        activeColor="var(--color-status-live)"
       />
       {status.micPermission === "error" ? (
         <div
@@ -3282,9 +3282,9 @@ ref,
       : phase === "speaking"
         ? "rgba(74, 222, 128, 0.5)"
         : phase === "thinking"
-          ? "rgba(140, 231, 210, 0.5)"
+          ? "color-mix(in srgb, var(--color-accent-strong) 50%, transparent)"
           : phase === "warming"
-            ? "rgba(140, 231, 210, 0.4)"
+            ? "var(--color-accent-glow)"
             : "rgba(255, 255, 255, 0.2)"
     : "transparent";
 
@@ -3329,7 +3329,7 @@ ref,
                   ? "rgba(239, 68, 68, 0.12)"
                   : phase === "speaking"
                     ? "rgba(74, 222, 128, 0.12)"
-                    : "rgba(140, 231, 210, 0.10)"
+                    : "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)"
                 : T.panel,
               color: T.fg,
               cursor: "pointer",
@@ -3483,7 +3483,7 @@ ref,
               padding: "6px 10px",
               borderRadius: "var(--radius-md)",
               border: `1px solid ${T.border}`,
-              background: transcriptPanelHidden ? "rgba(140,231,210,0.1)" : "transparent",
+              background: transcriptPanelHidden ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "transparent",
               color: transcriptPanelHidden ? T.accent : T.muted,
               fontFamily: T.fontMono,
               fontSize: "var(--font-size-xs)",
@@ -3678,7 +3678,7 @@ ref,
                           fontFamily: T.fontMono,
                           fontSize: "var(--font-size-2xs)",
                           fontWeight: 600,
-                          color: "#FACC15",
+                          color: "var(--color-status-draft)",
                           letterSpacing: "0.08em",
                           textTransform: "uppercase",
                         }}

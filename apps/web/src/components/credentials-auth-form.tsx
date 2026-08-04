@@ -101,7 +101,7 @@ export function CredentialsAuthForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-white/90 py-3 text-sm font-semibold text-[#0C0E14] transition hover:bg-white disabled:opacity-50"
+          className="w-full rounded-lg bg-white/90 py-3 text-sm font-semibold text-[var(--color-accent-on)] transition hover:bg-white disabled:opacity-50"
         >
           {loading ? "..." : mode === "signin" ? "Sign in" : "Create account"}
         </button>

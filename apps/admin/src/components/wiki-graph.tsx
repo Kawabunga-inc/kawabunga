@@ -232,7 +232,7 @@ export function WikiGraph({
                       textAnchor="middle"
                       style={{
                         fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)",
-                        fill: "rgba(140,231,210,0.6)", letterSpacing: "0.06em",
+                        fill: "color-mix(in srgb, var(--color-accent-strong) 60%, transparent)", letterSpacing: "0.06em",
                       }}
                     >
                       current

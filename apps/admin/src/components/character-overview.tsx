@@ -159,7 +159,7 @@ function IdentityCard({
               boxShadow: "0 0 0 3px var(--background)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <span style={{ fontFamily: T.fontHeading, fontSize: 26, fontWeight: 600, color: "#0C0E14", lineHeight: "28px" }}>
+              <span style={{ fontFamily: T.fontHeading, fontSize: 26, fontWeight: 600, color: "var(--color-accent-on)", lineHeight: "28px" }}>
                 {character.title.charAt(0).toUpperCase()}
               </span>
             </div>

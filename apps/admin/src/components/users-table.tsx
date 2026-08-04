@@ -954,7 +954,7 @@ function Avatar({ user, isCurrent }: { user: UserRow; isCurrent: boolean }) {
         background: "linear-gradient(135deg, var(--emissive-mint) 0%, var(--accent-strong) 100%)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        <span style={{ fontFamily: T.fontHeading, fontSize: "0.875rem", fontWeight: 600, color: "#0C0E14", lineHeight: "16px" }}>
+        <span style={{ fontFamily: T.fontHeading, fontSize: "0.875rem", fontWeight: 600, color: "var(--color-accent-on)", lineHeight: "16px" }}>
           {initial(user)}
         </span>
       </div>

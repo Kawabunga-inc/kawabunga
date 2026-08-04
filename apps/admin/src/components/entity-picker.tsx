@@ -45,8 +45,8 @@ type KindFilterValue = "all" | EntityKind;
 const KIND_COLORS: Record<EntityKind, string> = {
   person: "#FBA7C0",
   place: "#7AB0E8",
-  object: "#FACC15",
-  group: "#8B5CF6",
+  object: "var(--color-status-draft)",
+  group: "var(--color-event-violet)",
 };
 
 const KIND_LABELS: Record<EntityKind, string> = {

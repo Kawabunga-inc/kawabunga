@@ -356,7 +356,7 @@ function HeroCopy() {
             className="text-[clamp(2.75rem,5.5vw,5.75rem)] font-medium leading-[0.9] tracking-[-0.055em]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            <span className="text-[#8fd1cb] sm:whitespace-nowrap">
+            <span className="text-[var(--color-accent-strong)] sm:whitespace-nowrap">
               Step into any world
             </span>
             <br />
@@ -410,7 +410,7 @@ function AudioWaveBars() {
           ref={(element) => {
             barsRef.current[index] = element;
           }}
-          className="w-[3px] rounded-full bg-[#8fd1cb]"
+          className="w-[3px] rounded-full bg-[var(--color-accent-strong)]"
           style={{ height, opacity: AUDIO_WAVE_OPACITIES[index] }}
         />
       ))}
@@ -423,7 +423,7 @@ function ClosingSection() {
     <section className="bg-white px-6 pb-8 sm:px-10 lg:px-20">
       <div className="mx-auto flex min-h-[70svh] max-w-[1440px] flex-col justify-between overflow-hidden rounded-[28px] bg-[#09221f] p-7 text-white sm:p-10 lg:min-h-[78svh] lg:p-16">
         <p
-          className="text-[10px] uppercase tracking-[0.22em] text-[#8fd1cb]"
+          className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent-strong)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           The next world is waiting
@@ -438,7 +438,7 @@ function ClosingSection() {
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/about"
-              className="rounded-full bg-[#8fd1cb] px-6 py-3 text-sm font-medium text-[#07110f] transition-transform hover:scale-[1.03]"
+              className="rounded-full bg-[var(--color-accent-strong)] px-6 py-3 text-sm font-medium text-[var(--color-accent-on)] transition-transform hover:scale-[1.03]"
               style={{ fontFamily: "var(--font-mono)" }}
             >
               Explore worlds

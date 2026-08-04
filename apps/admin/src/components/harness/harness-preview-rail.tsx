@@ -355,8 +355,8 @@ function PreviewHeader({
               letterSpacing: "0.1em",
               textTransform: "uppercase",
               color: t === tab ? "var(--accent-strong)" : "var(--text-tertiary)",
-              background: t === tab ? "rgba(140,231,210,0.08)" : "transparent",
-              border: `1px solid ${t === tab ? "rgba(140,231,210,0.20)" : "transparent"}`,
+              background: t === tab ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "transparent",
+              border: `1px solid ${t === tab ? "color-mix(in srgb, var(--color-accent-strong) 20%, transparent)" : "transparent"}`,
               borderRadius: "var(--radius-xs)",
               cursor: "pointer",
             }}
@@ -638,10 +638,10 @@ function TurnView({ turn }: { turn: SandboxTurn }) {
       <div
         style={{
           padding: "8px 12px",
-          background: turn.status === "error" ? "rgba(248,113,113,0.06)" : "rgba(140,231,210,0.04)",
+          background: turn.status === "error" ? "rgba(248,113,113,0.06)" : "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)",
           border: turn.status === "error"
             ? "1px solid rgba(248,113,113,0.20)"
-            : "1px solid rgba(140,231,210,0.10)",
+            : "1px solid color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
           borderRadius: "var(--radius-sm)",
         }}
       >

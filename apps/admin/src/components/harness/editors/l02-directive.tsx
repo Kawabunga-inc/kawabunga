@@ -529,8 +529,8 @@ function DirectiveTemplatesCard({
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: open ? "rgba(140,231,210,0.1)" : "var(--control-bg)",
-            border: `1px solid ${open ? "rgba(140,231,210,0.3)" : "var(--control-border)"}`,
+            background: open ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "var(--control-bg)",
+            border: `1px solid ${open ? "var(--color-accent-border)" : "var(--control-border)"}`,
             color: open ? "var(--accent-strong)" : "var(--text-secondary)",
             borderRadius: "var(--radius-xs)",
             cursor: "pointer",
@@ -641,8 +641,8 @@ function DirectiveTemplateRow({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: "rgba(140,231,210,0.1)",
-          border: "1px solid rgba(140,231,210,0.3)",
+          background: "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
+          border: "1px solid var(--color-accent-border)",
           color: "var(--accent-strong)",
           borderRadius: "var(--radius-xs)",
           cursor: "pointer",
@@ -750,8 +750,8 @@ function PromoteCandidatesCard({
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: open ? "rgba(140,231,210,0.1)" : "var(--control-bg)",
-            border: `1px solid ${open ? "rgba(140,231,210,0.3)" : "var(--control-border)"}`,
+            background: open ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "var(--control-bg)",
+            border: `1px solid ${open ? "var(--color-accent-border)" : "var(--control-border)"}`,
             color: open ? "var(--accent-strong)" : "var(--text-secondary)",
             borderRadius: "var(--radius-xs)",
             cursor: "pointer",
@@ -861,7 +861,7 @@ function PromoteCandidateRow({
               fontSize: 9.5,
               padding: "1px 6px",
               borderRadius: "var(--radius-xs)",
-              background: "rgba(140,231,210,0.10)",
+              background: "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
               color: "var(--accent-strong)",
               letterSpacing: "0.08em",
             }}
@@ -936,8 +936,8 @@ function PromoteCandidateRow({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: alreadyExists ? "transparent" : "rgba(140,231,210,0.1)",
-          border: `1px solid ${alreadyExists ? "var(--control-border)" : "rgba(140,231,210,0.3)"}`,
+          background: alreadyExists ? "transparent" : "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
+          border: `1px solid ${alreadyExists ? "var(--control-border)" : "var(--color-accent-border)"}`,
           color: alreadyExists ? "var(--text-quaternary)" : "var(--accent-strong)",
           borderRadius: "var(--radius-xs)",
           cursor: alreadyExists ? "default" : "pointer",
@@ -1134,8 +1134,8 @@ function ExemplarTestRow({
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: status === "running" ? "rgba(140,231,210,0.06)" : "rgba(140,231,210,0.14)",
-            border: "1px solid rgba(140,231,210,0.4)",
+            background: status === "running" ? "var(--color-accent-wash)" : "var(--color-accent-fill)",
+            border: "1px solid var(--color-accent-glow)",
             color: "var(--accent-strong)",
             borderRadius: "var(--radius-xs)",
             cursor: status === "running" ? "default" : "pointer",
@@ -1187,7 +1187,7 @@ function ExemplarTestRow({
             style={{
               padding: "10px 12px",
               background: status === "idle" ? "transparent" : "rgba(0,0,0,0.18)",
-              border: `1px solid ${status === "idle" ? "var(--control-border)" : "rgba(140,231,210,0.2)"}`,
+              border: `1px solid ${status === "idle" ? "var(--control-border)" : "color-mix(in srgb, var(--color-accent-strong) 20%, transparent)"}`,
               borderRadius: "var(--radius-sm)",
               fontFamily: T.fontBody,
               fontSize: 12.5,
@@ -1335,8 +1335,8 @@ function NeverRuleCard({ rule }: { rule: NeverComplianceRule }) {
   const [expanded, setExpanded] = useState(false);
   const violations = rule.matches.length;
   const accent = violations > 0 ? "rgba(255,184,112,0.95)" : "var(--accent-strong)";
-  const bg = violations > 0 ? "rgba(255,184,112,0.04)" : "rgba(140,231,210,0.03)";
-  const border = violations > 0 ? "rgba(255,184,112,0.18)" : "rgba(140,231,210,0.14)";
+  const bg = violations > 0 ? "rgba(255,184,112,0.04)" : "color-mix(in srgb, var(--color-accent-strong) 3%, transparent)";
+  const border = violations > 0 ? "rgba(255,184,112,0.18)" : "var(--color-accent-fill)";
 
   return (
     <div
@@ -1365,8 +1365,8 @@ function NeverRuleCard({ rule }: { rule: NeverComplianceRule }) {
             fontSize: "var(--font-size-xs)",
             padding: "5px 10px",
             borderRadius: "var(--radius-xs)",
-            background: violations > 0 ? "rgba(255,184,112,0.10)" : "rgba(140,231,210,0.10)",
-            border: `1px solid ${violations > 0 ? "rgba(255,184,112,0.3)" : "rgba(140,231,210,0.3)"}`,
+            background: violations > 0 ? "rgba(255,184,112,0.10)" : "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
+            border: `1px solid ${violations > 0 ? "rgba(255,184,112,0.3)" : "var(--color-accent-border)"}`,
             color: accent,
             letterSpacing: "0.08em",
             textTransform: "uppercase",
@@ -1571,8 +1571,8 @@ function L02History({ character }: { character: HarnessCharacter }) {
               key={entry.directiveHash}
               style={{
                 padding: "14px 18px",
-                background: entry.isCurrent ? "rgba(140,231,210,0.04)" : "var(--material-card)",
-                border: `1px solid ${entry.isCurrent ? "rgba(140,231,210,0.25)" : "var(--border-subtle)"}`,
+                background: entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)" : "var(--material-card)",
+                border: `1px solid ${entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 25%, transparent)" : "var(--border-subtle)"}`,
                 borderRadius: "var(--radius-md)",
                 display: "flex",
                 gap: "var(--space-16)",
@@ -1591,7 +1591,7 @@ function L02History({ character }: { character: HarnessCharacter }) {
                         fontSize: "var(--font-size-2xs)",
                         padding: "1px 6px",
                         borderRadius: "var(--radius-xs)",
-                        background: "rgba(140,231,210,0.12)",
+                        background: "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)",
                         color: "var(--accent-strong)",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -1734,8 +1734,8 @@ function SaveBar({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: isDirty ? "rgba(140,231,210,0.14)" : "var(--control-bg)",
-          border: `1px solid ${isDirty ? "rgba(140,231,210,0.4)" : "var(--control-border)"}`,
+          background: isDirty ? "var(--color-accent-fill)" : "var(--control-bg)",
+          border: `1px solid ${isDirty ? "var(--color-accent-glow)" : "var(--control-border)"}`,
           color: isDirty ? "var(--accent-strong)" : "var(--text-tertiary)",
           borderRadius: "var(--radius-xs)",
           cursor: isDirty && save.status !== "saving" ? "pointer" : "default",
@@ -1783,7 +1783,7 @@ function Card({
   children: React.ReactNode;
 }) {
   const borderMap = {
-    phosphor: "rgba(140,231,210,0.18)",
+    phosphor: "color-mix(in srgb, var(--color-accent-strong) 18%, transparent)",
     danger: "rgba(248,113,113,0.20)",
     muted: "var(--border-subtle)",
   };
@@ -2002,9 +2002,9 @@ function ExemplarCount({ count }: { count: number }) {
         background:
           remaining === 0
             ? "rgba(255,184,112,0.08)"
-            : "rgba(140,231,210,0.08)",
+            : "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)",
         border: `1px solid ${
-          remaining === 0 ? "rgba(255,184,112,0.30)" : "rgba(140,231,210,0.22)"
+          remaining === 0 ? "rgba(255,184,112,0.30)" : "color-mix(in srgb, var(--color-accent-strong) 22%, transparent)"
         }`,
         borderRadius: "var(--radius-xs)",
       }}
@@ -2150,7 +2150,7 @@ function ExemplarRow({
         gap: "var(--space-14)",
         padding: "14px 16px",
         background: "var(--control-bg)",
-        border: `1px solid ${isDragOver ? "rgba(140,231,210,0.5)" : "var(--control-border)"}`,
+        border: `1px solid ${isDragOver ? "color-mix(in srgb, var(--color-accent-strong) 50%, transparent)" : "var(--control-border)"}`,
         borderTop: isDragOver
           ? "3px solid var(--accent-strong)"
           : "1px solid var(--control-border)",

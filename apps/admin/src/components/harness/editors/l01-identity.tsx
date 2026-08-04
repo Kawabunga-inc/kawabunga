@@ -704,8 +704,8 @@ function L01History({ character }: { character: HarnessCharacter }) {
               key={entry.identityHash}
               style={{
                 padding: "14px 18px",
-                background: entry.isCurrent ? "rgba(140,231,210,0.04)" : "var(--material-card)",
-                border: `1px solid ${entry.isCurrent ? "rgba(140,231,210,0.25)" : "var(--border-subtle)"}`,
+                background: entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)" : "var(--material-card)",
+                border: `1px solid ${entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 25%, transparent)" : "var(--border-subtle)"}`,
                 borderRadius: "var(--radius-md)",
                 display: "flex",
                 gap: "var(--space-16)",
@@ -724,7 +724,7 @@ function L01History({ character }: { character: HarnessCharacter }) {
                         fontSize: "var(--font-size-2xs)",
                         padding: "1px 6px",
                         borderRadius: "var(--radius-xs)",
-                        background: "rgba(140,231,210,0.12)",
+                        background: "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)",
                         color: "var(--accent-strong)",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -881,8 +881,8 @@ function TemplatesCard({
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: open ? "rgba(140,231,210,0.1)" : "var(--control-bg)",
-            border: `1px solid ${open ? "rgba(140,231,210,0.3)" : "var(--control-border)"}`,
+            background: open ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "var(--control-bg)",
+            border: `1px solid ${open ? "var(--color-accent-border)" : "var(--control-border)"}`,
             color: open ? "var(--accent-strong)" : "var(--text-secondary)",
             borderRadius: "var(--radius-xs)",
             cursor: "pointer",
@@ -989,8 +989,8 @@ function TemplateRow({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: "rgba(140,231,210,0.1)",
-          border: "1px solid rgba(140,231,210,0.3)",
+          background: "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
+          border: "1px solid var(--color-accent-border)",
           color: "var(--accent-strong)",
           borderRadius: "var(--radius-xs)",
           cursor: "pointer",
@@ -1079,8 +1079,8 @@ function SaveBar({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: isDirty ? "rgba(140,231,210,0.14)" : "var(--control-bg)",
-          border: `1px solid ${isDirty ? "rgba(140,231,210,0.4)" : "var(--control-border)"}`,
+          background: isDirty ? "var(--color-accent-fill)" : "var(--control-bg)",
+          border: `1px solid ${isDirty ? "var(--color-accent-glow)" : "var(--control-border)"}`,
           color: isDirty ? "var(--accent-strong)" : "var(--text-tertiary)",
           borderRadius: "var(--radius-xs)",
           cursor: isDirty && save.status !== "saving" ? "pointer" : "default",
@@ -1130,7 +1130,7 @@ function Card({
   children: React.ReactNode;
 }) {
   const borderMap = {
-    phosphor: "rgba(140,231,210,0.18)",
+    phosphor: "color-mix(in srgb, var(--color-accent-strong) 18%, transparent)",
     muted: "var(--border-subtle)",
   };
   const eyebrowMap = {
@@ -1202,7 +1202,7 @@ function TraitSlot({
       style={{
         padding: "var(--space-16)",
         background: "var(--control-bg)",
-        border: `1px solid ${filled ? "rgba(140,231,210,0.22)" : "var(--control-border)"}`,
+        border: `1px solid ${filled ? "color-mix(in srgb, var(--color-accent-strong) 22%, transparent)" : "var(--control-border)"}`,
         borderRadius: "var(--radius-sm)",
         display: "flex",
         flexDirection: "column",
@@ -1238,7 +1238,7 @@ function TraitSlot({
                 textTransform: "uppercase",
                 padding: "1px 5px",
                 borderRadius: "var(--radius-xs)",
-                background: "rgba(140,231,210,0.08)",
+                background: "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)",
               }}
             >
               in library
@@ -1332,8 +1332,8 @@ function TraitSlotIndicator({ filled }: { filled: number }) {
         alignItems: "center",
         gap: "var(--space-6)",
         padding: "5px 10px",
-        background: filled === 2 ? "rgba(140,231,210,0.08)" : "var(--control-bg)",
-        border: `1px solid ${filled === 2 ? "rgba(140,231,210,0.25)" : "var(--control-border)"}`,
+        background: filled === 2 ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "var(--control-bg)",
+        border: `1px solid ${filled === 2 ? "color-mix(in srgb, var(--color-accent-strong) 25%, transparent)" : "var(--control-border)"}`,
         borderRadius: "var(--radius-xs)",
       }}
     >
@@ -1459,10 +1459,10 @@ function TraitNounPalette({
                     style={{
                       padding: "5px 10px",
                       background: used
-                        ? "rgba(140,231,210,0.08)"
+                        ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)"
                         : "var(--control-bg)",
                       border: `1px solid ${
-                        used ? "rgba(140,231,210,0.3)" : "var(--control-border)"
+                        used ? "var(--color-accent-border)" : "var(--control-border)"
                       }`,
                       borderRadius: "var(--radius-xs)",
                       fontFamily: T.fontMono,

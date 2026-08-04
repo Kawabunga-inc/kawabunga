@@ -207,9 +207,9 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
         fontSize: 10.5,
         letterSpacing: "0.06em",
         textTransform: "uppercase",
-        background: active ? "rgba(140,231,210,0.10)" : "transparent",
+        background: active ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "transparent",
         color: active ? "var(--accent-strong)" : "var(--text-tertiary)",
-        border: `1px solid ${active ? "rgba(140,231,210,0.35)" : "var(--control-border)"}`,
+        border: `1px solid ${active ? "color-mix(in srgb, var(--color-accent-strong) 35%, transparent)" : "var(--control-border)"}`,
         borderRadius: "var(--radius-xs)",
         cursor: "pointer",
       }}
@@ -359,7 +359,7 @@ function ModelRow({
             {model.label}
           </span>
           {isCurrent && (
-            <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)", padding: "1px 6px", borderRadius: "var(--radius-xs)", background: "rgba(140,231,210,0.10)", border: "1px solid rgba(140,231,210,0.35)", color: "var(--accent-strong)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)", padding: "1px 6px", borderRadius: "var(--radius-xs)", background: "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-accent-strong) 35%, transparent)", color: "var(--accent-strong)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
               in use
             </span>
           )}
@@ -428,14 +428,14 @@ function RowButton({
         textTransform: "uppercase",
         background:
           disabled ? "transparent" :
-          active ? "rgba(140,231,210,0.12)" :
-          primary ? "rgba(140,231,210,0.06)" : "transparent",
+          active ? "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)" :
+          primary ? "var(--color-accent-wash)" : "transparent",
         color:
           disabled ? "var(--text-quaternary)" :
           active || primary ? "var(--accent-strong)" : "var(--text-secondary)",
         border: `1px solid ${
           disabled ? "var(--control-border)" :
-          active || primary ? "rgba(140,231,210,0.30)" : "var(--control-border)"
+          active || primary ? "var(--color-accent-border)" : "var(--control-border)"
         }`,
         borderRadius: "var(--radius-xs)",
         cursor: disabled ? "default" : "pointer",
@@ -465,9 +465,9 @@ function ComparePanel({
   return (
     <div
       style={{
-        border: "1px solid rgba(140,231,210,0.25)",
+        border: "1px solid color-mix(in srgb, var(--color-accent-strong) 25%, transparent)",
         borderRadius: "var(--radius-sm)",
-        background: "rgba(140,231,210,0.03)",
+        background: "color-mix(in srgb, var(--color-accent-strong) 3%, transparent)",
         padding: "var(--space-16)",
         display: "flex",
         flexDirection: "column",
@@ -520,9 +520,9 @@ function ComparePanel({
                     fontSize: "var(--font-size-2xs)",
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
-                    background: m.id === currentModel ? "transparent" : "rgba(140,231,210,0.10)",
+                    background: m.id === currentModel ? "transparent" : "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
                     color: m.id === currentModel ? "var(--text-quaternary)" : "var(--accent-strong)",
-                    border: `1px solid ${m.id === currentModel ? "var(--control-border)" : "rgba(140,231,210,0.30)"}`,
+                    border: `1px solid ${m.id === currentModel ? "var(--control-border)" : "var(--color-accent-border)"}`,
                     borderRadius: "var(--radius-xs)",
                     cursor: m.id === currentModel ? "default" : "pointer",
                   }}

@@ -7,7 +7,7 @@ export default async function SignInPage() {
   if (session?.user) redirect("/dashboard");
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0C0E14]">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-background)]">
       <CredentialsAuthForm />
     </div>
   );

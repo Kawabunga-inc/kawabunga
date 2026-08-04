@@ -2,7 +2,7 @@ import type { KnowledgeGraphData, WikiPageType } from "@kawabunga/db";
 
 /** Per-type dot color — matches the canvas palette. */
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--color-accent-strong)",
   event: "#F4A3B8",
   concept: "#B197FC",
   relationship: "#F7D26B",

@@ -11,12 +11,12 @@ const T = {
   faint: "#FFFFFF66",
   meta: "#FFFFFF99",
   panel: "#161A24",
-  panelInner: "#0C0E14",
+  panelInner: "var(--color-background)",
   panelRaised: "rgba(255,255,255,0.05)",
   border: "#FFFFFF14",
   borderSoft: "#FFFFFF0F",
   borderFaint: "#FFFFFF0A",
-  accent: "#8FD1CB",
+  accent: "var(--color-accent-strong)",
   accentInk: "#04231E",
   green: "#6FCFA0",
   amber: "#F5C26B",
@@ -252,7 +252,7 @@ export function ResetPasswordModal({ open, target, onClose, onSaved }: Props) {
             borderRadius: "var(--radius-lg)",
             background: "rgba(243,114,114,0.08)",
             border: "1px solid rgba(243,114,114,0.20)",
-            fontFamily: T.fontBody, fontSize: "var(--font-size-base)", color: "#F4A8A8",
+            fontFamily: T.fontBody, fontSize: "var(--font-size-base)", color: "var(--color-status-error)",
           }}>
             {error}
           </div>
@@ -428,7 +428,7 @@ function Avatar({ email, name }: { email: string; name: string | null }) {
   return (
     <div style={{
       width: 36, height: 36, flexShrink: 0, borderRadius: "var(--radius-3xl)",
-      background: "linear-gradient(135deg, #8FD1CB 0%, #4FB8A8 100%)",
+      background: "linear-gradient(135deg, var(--color-accent-strong) 0%, color-mix(in srgb, var(--color-accent-strong) 78%, black) 100%)",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: T.fontHeading, fontSize: 15, fontWeight: 600, color: T.accentInk,
     }}>

@@ -354,7 +354,7 @@ export function EditThumbnailOverlay({
                         alignItems: "center",
                         justifyContent: "center",
                       }}>
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#0C0E14" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-on)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </div>
@@ -446,7 +446,7 @@ export function EditThumbnailOverlay({
               width: 36,
               height: 36,
               borderRadius: "50%",
-              background: "rgba(140,231,210,0.08)",
+              background: "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

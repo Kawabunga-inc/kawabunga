@@ -60,10 +60,10 @@ const T = {
 };
 
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--color-accent-strong)",
   event: "#E879A0",
-  concept: "#8B5CF6",
-  relationship: "#FACC15",
+  concept: "var(--color-event-violet)",
+  relationship: "var(--color-status-draft)",
   timeline: "rgba(255,255,255,0.45)",
   voice_identity: "#FFFFFF",
 };
@@ -272,7 +272,7 @@ export function CharacterKnowledge({
               background: "rgba(12,14,20,0.65)", backdropFilter: "blur(8px)",
               border: `1px solid ${T.border}`,
             }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#8FD1CB", boxShadow: "0 0 8px 0 rgba(140,231,210,0.55)" }} />
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-accent-strong)", boxShadow: "0 0 8px 0 var(--color-accent-glow)" }} />
               <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", color: T.muted, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                 Knowledge graph
               </span>
@@ -287,10 +287,10 @@ export function CharacterKnowledge({
               display: "flex", alignItems: "center", gap: "var(--space-6)",
               padding: "4px 10px 4px 12px", borderRadius: "var(--radius-pill)",
               background: "rgba(12,14,20,0.65)", backdropFilter: "blur(8px)",
-              border: `1px solid ${query ? "#8FD1CB" : T.border}`,
+              border: `1px solid ${query ? "var(--color-accent-strong)" : T.border}`,
               minWidth: 220,
             }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={query ? "#8FD1CB" : T.muted as string} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={query ? "var(--color-accent-strong)" : T.muted as string} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="7" />
                 <path d="M21 21l-4.3-4.3" />
               </svg>
@@ -401,8 +401,8 @@ export function CharacterKnowledge({
           {/* Soft ambient wash centered on the data cluster */}
           <defs>
             <radialGradient id="kg-wash" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#8FD1CB" stopOpacity="0.08" />
-              <stop offset="80%" stopColor="#8FD1CB" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--color-accent-strong)" stopOpacity="0.08" />
+              <stop offset="80%" stopColor="var(--color-accent-strong)" stopOpacity="0" />
             </radialGradient>
           </defs>
           <rect x={-2} y={-2} width={4} height={4} fill="url(#kg-wash)" />
@@ -422,7 +422,7 @@ export function CharacterKnowledge({
                 y1={a.y}
                 x2={b.x}
                 y2={b.y}
-                stroke={emphasized ? "rgba(140,231,210,0.85)" : "rgba(140,231,210,0.22)"}
+                stroke={emphasized ? "color-mix(in srgb, var(--color-accent-strong) 85%, transparent)" : "color-mix(in srgb, var(--color-accent-strong) 22%, transparent)"}
                 strokeWidth={emphasized ? 1.4 : 0.7}
                 strokeOpacity={dimmed ? 0.25 : 1}
                 vectorEffect="non-scaling-stroke"
@@ -454,7 +454,7 @@ export function CharacterKnowledge({
                   r={r}
                   fill={color}
                   fillOpacity={isDimmed ? 0.18 : 1}
-                  stroke={isSelected ? "#FFFFFF" : isMatch ? "#8FD1CB" : isHovered ? color : "transparent"}
+                  stroke={isSelected ? "#FFFFFF" : isMatch ? "var(--color-accent-strong)" : isHovered ? color : "transparent"}
                   strokeWidth={isSelected ? 2 : isMatch ? 1.5 : isHovered ? 1.5 : 0}
                   vectorEffect="non-scaling-stroke"
                   style={isMatch ? { filter: `drop-shadow(0 0 ${r * 2}px ${color})` } : undefined}
@@ -570,7 +570,7 @@ function DetailPanel({
           <span style={{
             padding: "1px 7px", borderRadius: "var(--radius-xs)",
             background: "rgba(168,140,255,0.12)",
-            fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)", color: "#8B5CF6",
+            fontFamily: T.fontMono, fontSize: "var(--font-size-2xs)", color: "var(--color-event-violet)",
           }}>
             future
           </span>
@@ -680,8 +680,8 @@ function DetailPanel({
           style={{
             flex: 1, textAlign: "center",
             padding: "6px 12px", borderRadius: "var(--radius-md)",
-            border: "none", background: "#8FD1CB",
-            color: "#0C0E14", textDecoration: "none",
+            border: "none", background: "var(--color-accent-strong)",
+            color: "var(--color-accent-on)", textDecoration: "none",
             fontFamily: T.fontBody, fontSize: "var(--font-size-base)", fontWeight: 600,
           }}
         >
@@ -715,8 +715,8 @@ function EmptyOverlay({ routeBase }: { routeBase: string }) {
           Ingest a source to grow the graph. Once pages exist, they appear here laid out in semantic space.
         </span>
         <Link href={`${routeBase}/ingestion`} style={{
-          padding: "6px 14px", borderRadius: "var(--radius-md)", background: "#8FD1CB",
-          color: "#0C0E14", textDecoration: "none",
+          padding: "6px 14px", borderRadius: "var(--radius-md)", background: "var(--color-accent-strong)",
+          color: "var(--color-accent-on)", textDecoration: "none",
           fontFamily: T.fontBody, fontSize: "var(--font-size-base)", fontWeight: 600,
         }}>
           Open ingestion
@@ -734,7 +734,7 @@ function NoEmbeddingsOverlay() {
       background: "rgba(250,204,21,0.08)", border: "1px solid rgba(250,204,21,0.25)",
       backdropFilter: "blur(8px)",
     }}>
-      <span style={{ fontFamily: T.fontBody, fontSize: "var(--font-size-sm)", color: "#FACC15" }}>
+      <span style={{ fontFamily: T.fontBody, fontSize: "var(--font-size-sm)", color: "var(--color-status-draft)" }}>
         Pages have no embeddings — layout is approximate. Re-ingest to populate.
       </span>
     </div>

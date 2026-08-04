@@ -1,10 +1,9 @@
 /*
  * Kawabunga — Atmospheric Theme
  *
- * Canonical runtime tokens are the semantic names below:
- *   --background, --sidebar, --surface-*, --canvas-*, --material-*,
- *   --foreground, --text-*, --border-*, --accent*, --status-*,
- *   plus type/radius/space scales.
+ * The `--color-*`, `--text-*`, `--spacing-*`, type, and radius variables are
+ * the Ocean contract registered in Paper. Existing unprefixed variables are
+ * retained below as compatibility aliases while product surfaces migrate.
  *
  * Older aliases (`--panel`, `--card`, `--passive-teal`, `--danger`,
  * `--forest-*`, etc.) are intentionally retained as derived compatibility
@@ -12,50 +11,110 @@
  */
 
 :root {
-  /* Typography */
-  --font-body: Inter;
+  /* Ocean contract — source: Kawabunga Brand & Design System in Paper. */
   --font-display: "Space Grotesk";
+  --font-body: "Inter";
   --font-mono: "JetBrains Mono";
 
-  /* Canonical surfaces — dark default. */
-  --background: #13181D;
-  --sidebar: #161B20;
-  --surface-1: #1A1F24;
-  --surface-2: #1E252B;
-  --surface-hover: #20282F;
-  --surface-active: #252E35;
+  --color-background: #13181D;
+  --color-sidebar: #161B20;
+  --color-surface-1: #1A1F24;
+  --color-surface-2: #1E252B;
+  --color-surface-hover: #20282F;
+  --color-surface-active: #252E35;
+  --color-deep: #05070A;
+  --color-light: #F5F6F4;
+
+  --color-accent-strong: #8FD1CB;
+  --color-accent: #6FBF88;
+  --color-accent-secondary: #7FE6C3;
+  --color-emissive-mint: #DFFFF5;
+  --color-olive: #C0D5CA;
+  --color-accent-on: #0A0F12;
+  --color-accent-wash: rgb(143 209 203 / 6%);
+  --color-accent-fill: rgb(143 209 203 / 14%);
+  --color-accent-border: rgb(143 209 203 / 30%);
+  --color-accent-glow: rgb(143 209 203 / 40%);
+
+  --color-signal-blue: #6E8BFF;
+  --color-event-violet: #8B5CF6;
+  --color-warning-amber: #FFB84D;
+  --color-critical-crimson: #FF5A5A;
+  --color-status-live: #4ADE80;
+  --color-status-draft: #FACC15;
+  --color-status-error: #FCA5A5;
+  --color-status-archived: #A1A1AA;
+
+  --color-text-primary: rgb(255 255 255 / 92%);
+  --color-text-secondary: rgb(255 255 255 / 70%);
+  --color-text-tertiary: rgb(255 255 255 / 45%);
+  --color-text-placeholder: rgb(255 255 255 / 28%);
+  --color-text-quaternary: rgb(255 255 255 / 20%);
+  --color-border-subtle: rgb(255 255 255 / 5%);
+  --color-border-medium: rgb(255 255 255 / 8%);
+  --color-border-active: rgb(143 209 203 / 12%);
+
+  --text-xs: 10px;
+  --text-sm: 11px;
+  --text-base: 12px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 16px;
+  --text-2xl: 18px;
+  --text-3xl: 22px;
+  --text-4xl: 24px;
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --tracking-tight: -0.02em;
+  --tracking-eyebrow: 0.24em;
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+
+  /* Compatibility aliases for the established product theme API. */
+  --background: var(--color-background);
+  --sidebar: var(--color-sidebar);
+  --surface-1: var(--color-surface-1);
+  --surface-2: var(--color-surface-2);
+  --surface-hover: var(--color-surface-hover);
+  --surface-active: var(--color-surface-active);
   --canvas-surface: var(--surface-2);
 
-  /* Canonical text */
-  --foreground: rgba(255, 255, 255, 0.92);
+  --foreground: var(--color-text-primary);
   --text-primary: var(--foreground);
-  --text-secondary: rgba(255, 255, 255, 0.70);
-  --text-tertiary: rgba(255, 255, 255, 0.45);
-  --text-quaternary: rgba(255, 255, 255, 0.20);
-  --text-placeholder: rgba(255, 255, 255, 0.28);
+  --text-secondary: var(--color-text-secondary);
+  --text-tertiary: var(--color-text-tertiary);
+  --text-quaternary: var(--color-text-quaternary);
+  --text-placeholder: var(--color-text-placeholder);
 
-  /* Canonical borders */
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-medium: rgba(255, 255, 255, 0.08);
-  --border-active: rgba(143, 209, 203, 0.12);
+  --border-subtle: var(--color-border-subtle);
+  --border-medium: var(--color-border-medium);
+  --border-active: var(--color-border-active);
   --border: var(--border-subtle);
 
-  /* Canonical brand and semantic colors */
-  --accent: #6FBF88;
-  --accent-strong: #8FD1CB;
-  --accent-secondary: #7FE6C3;
-  --accent-on: #0A0F12;
-  --emissive-mint: #DFFFF5;
-  --signal-blue: #6E8BFF;
-  --event-violet: #8B5CF6;
-  --warning-amber: #FFB84D;
-  --critical-crimson: #FF5A5A;
+  --accent: var(--color-accent);
+  --accent-strong: var(--color-accent-strong);
+  --accent-secondary: var(--color-accent-secondary);
+  --accent-on: var(--color-accent-on);
+  --emissive-mint: var(--color-emissive-mint);
+  --olive: var(--color-olive);
+  --signal-blue: var(--color-signal-blue);
+  --event-violet: var(--color-event-violet);
+  --warning-amber: var(--color-warning-amber);
+  --critical-crimson: var(--color-critical-crimson);
 
-  --status-live: #4ADE80;
-  --status-draft: #FACC15;
-  --status-archived: #A1A1AA;
-  --status-error: #FCA5A5;
-  --status-processing: #FFB84D;
+  --status-live: var(--color-status-live);
+  --status-draft: var(--color-status-draft);
+  --status-archived: var(--color-status-archived);
+  --status-error: var(--color-status-error);
+  --status-processing: var(--color-warning-amber);
   --status-info: var(--signal-blue);
 
   /* Derived color scales */
@@ -65,10 +124,10 @@
   --ink-line: color-mix(in srgb, var(--text-primary) 10%, transparent);
   --ink-edge: color-mix(in srgb, var(--text-primary) 18%, transparent);
 
-  --accent-wash: color-mix(in srgb, var(--accent-strong) 6%, transparent);
-  --accent-fill: color-mix(in srgb, var(--accent-strong) 14%, transparent);
-  --accent-border: color-mix(in srgb, var(--accent-strong) 30%, transparent);
-  --accent-glow: color-mix(in srgb, var(--accent-strong) 40%, transparent);
+  --accent-wash: var(--color-accent-wash);
+  --accent-fill: var(--color-accent-fill);
+  --accent-border: var(--color-accent-border);
+  --accent-glow: var(--color-accent-glow);
   --accent-soft: var(--accent-fill);
 
   --critical-wash: color-mix(in srgb, var(--status-error) 6%, transparent);
@@ -151,6 +210,7 @@
   --radius-3xl: 16px;
   --radius-pill: 999px;
   --radius-button: 12px;
+  --ocean-radius-card: 18px;
   --radius-card: 18px;
   --radius-panel: 20px;
   --radius-floating: 24px;
@@ -158,32 +218,32 @@
   /* Typography scale */
   --font-size-3xs: 8px;
   --font-size-2xs: 9px;
-  --font-size-xs: 10px;
-  --font-size-sm: 11px;
-  --font-size-base: 12px;
-  --font-size-md: 13px;
-  --font-size-lg: 14px;
-  --font-size-xl: 16px;
-  --font-size-2xl: 18px;
-  --font-size-3xl: 22px;
-  --font-size-4xl: 24px;
+  --font-size-xs: var(--text-xs);
+  --font-size-sm: var(--text-sm);
+  --font-size-base: var(--text-base);
+  --font-size-md: var(--text-md);
+  --font-size-lg: var(--text-lg);
+  --font-size-xl: var(--text-xl);
+  --font-size-2xl: var(--text-2xl);
+  --font-size-3xl: var(--text-3xl);
+  --font-size-4xl: var(--text-4xl);
 
   /* Spacing scale */
   --space-1: 1px;
   --space-2: 2px;
   --space-3: 3px;
-  --space-4: 4px;
+  --space-4: var(--spacing-4);
   --space-5: 5px;
   --space-6: 6px;
-  --space-8: 8px;
+  --space-8: var(--spacing-8);
   --space-10: 10px;
-  --space-12: 12px;
+  --space-12: var(--spacing-12);
   --space-14: 14px;
-  --space-16: 16px;
+  --space-16: var(--spacing-16);
   --space-18: 18px;
-  --space-20: 20px;
-  --space-24: 24px;
-  --space-32: 32px;
+  --space-20: var(--spacing-20);
+  --space-24: var(--spacing-24);
+  --space-32: var(--spacing-32);
 
   /* Focus and effects */
   --ring-color: var(--accent-strong);
@@ -227,6 +287,26 @@
   --sidebar-active-border: var(--accent-border);
   --sidebar-glass: rgba(22, 27, 32, 0.82);
   --sidebar-inset: rgba(255, 255, 255, 0.045);
+
+  color-scheme: dark;
+}
+
+:root[data-theme="deep"] {
+  --color-background: var(--color-deep);
+  --color-sidebar: #080C11;
+  --color-surface-1: #0B1016;
+  --color-surface-2: #0F151D;
+  --color-surface-hover: #111923;
+  --color-surface-active: #15202B;
+
+  --color-text-primary: rgb(255 255 255 / 94%);
+  --color-text-secondary: rgb(255 255 255 / 72%);
+  --color-text-tertiary: rgb(255 255 255 / 46%);
+  --color-text-quaternary: rgb(255 255 255 / 22%);
+  --color-text-placeholder: rgb(255 255 255 / 30%);
+  --color-border-subtle: rgb(255 255 255 / 6.5%);
+  --color-border-medium: rgb(255 255 255 / 9%);
+  --color-border-active: rgb(143 209 203 / 18%);
 
   color-scheme: dark;
 }
@@ -284,7 +364,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
+  :root[data-theme="system"] {
     --background: #F5F6F4;
     --sidebar: #F0F1EE;
     --surface-1: #FFFFFF;
@@ -365,6 +445,36 @@
 }
 
 :root[data-theme="light"] {
+  --color-background: var(--color-light);
+  --color-sidebar: #F0F1EE;
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F3F4F2;
+  --color-surface-hover: #E8EBE7;
+  --color-surface-active: #E1E6E1;
+  --color-accent: #6F8F88;
+  --color-accent-strong: #5E8E84;
+  --color-emissive-mint: #CFEDE2;
+  --color-signal-blue: #5D74D9;
+  --color-event-violet: #7C5BE3;
+  --color-warning-amber: #D89A2B;
+  --color-critical-crimson: #E04F4F;
+  --color-status-live: #22A35A;
+  --color-status-draft: #D89A2B;
+  --color-status-archived: #71717A;
+  --color-status-error: #E04F4F;
+  --color-text-primary: rgb(0 0 0 / 88%);
+  --color-text-secondary: rgb(0 0 0 / 68%);
+  --color-text-tertiary: rgb(0 0 0 / 42%);
+  --color-text-quaternary: rgb(0 0 0 / 18%);
+  --color-text-placeholder: rgb(0 0 0 / 28%);
+  --color-border-subtle: rgb(0 0 0 / 6%);
+  --color-border-medium: rgb(0 0 0 / 8%);
+  --color-border-active: rgb(94 142 132 / 18%);
+  --color-accent-wash: rgb(94 142 132 / 6%);
+  --color-accent-fill: rgb(94 142 132 / 14%);
+  --color-accent-border: rgb(94 142 132 / 30%);
+  --color-accent-glow: rgb(94 142 132 / 40%);
+
   --background: #F5F6F4;
   --sidebar: #F0F1EE;
   --surface-1: #FFFFFF;

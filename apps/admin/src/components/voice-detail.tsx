@@ -3284,8 +3284,8 @@ function ReadyToExtractPanel({
         gap: "var(--space-24)",
         padding: "var(--space-32)",
         background:
-          "linear-gradient(135deg, rgba(140,231,210,0.05) 0%, rgba(255,255,255,0.02) 60%, rgba(255,255,255,0.02) 100%)",
-        border: "1px solid rgba(140,231,210,0.18)",
+          "linear-gradient(135deg, color-mix(in srgb, var(--color-accent-strong) 5%, transparent) 0%, rgba(255,255,255,0.02) 60%, rgba(255,255,255,0.02) 100%)",
+        border: "1px solid color-mix(in srgb, var(--color-accent-strong) 18%, transparent)",
         borderRadius: "var(--radius-3xl)",
       }}
     >
