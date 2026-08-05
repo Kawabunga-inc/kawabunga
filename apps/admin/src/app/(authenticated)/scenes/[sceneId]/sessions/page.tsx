@@ -10,6 +10,7 @@ import {
   type SceneSessionHealthRow,
 } from "@/components/scene-sessions-rollup";
 import { resolveScene } from "@/lib/scene-orchestration";
+import { aggregateSessionJournalHealth } from "@/lib/session-journal-health";
 
 export const dynamic = "force-dynamic";
 
@@ -57,36 +58,7 @@ function healthRow(
   events: SceneSessionEventRecord[],
   hasArc: boolean,
 ): SceneSessionHealthRow {
-  let decisionCount = 0;
-  let degradedCount = 0;
-  let recoveredCount = 0;
-  let specHits = 0;
-  let specTotal = 0;
-  const decisionLatencies: number[] = [];
-  let reflectionCount = 0;
-  let reflectionFailures = 0;
-
-  for (const event of events) {
-    const payload = asRecord(event.payload) ?? {};
-    if (event.type.startsWith("scene.decision.")) {
-      decisionCount += 1;
-      if (payload.degraded === true || typeof payload.failure === "string") degradedCount += 1;
-      if (typeof payload.recovered === "string") recoveredCount += 1;
-      const spec = asRecord(payload.speculation);
-      if (spec?.outcome === "hit") {
-        specHits += 1;
-        specTotal += 1;
-      } else if (spec?.outcome === "miss") {
-        specTotal += 1;
-      }
-      if (typeof payload.latencyMs === "number" && Number.isFinite(payload.latencyMs)) {
-        decisionLatencies.push(payload.latencyMs);
-      }
-    } else if (event.type === "scene.reflection") {
-      reflectionCount += 1;
-      if (typeof payload.error === "string") reflectionFailures += 1;
-    }
-  }
+  const health = aggregateSessionJournalHealth(events);
 
   // Arc completion: the persisted snapshot is authoritative; journal
   // decisions fill in when snapshot persistence was off.
@@ -127,15 +99,7 @@ function healthRow(
     p50FirstAudioMs: median(
       turns.map(firstAudioMsOf).filter((v): v is number => v != null),
     ),
-    decisionCount,
-    degradedCount,
-    recoveredCount,
-    specHitRate: specTotal > 0 ? specHits / specTotal : null,
-    avgDecisionMs: decisionLatencies.length
-      ? Math.round(decisionLatencies.reduce((a, b) => a + b, 0) / decisionLatencies.length)
-      : null,
-    reflectionCount,
-    reflectionFailures,
+    ...health,
     arcLandedCount,
   };
 }

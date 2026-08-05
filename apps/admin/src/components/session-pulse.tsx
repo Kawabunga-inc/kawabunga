@@ -26,8 +26,9 @@ export type SceneArcBeat = { label: string; summary?: string };
 const LANE_HEIGHT = 44;
 const BAR_MIN = 6;
 
-function turnBarColor(turn: PulseTurn): string {
+function turnBarColor(turn: PulseTurn, isLive: boolean): string {
   if (turn.status === "error") return C.red;
+  if (isLive && turn.status === "streaming") return C.mint;
   if (turn.status !== "completed" && turn.status !== "succeeded") return C.amber;
   return C.mint;
 }
@@ -73,6 +74,8 @@ export function SessionPulse({
   activeJournalId,
   onSelectTurn,
   onSelectJournalItem,
+  isLive,
+  onResumeFollowing,
 }: {
   turns: PulseTurn[];
   journalItems: SessionJournalItem[];
@@ -82,8 +85,17 @@ export function SessionPulse({
   activeJournalId: string | null;
   onSelectTurn: (id: string) => void;
   onSelectJournalItem: (item: SessionJournalItem) => void;
+  isLive: boolean;
+  onResumeFollowing: () => void;
 }) {
-  if (turns.length === 0 && journalItems.length === 0 && arc.length === 0) return null;
+  if (
+    turns.length === 0 &&
+    journalItems.length === 0 &&
+    arc.length === 0 &&
+    !isLive
+  ) {
+    return null;
+  }
 
   const maxMs = Math.max(...turns.map((t) => t.firstAudioMs ?? 0), 1);
   const scale = (ms: number | null): number =>
@@ -170,7 +182,7 @@ export function SessionPulse({
         </div>
       ) : null}
 
-      {lane.length > 0 ? (
+      {lane.length > 0 || isLive ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
             <span style={{ fontFamily: FONT_MONO, fontSize: "var(--font-size-xs)", letterSpacing: "0.16em", textTransform: "uppercase", color: C.textLow }}>
@@ -204,7 +216,11 @@ export function SessionPulse({
                         width: 9,
                         height: scale(turn.firstAudioMs),
                         borderRadius: 2,
-                        background: turnBarColor(turn),
+                        background: turnBarColor(turn, isLive),
+                        border:
+                          isLive && turn.status === "streaming"
+                            ? `1px dashed ${C.mintMid}`
+                            : "none",
                         opacity: turn.firstAudioMs == null ? 0.35 : 0.9,
                       }}
                     />
@@ -276,6 +292,44 @@ export function SessionPulse({
                 </Marker>
               );
             })}
+            {isLive ? (
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 9,
+                  height: 20,
+                  borderRadius: 2,
+                  border: `1px dashed ${C.mintMid}`,
+                  background: C.mintBg,
+                  opacity: 0.45,
+                  flexShrink: 0,
+                  marginBottom: 2,
+                }}
+              />
+            ) : null}
+            {isLive ? (
+              <button
+                type="button"
+                onClick={onResumeFollowing}
+                title="Resume following live activity"
+                style={{
+                  all: "unset",
+                  alignSelf: "stretch",
+                  display: "flex",
+                  alignItems: "center",
+                  marginLeft: 6,
+                  paddingLeft: 8,
+                  borderLeft: `1px dashed ${C.mintGlow}`,
+                  color: C.mint,
+                  fontFamily: FONT_MONO,
+                  fontSize: "var(--font-size-2xs)",
+                  letterSpacing: "0.12em",
+                  cursor: "pointer",
+                }}
+              >
+                NOW
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
