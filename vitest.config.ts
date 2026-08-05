@@ -11,6 +11,7 @@ export default defineConfig({
       "packages/orchestration/src/**/*.test.ts",
       "packages/voice-pipeline/src/**/*.test.ts",
       "apps/admin/src/**/*.test.ts",
+      "apps/web/src/**/*.test.ts",
       "services/voice-agent/src/**/*.test.ts",
     ],
   },
