@@ -315,6 +315,29 @@ export function declaresUserAction(message: string): boolean {
   return /^i(?:'m|'ll| am| will| would)?\s+[a-z]+(?:e|s)?\b/i.test(text);
 }
 
+/**
+ * A narrator-addressed message that is a STATEMENT, not a question — the
+ * user declaring something happening in the world ("Narrator, Abraham sees
+ * a vision and kneels"). Form, not verbs: the director's narrationKind
+ * classifier was observed tagging exactly this as "answer" because the
+ * declaration contained a perception verb ("sees"), which both skipped the
+ * reaction chain and slipped past the userDirector-off gate. The runtime
+ * treats a declaration as an event regardless of the model's tag.
+ */
+export function isNarratorEventDeclaration(message: string): boolean {
+  if (!isNarratorAddressed(message)) return false;
+  const text = message
+    .trim()
+    .replace(/^\s*(?:hey\s+|ok(?:ay)?\s+)?narrator\s*[,:.\-–—]?\s*/i, "")
+    .trim();
+  if (!text) return false;
+  if (/\?\s*$/.test(text)) return false;
+  // Interrogative openers without a question mark ("Narrator, what do I see").
+  const interrogative =
+    /^(what|where|when|who|whom|whose|why|how|is|are|am|was|were|do|does|did|can|could|will|would|should|tell me|describe)\b/i;
+  return !interrogative.test(text);
+}
+
 export function createInitialSceneState(scene: Scene): SceneState {
   return {
     sceneId: scene.id,
@@ -1126,11 +1149,16 @@ function buildOrchestratorSystemPrompt(
           "THE NARRATOR - `action: \"narrate\"` speaks as an unseen presence: the",
           "world itself, never a character. Narration is at most two sentences,",
           "present tense, concrete and sensory. The narrator's jobs:",
-          "- On EVERY `narrate`, set `narrationKind`: `answer` only when merely",
-          "  answering what the user sees, hears, or smells; `event` when rendering",
-          "  something HAPPENING — a first- or third-person declared action, an",
-          "  arrival, a blow, or a change coming over a character. An `event` gets",
-          "  an immediate character reaction; an `answer` holds for the user.",
+          "- On EVERY `narrate`, set `narrationKind` by the FORM of the user's",
+          "  message. `answer` ONLY when they asked a QUESTION about the world",
+          "  (what they see, hear, or smell; what a place or person is like).",
+          "  `event` when their message is a STATEMENT describing something",
+          "  happening — a first- or third-person action, an arrival, a blow, a",
+          "  vision, a change coming over a character. \"Abraham sees a spirit and",
+          "  kneels\" is an EVENT: a character perceiving something IS something",
+          "  happening, not an answer. If the user's message is not a question,",
+          "  it is almost never an `answer`. An `event` gets an immediate",
+          "  character reaction; an `answer` holds for the user.",
           ...(!userDirectorEnabled(scene)
             ? [
                 "- The visitor does NOT hold director powers. If they address you to",

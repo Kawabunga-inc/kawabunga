@@ -372,6 +372,67 @@ describe("SceneDriver — narration", () => {
     expect(lastDialogue(exec.requests)).toContain("Narrator: Abraham buckles");
   });
 
+  it("chains a narrator-addressed declaration even when the classifier tags it answer", async () => {
+    // Observed in eval: "Narrator, as I speak, Abraham SEES a vision…" was
+    // tagged `answer` (perception verb) — the form-based override must chain.
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "A luminous spirit flickers within your chest; Abraham's breath catches.",
+        narrationKind: "answer",
+      },
+      speakDecision("abraham", "React to the vision"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    const { speak, inputs } = fakeSpeak(["What spirit is this that fills my sight?"]);
+
+    const outcome = await driver.drive(
+      "Narrator, as I speak, Abraham sees a vision of a spirit within me and becomes overwhelmed.",
+      speak,
+    );
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(narrated).toHaveLength(1);
+    expect(exec.calls).toBe(2); // narration + the chained reaction
+    expect(inputs[0]!.speaker.slug).toBe("abraham");
+  });
+
+  it("denies fiat when director powers are off even when the classifier tags it answer", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "A luminous spirit flickers within your chest.",
+        narrationKind: "answer",
+      },
+    ]);
+    const driver = SceneDriver.fromScene({ ...TENT, userDirector: false }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["I see no spirit — only a weary traveler."]);
+
+    const outcome = await driver.drive(
+      "Narrator, as I speak, Abraham sees a vision of a spirit within me and becomes overwhelmed.",
+      speak,
+    );
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(narrated).toEqual([]);
+    expect(inputs[0]!.speaker.slug).toBe("abraham");
+    expect(journal[0]!.payload).toMatchObject({ recovered: "director-denied" });
+  });
+
   it("bounds the chain: a chained narrate is applied but never chains again", async () => {
     const exec = fakeExecutor([
       { action: "narrate", narration: "A wind rises." },

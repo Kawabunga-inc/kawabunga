@@ -19,6 +19,7 @@ import {
   getScene,
   declaresUserAction,
   isNarratorAddressed,
+  isNarratorEventDeclaration,
   initiativeMode,
   MOMENTUM_MARKER,
   NARRATED_EVENT_MARKER,
@@ -884,13 +885,16 @@ export class SceneDriver {
     }
     // Director powers gate only narrator-addressed third-person/world fiat.
     // The visitor's own first-person embodied actions remain real even when
-    // this toggle is off.
+    // this toggle is off. Deny on the message's FORM, not only the model's
+    // narrationKind tag — the classifier was observed tagging a declaration
+    // as "answer" (perception verbs), which let fiat through this gate.
     if (
       !userDirectorEnabled(this.scene) &&
       resolution.decision.action === "narrate" &&
-      resolution.decision.narrationKind === "event" &&
       isNarratorAddressed(userText) &&
-      !declaresUserAction(userText)
+      !declaresUserAction(userText) &&
+      (resolution.decision.narrationKind === "event" ||
+        isNarratorEventDeclaration(userText))
     ) {
       const fallback = this.#fallbackSpeaker();
       if (fallback) {
@@ -918,11 +922,16 @@ export class SceneDriver {
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
       const voiced = await this.#narrate(resolution.decision.narration.trim(), userText);
       if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
-      // Prefer the director's semantic classification. Older/degraded model
-      // output has no narrationKind, so preserve the previous text heuristic.
+      // Prefer the director's semantic classification, but a narrator-
+      // addressed DECLARATION chains regardless of the tag — the classifier
+      // was observed tagging "Narrator, Abraham sees a vision…" as "answer"
+      // (perception verbs), recreating the dead-air failure the chain exists
+      // to prevent. Older/degraded model output has no narrationKind, so the
+      // previous text heuristic remains the null fallback.
       const narrationKind = resolution.decision.narrationKind;
       const shouldChain =
         narrationKind === "event" ||
+        isNarratorEventDeclaration(userText) ||
         (narrationKind == null &&
           !(isNarratorAddressed(userText) && !declaresUserAction(userText)));
       if (!shouldChain) {
