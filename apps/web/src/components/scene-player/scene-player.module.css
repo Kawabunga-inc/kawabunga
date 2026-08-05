@@ -16,6 +16,16 @@
   background: var(--color-deep);
 }
 
+.storyView {
+  position: relative;
+  width: min(100%, 1600px);
+  min-height: 100svh;
+  margin-inline: auto;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--color-deep);
+}
+
 .atmosphere,
 .preparingGlow {
   position: absolute;
@@ -48,13 +58,66 @@
   letter-spacing: 0.06em;
 }
 
-.topbar > div {
+.topbarActions {
   display: flex;
   align-items: center;
   gap: 20px;
 }
 
-.topbar button,
+.viewToggle {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  display: flex;
+  padding: 3px;
+  background: color-mix(in srgb, var(--color-surface-1) 84%, transparent);
+  border: 1px solid color-mix(in srgb, white 12%, transparent);
+  border-radius: var(--radius-pill);
+  transform: translateX(-50%);
+  backdrop-filter: blur(14px);
+}
+
+.viewToggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 15px;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-base);
+  line-height: 16px;
+}
+
+.viewToggle svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.5;
+}
+
+.viewToggle button > span {
+  font-family: Georgia, serif;
+  font-size: 17px;
+  line-height: 12px;
+}
+
+.viewToggle button[aria-selected="true"] {
+  color: var(--color-accent-strong);
+  background: var(--color-accent-fill);
+  border-color: var(--color-accent-border);
+}
+
+.viewToggle button:focus-visible {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 2px;
+}
+
+.topbarActions button,
+.viewToggle button,
 .gateActions button,
 .gateActions a,
 .quietCard a {
@@ -63,7 +126,7 @@
   font: inherit;
 }
 
-.topbar button {
+.topbarActions button {
   padding: 7px 16px;
   color: var(--color-text-secondary);
   background: transparent;
@@ -72,7 +135,7 @@
   transition: color 160ms ease, border-color 160ms ease;
 }
 
-.topbar button:hover {
+.topbarActions button:hover {
   color: var(--color-text-primary);
   border-color: var(--color-accent-border);
 }
@@ -313,6 +376,200 @@
   animation: reconnectPulse 900ms ease-in-out infinite alternate;
 }
 
+.storyAtmosphere {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% -8%, color-mix(in srgb, var(--color-emissive-mint) 17%, transparent), transparent 46%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface-1) 10%, transparent), transparent 24%);
+  pointer-events: none;
+}
+
+.storyViewport {
+  position: absolute;
+  z-index: 2;
+  inset: 78px 0 82px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.storyViewport::-webkit-scrollbar {
+  display: none;
+}
+
+.storyColumn {
+  display: flex;
+  width: min(640px, calc(100% - 48px));
+  min-height: 100%;
+  margin-inline: auto;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 182px 0 26px;
+}
+
+.chapter {
+  display: flex;
+  margin-bottom: 38px;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.chapter span {
+  width: 28px;
+  height: 1px;
+  background: var(--color-accent-strong);
+}
+
+.chapter p,
+.storySpeaker,
+.dialogue,
+.narration,
+.storyEmpty,
+.storyStatus p,
+.storyHint,
+.storySaved,
+.storyEnding p {
+  margin: 0;
+}
+
+.storyProse {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  padding-bottom: 24px;
+}
+
+.storyLine {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.storySpeaker {
+  padding-top: 7px;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.18em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.storySpeakerActive {
+  color: var(--color-accent-strong);
+}
+
+.dialogue,
+.narration,
+.storyEmpty {
+  color: var(--color-text-primary);
+  font-size: 17px;
+  line-height: 30px;
+}
+
+.narration,
+.storyEmpty {
+  padding-left: 90px;
+  font-style: italic;
+}
+
+.storyEmpty {
+  color: var(--color-text-tertiary);
+}
+
+.storyStatus {
+  position: absolute;
+  z-index: 4;
+  bottom: 91px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-base);
+  transform: translateX(-50%);
+}
+
+.storyStatus > span {
+  display: inline-flex;
+  height: 12px;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-text-tertiary);
+}
+
+.storyStatus > .statusSpeaking {
+  color: var(--color-accent-strong);
+  filter: drop-shadow(0 0 5px var(--color-accent-glow));
+}
+
+.storyStatus i {
+  width: 2px;
+  height: 6px;
+  background: currentColor;
+  border-radius: var(--radius-pill);
+}
+
+.storyStatus i:nth-child(2) {
+  height: 11px;
+}
+
+.storyHint,
+.storySaved {
+  position: absolute;
+  z-index: 3;
+  bottom: 48px;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-base);
+}
+
+.storyHint { left: 48px; }
+.storySaved { right: 48px; }
+
+.nowButton {
+  position: absolute;
+  z-index: 6;
+  right: max(28px, calc(50% - 408px));
+  bottom: 112px;
+  padding: 8px 13px;
+  color: var(--color-accent-strong);
+  background: color-mix(in srgb, var(--color-surface-1) 90%, transparent);
+  border: 1px solid var(--color-accent-border);
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  backdrop-filter: blur(12px);
+}
+
+.storyEnding {
+  display: flex;
+  margin-top: 26px;
+  padding: 22px 0 8px 90px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-base);
+}
+
+.storyEnding span {
+  width: 28px;
+  height: 1px;
+  margin-bottom: 5px;
+  background: var(--color-accent-strong);
+}
+
+.storyEnding a {
+  color: var(--color-accent-strong);
+}
+
 .gate,
 .quietCard {
   position: relative;
@@ -381,7 +638,8 @@
 }
 
 .gateActions button:first-child,
-.quietCard a {
+.quietCard a,
+.readVisitButton {
   padding: 14px 24px;
   color: var(--color-accent-on);
   background: var(--color-accent-strong);
@@ -408,6 +666,19 @@
   margin-top: 18px;
 }
 
+.readVisitButton {
+  margin-top: 18px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.quietCard .readVisitButton + a {
+  margin-top: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border-color: var(--color-border-medium);
+}
+
 @keyframes emberBreath {
   to { transform: scale(1.1); opacity: 0.78; }
 }
@@ -423,8 +694,12 @@
 
 @media (max-width: 720px) {
   .topbar { padding: 22px 24px; }
-  .topbar p { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .topbar > div { gap: 12px; }
+  .topbar > p { max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbarActions { gap: 8px; }
+  .topbarActions time { display: none; }
+  .topbarActions button { padding-inline: 10px; }
+  .viewToggle { top: 16px; }
+  .viewToggle button { padding-inline: 10px; }
   .halo { top: 18%; width: min(76vw, 360px); }
   .captions { bottom: 17%; width: calc(100% - 40px); min-height: 170px; }
   .currentLine { font-size: 21px; line-height: 30px; }
@@ -432,6 +707,27 @@
   .ambience { bottom: 20px; left: 24px; max-width: 38%; }
   .captionToggle { right: 24px; bottom: 20px; }
   .micPill { bottom: 70px; width: min(320px, calc(100% - 48px)); }
+  .storyViewport { inset: 72px 0 104px; }
+  .storyColumn { width: min(100% - 32px, 640px); padding-top: 130px; }
+  .chapter { margin-bottom: 30px; }
+  .storyLine { grid-template-columns: 58px minmax(0, 1fr); gap: 12px; }
+  .narration,
+  .storyEmpty,
+  .storyEnding { padding-left: 70px; }
+  .dialogue,
+  .narration,
+  .storyEmpty { font-size: 16px; line-height: 28px; }
+  .storyStatus { bottom: 126px; width: calc(100% - 48px); justify-content: center; text-align: center; }
+  .storyHint,
+  .storySaved { display: none; }
+  .nowButton { right: 18px; bottom: 150px; }
+}
+
+@media (max-width: 480px) {
+  .topbar { padding: 68px 24px 12px; }
+  .topbar > p { max-width: 52%; }
+  .storyViewport { inset: 104px 0 104px; }
+  .storyColumn { padding-top: 98px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

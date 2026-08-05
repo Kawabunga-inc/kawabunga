@@ -155,7 +155,16 @@ export default async function SceneLanderPage({ params, searchParams }: PageProp
                 {priorOutcome ? ` · ${priorOutcome}` : ""}
               </p>
             </div>
-            <VisitAgainButton sceneId={sceneId} signedIn />
+            {priorSession.status === "ended" ? (
+              <Link
+                href={`/scenes/${encodeURIComponent(sceneId)}/session/${encodeURIComponent(priorSession.id)}`}
+                className={styles.visitAgain}
+              >
+                Read your visit →
+              </Link>
+            ) : (
+              <VisitAgainButton sceneId={sceneId} signedIn />
+            )}
           </aside>
         ) : null}
       </div>

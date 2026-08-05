@@ -37,6 +37,8 @@ export default async function SceneSessionPage({
     sessionId={sessionId}
     title={scene.title}
     startedAt={session.startedAt}
+    endedAt={session.endedAt ?? null}
     ambience={orchestratorScene?.defaultAmbience ?? null}
+    sessionEnded={session.status !== "active"}
   />;
 }

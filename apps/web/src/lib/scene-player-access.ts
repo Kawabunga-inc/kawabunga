@@ -20,3 +20,17 @@ export function authorizeSceneJoin(
   }
   return { ok: true };
 }
+
+export function authorizeSceneTranscript(
+  session: SceneSessionRecord | null,
+  sceneId: string,
+  userId: string,
+): SceneJoinAccess {
+  if (!session || session.sceneId !== sceneId) {
+    return { ok: false, status: 404, error: "Scene session not found." };
+  }
+  if (session.userId !== userId) {
+    return { ok: false, status: 403, error: "This scene session belongs to another visitor." };
+  }
+  return { ok: true };
+}

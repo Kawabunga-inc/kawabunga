@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SceneSessionRecord } from "@kawabunga/db";
-import { authorizeSceneJoin } from "./scene-player-access";
+import { authorizeSceneJoin, authorizeSceneTranscript } from "./scene-player-access";
 
 const activeSession: SceneSessionRecord = {
   id: "session-1",
@@ -35,5 +35,24 @@ describe("authorizeSceneJoin", () => {
     expect(
       authorizeSceneJoin({ ...activeSession, status: "ended" }, "scene-1", "user-1"),
     ).toMatchObject({ ok: false, status: 409 });
+  });
+});
+
+describe("authorizeSceneTranscript", () => {
+  it("allows the owner to read an ended visit", () => {
+    expect(
+      authorizeSceneTranscript({ ...activeSession, status: "ended" }, "scene-1", "user-1"),
+    ).toEqual({ ok: true });
+  });
+
+  it("forbids another visitor and hides scene mismatches", () => {
+    expect(authorizeSceneTranscript(activeSession, "scene-1", "user-2")).toMatchObject({
+      ok: false,
+      status: 403,
+    });
+    expect(authorizeSceneTranscript(activeSession, "scene-2", "user-1")).toMatchObject({
+      ok: false,
+      status: 404,
+    });
   });
 });
