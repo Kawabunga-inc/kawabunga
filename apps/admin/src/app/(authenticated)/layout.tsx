@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { AdminShell } from "@/components/admin-shell";
+import { getSessionActivityData } from "@/lib/session-index-data";
 
 const SIDEBAR_COOKIE = "odyssey-sidebar-collapsed";
 
@@ -13,5 +14,15 @@ export default async function AuthenticatedLayout({
   // then snaps closed once a useEffect reads localStorage post-hydration.
   const initialCollapsed =
     (await cookies()).get(SIDEBAR_COOKIE)?.value === "true";
-  return <AdminShell initialCollapsed={initialCollapsed}>{children}</AdminShell>;
+  const activeSessionCount = await getSessionActivityData()
+    .then((data) => data.activeCount)
+    .catch(() => 0);
+  return (
+    <AdminShell
+      initialCollapsed={initialCollapsed}
+      activeSessionCount={activeSessionCount}
+    >
+      {children}
+    </AdminShell>
+  );
 }
