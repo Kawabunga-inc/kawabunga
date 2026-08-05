@@ -1,5 +1,16 @@
 export const SCENE_LIFECYCLE_TOPIC = "odyssey.lifecycle" as const;
 
+/**
+ * Explicit LiveKit dispatch name shared by token minting and the voice worker.
+ * Keeping this stable prevents an older unnamed worker in the same LiveKit
+ * project from silently handling a room with a stale scene runtime.
+ */
+export const LIVE_SCENE_AGENT_NAME = "kawabunga-live-scene-v1" as const;
+
+export function resolveLiveSceneAgentName(value?: string): string {
+  return value?.trim() || LIVE_SCENE_AGENT_NAME;
+}
+
 export type SceneEndedLifecycleMessage = {
   type: "scene-ended";
   sessionId: string;

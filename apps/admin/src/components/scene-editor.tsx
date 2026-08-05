@@ -646,11 +646,15 @@ function ScenePageHeader({
       >
         View consumer page →
       </a>
-      <Link href={`/scenes/${sceneId}/sandbox`} style={sandboxLinkStyle}>
-        rehearse
-      </Link>
       <form action={`/api/scenes/${encodeURIComponent(sceneId)}/live`} method="post">
-        <button type="submit" style={runLiveLinkStyle}>Run live</button>
+        <button
+          type="submit"
+          aria-label="Run live with debug and tracing"
+          title="Start the production player with admin session instrumentation"
+          style={runLiveLinkStyle}
+        >
+          Run live
+        </button>
       </form>
       <button
         type="button"
@@ -753,7 +757,7 @@ const saveStateStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const sandboxLinkStyle: CSSProperties = {
+const primaryActionStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -771,7 +775,7 @@ const sandboxLinkStyle: CSSProperties = {
 };
 
 const runLiveLinkStyle: CSSProperties = {
-  ...sandboxLinkStyle,
+  ...primaryActionStyle,
   boxShadow: "0 0 22px var(--accent-wash)",
   cursor: "pointer",
 };

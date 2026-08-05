@@ -5,6 +5,7 @@ import {
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
   buildSpeakerTurnRequest,
+  buildDirectiveChunk,
   createInitialSceneState,
   readSceneFactsFromSnapshot,
   readSceneMemoryFromSnapshot,
@@ -164,6 +165,7 @@ describe("@kawabunga/orchestration client", () => {
       "speakerId",
       "beat",
       "sceneCue",
+      "delivery",
       "narration",
       "exitSlug",
       "enterSlug",
@@ -172,7 +174,22 @@ describe("@kawabunga/orchestration client", () => {
       "beatLabel",
       "momentum",
     ]);
+    expect(request.messages[0].content).toContain("Set `delivery` on EVERY `speak`");
+    expect(request.messages[0].content).toContain("`expansive`");
+    expect(request.messages[0].content).toContain("The visitor's explicit request is binding");
     expect(request.trace.sceneId).toBe("test-scene");
+  });
+
+  it("lets the director set the dramatic amount of floor for a speaker", () => {
+    expect(buildDirectiveChunk({ beat: "Answer and yield.", delivery: "brief" })).toContain(
+      "Delivery: brief. Land one sharp line",
+    );
+    expect(buildDirectiveChunk({ beat: "Answer plainly.", delivery: "natural" })).toContain(
+      "Delivery: natural. Take the space an ordinary spoken exchange needs",
+    );
+    expect(
+      buildDirectiveChunk({ beat: "Tell the whole story.", delivery: "expansive" }),
+    ).toContain("Delivery: expansive. The director is deliberately giving you the floor");
   });
 
   it("resolves speak/wait/narrate/end decisions into next state", () => {

@@ -6,6 +6,7 @@ export default defineConfig({
     environment: "node",
     include: [
       "packages/engine/src/**/*.test.ts",
+      "packages/types/src/**/*.test.ts",
       "packages/live-scene/src/**/*.test.{ts,tsx}",
       "packages/db/src/**/*.test.ts",
       "packages/wiki-curator/src/**/*.test.ts",

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { Scene } from "@kawabunga/types";
 import {
   createInitialSceneState,
@@ -10,7 +12,7 @@ import {
   buildWorldEventArmedJournalEntry,
 } from "@kawabunga/orchestration/journal";
 import type { SceneSessionEventRecord } from "@kawabunga/db";
-import { parseJournalItems } from "./session-journal";
+import { ChroniclePanel, parseJournalItems } from "./session-journal";
 
 // The producer/consumer contract: entries built by the orchestration
 // journal (what the SceneDriver and orchestrate route persist) must read
@@ -195,5 +197,24 @@ describe("journal round-trip (orchestration builders → workbench parser)", () 
       },
     ]);
     expect(items).toEqual([]);
+  });
+
+  it("shows the saved chronicler snapshot when the causal journal is missing", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(ChroniclePanel, {
+        items: [],
+        activeId: null,
+        onSelect: () => undefined,
+        recoveredSnapshot: {
+          chronicle: null,
+          directorNote: "Steer Abraham back toward the promise.",
+          updatedAt: "2026-08-05T14:50:24.447Z",
+        },
+      }),
+    );
+
+    expect(html).toContain("recovered snapshot");
+    expect(html).toContain("Steer Abraham back toward the promise.");
+    expect(html).toContain("not a reconstructed timeline");
   });
 });

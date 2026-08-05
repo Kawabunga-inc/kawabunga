@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./session-audio-storage": {
+      "types": "./src/session-audio-storage.ts",
+      "default": "./src/session-audio-storage.ts"
     }
   },
   "dependencies": {

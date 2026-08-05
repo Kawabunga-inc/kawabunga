@@ -20,8 +20,14 @@ const MAX_INPUT_CHARS = 24000;
  * embedding (e.g. wiki saves without one are still functional, just
  * miss out on semantic seed).
  */
-export async function embedText(text: string): Promise<number[] | null> {
-  const [vector] = await embedTexts([text]);
+export type EmbeddingUsage = { inputTokens: number; requests: number };
+export type EmbeddingOptions = { onUsage?: (usage: EmbeddingUsage) => void };
+
+export async function embedText(
+  text: string,
+  options?: EmbeddingOptions,
+): Promise<number[] | null> {
+  const [vector] = await embedTexts([text], options);
   return vector ?? null;
 }
 
@@ -29,7 +35,10 @@ export async function embedText(text: string): Promise<number[] | null> {
  * Embed multiple strings with a single OpenAI request. The returned array
  * matches the input order; empty inputs or missing client entries become null.
  */
-export async function embedTexts(texts: string[]): Promise<Array<number[] | null>> {
+export async function embedTexts(
+  texts: string[],
+  options?: EmbeddingOptions,
+): Promise<Array<number[] | null>> {
   const out: Array<number[] | null> = new Array(texts.length).fill(null);
   const client = getOpenAIClient();
   if (!client || texts.length === 0) return out;
@@ -50,6 +59,10 @@ export async function embedTexts(texts: string[]): Promise<Array<number[] | null
     model: EMBEDDING_MODEL,
     input: inputs,
     encoding_format: "float",
+  });
+  options?.onUsage?.({
+    inputTokens: resp.usage?.prompt_tokens ?? resp.usage?.total_tokens ?? 0,
+    requests: 1,
   });
 
   const ordered = [...resp.data].sort((a, b) => a.index - b.index);

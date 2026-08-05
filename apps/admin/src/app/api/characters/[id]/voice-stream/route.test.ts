@@ -234,11 +234,12 @@ const routeCtx = {
   params: Promise.resolve({ id: "char_1" }),
 };
 
-function request(body: unknown) {
+function request(body: unknown, signal?: AbortSignal) {
   return new NextRequest("http://localhost/api/characters/char_1/voice-stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
 }
 
@@ -894,6 +895,32 @@ describe("character voice-stream persistence", () => {
       expect.objectContaining({
         assistantText: "The stall is behind us.",
         status: "completed",
+      }),
+    );
+  });
+
+  it("finalizes an interrupted persisted turn as aborted", async () => {
+    const controller = new AbortController();
+    llmStallNextCall.current = true;
+    const response = await POST(
+      request({
+        sessionId: "session_1",
+        turnId: "turn_left",
+        message: "Wait here while I leave.",
+        history: [],
+        model: "gpt-oss-120b",
+      }, controller.signal),
+      routeCtx,
+    );
+
+    controller.abort();
+    await collectSse(response);
+
+    expect(upsertTurn).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        id: "turn_left",
+        status: "aborted",
+        completedAt: expect.any(String),
       }),
     );
   });

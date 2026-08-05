@@ -15,8 +15,14 @@ export type OrchestratorExecutor = {
   model: string;
   execute(
     request: SceneDecisionRequest,
-    opts?: { signal?: AbortSignal },
+    opts?: { signal?: AbortSignal; onUsage?: (usage: OrchestratorUsage) => void },
   ): Promise<OrchestratorDecision>;
+};
+
+export type OrchestratorUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
 };
 
 export type OrchestratorExecutorResolution = {
@@ -235,6 +241,7 @@ function createOpenAiCompatibleExecutor(opts: {
         request,
         fetchImpl: opts.fetchImpl,
         signal: executeOpts?.signal,
+        onUsage: executeOpts?.onUsage,
       }),
   };
 }
@@ -247,6 +254,7 @@ async function callOpenAiCompatibleOrchestrator(opts: {
   request: SceneDecisionRequest;
   fetchImpl: typeof fetch;
   signal?: AbortSignal;
+  onUsage?: (usage: OrchestratorUsage) => void;
 }): Promise<OrchestratorDecision> {
   // Hung-provider backstop + caller cancellation (e.g. a superseded
   // speculation) in one signal.
@@ -283,7 +291,19 @@ async function callOpenAiCompatibleOrchestrator(opts: {
 
   const payload = (await resp.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
   };
+  if (payload.usage) {
+    opts.onUsage?.({
+      inputTokens: payload.usage.prompt_tokens ?? 0,
+      outputTokens: payload.usage.completion_tokens ?? 0,
+      cacheReadTokens: payload.usage.prompt_tokens_details?.cached_tokens ?? 0,
+    });
+  }
   const content = payload.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error(`${providerLabel(opts.provider)} returned an empty completion.`);

@@ -327,6 +327,11 @@ export const sfxCueSchema = z.object({
   at: z.enum(["now", "with-speaker"]),
 });
 
+// The director chooses how much floor the character gets for this move. This
+// is dramatic intent, not a transport token limit: the character still writes
+// the words and the voice pipeline keeps only a generous runaway ceiling.
+export const orchestratorDeliverySchema = z.enum(["brief", "natural", "expansive"]);
+
 export const orchestratorDecisionSchema = z.object({
   action: orchestratorActionSchema,
 
@@ -340,6 +345,10 @@ export const orchestratorDecisionSchema = z.object({
   // Optional scene-level note appended to the speaker's promptChunk.
   // Use sparingly — costs LLM prompt tokens on the downstream turn.
   sceneCue: z.string().optional(),
+  // `brief` lands a sharp line, `natural` is an ordinary exchange, and
+  // `expansive` deliberately gives the speaker room for a story, explanation,
+  // confession, or major revelation.
+  delivery: orchestratorDeliverySchema.optional(),
 
   // ── For action="narrate" ───────────────────────────────────────
   // Narrator's literal lines — these go straight to TTS, not through
@@ -375,6 +384,7 @@ export const orchestratorDecisionSchema = z.object({
 });
 
 export type OrchestratorAction = z.infer<typeof orchestratorActionSchema>;
+export type OrchestratorDelivery = z.infer<typeof orchestratorDeliverySchema>;
 export type SfxCue = z.infer<typeof sfxCueSchema>;
 export type OrchestratorDecision = z.infer<typeof orchestratorDecisionSchema>;
 
@@ -394,6 +404,7 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     "speakerId",
     "beat",
     "sceneCue",
+    "delivery",
     "narration",
     "exitSlug",
     "enterSlug",
@@ -410,6 +421,7 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     speakerId: { type: ["string", "null"] },
     beat: { type: ["string", "null"] },
     sceneCue: { type: ["string", "null"] },
+    delivery: { type: ["string", "null"], enum: ["brief", "natural", "expansive", null] },
     narration: { type: ["string", "null"] },
     exitSlug: { type: ["string", "null"] },
     enterSlug: { type: ["string", "null"] },

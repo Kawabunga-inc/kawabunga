@@ -287,7 +287,8 @@ export const MODEL_REGISTRY: ModelOption[] = [
     modes: ["chat", "voice"],
     contextWindow: 128_000,
     maxOutputTokens: 4096,
-    pricing: { input: 0.25, output: 0.5 },
+    // Cerebras public model metadata, checked 2026-08-05.
+    pricing: { input: 0.35, output: 0.75 },
     capabilities: { promptCache: false, streaming: true, tools: false, vision: false, structuredOutput: false, temperature: true, topP: true },
     latencyTier: "instant",
     qualityTier: "production",

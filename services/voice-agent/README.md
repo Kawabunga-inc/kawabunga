@@ -32,6 +32,7 @@ Fully wired — the unit of voice is a **scene**:
 | Flag | Default | What it does |
 |---|---|---|
 | `VOICE_AGENT_CHARACTER_ID` | — | fallback character for rooms that encode neither scene nor character |
+| `LIVEKIT_AGENT_NAME` | `kawabunga-live-scene-v1` | explicit dispatch name; token minting and the worker must match |
 | `VOICE_AGENT_STT` | `deepgram/nova-3` | LiveKit Inference STT model |
 | `VOICE_AGENT_SPECULATE` | on | speculative speaker selection off partial transcripts (`=0` off) |
 | `VOICE_AGENT_PROACTIVE` | on | director may take a turn after `VOICE_AGENT_IDLE_MS` silence (`=0` off) |

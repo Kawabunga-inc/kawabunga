@@ -12,6 +12,7 @@ import type { SceneEndedLifecycleMessage } from "@kawabunga/types";
 import { sceneEndedForSession } from "../lib/scene-lifecycle";
 import { parseSceneTranscript, type SceneTranscriptMessage } from "../lib/scene-captions";
 import type { LiveSceneProvider } from "../provider";
+import { audioInputConstraint, type SceneAudioSelection } from "./use-scene-audio-devices";
 
 export type LiveSceneStage =
   | "preparing"
@@ -141,7 +142,7 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
     }
   }, []);
 
-  const begin = useCallback(async () => {
+  const begin = useCallback(async (selection?: SceneAudioSelection) => {
     if (disabled) return;
     if (stage === "connecting" || stage === "connected") return;
     leavingRef.current = false;
@@ -151,7 +152,9 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
 
     let permissionStream: MediaStream | null = null;
     try {
-      permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      permissionStream = await navigator.mediaDevices.getUserMedia({
+        audio: audioInputConstraint(selection?.audioInputDeviceId ?? "default"),
+      });
       permissionStream.getTracks().forEach((track) => track.stop());
       permissionStream = null;
 
@@ -168,7 +171,13 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
+          ...(selection?.audioInputDeviceId && selection.audioInputDeviceId !== "default"
+            ? { deviceId: { exact: selection.audioInputDeviceId } }
+            : {}),
         },
+        ...(selection?.audioOutputDeviceId && selection.audioOutputDeviceId !== "default"
+          ? { audioOutput: { deviceId: selection.audioOutputDeviceId } }
+          : {}),
       });
       roomRef.current = room;
 
@@ -238,6 +247,26 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
     }
   }, [attachRemoteTrack, cleanupMedia, disabled, provider, sessionId, stage, startMeters]);
 
+  const switchAudioInput = useCallback(async (deviceId: string) => {
+    const room = roomRef.current;
+    if (!room) return;
+    const normalized = deviceId || "default";
+    await room.switchActiveDevice("audioinput", normalized, normalized !== "default");
+    const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    const track = publication?.track?.mediaStreamTrack;
+    const context = contextRef.current;
+    if (track && context) {
+      micMeterRef.current?.source.disconnect();
+      micMeterRef.current = createMeter(context, track);
+    }
+  }, []);
+
+  const switchAudioOutput = useCallback(async (deviceId: string) => {
+    const room = roomRef.current;
+    if (!room) return;
+    await room.switchActiveDevice("audiooutput", deviceId || "default", false);
+  }, []);
+
   const leave = useCallback(async () => {
     leavingRef.current = true;
     const room = roomRef.current;
@@ -247,5 +276,14 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
     await provider.end("left").catch(() => undefined);
   }, [cleanupMedia, provider]);
 
-  return { stage, error, agentLevel, micLevel, begin, leave };
+  return {
+    stage,
+    error,
+    agentLevel,
+    micLevel,
+    begin,
+    leave,
+    switchAudioInput,
+    switchAudioOutput,
+  };
 }

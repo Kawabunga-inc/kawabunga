@@ -8,7 +8,10 @@ import {
 } from "@kawabunga/live-scene";
 import styles from "./admin-live-scene-player.module.css";
 
-type Props = Omit<ScenePlayerProps, "provider" | "viewer" | "landerHref" | "workbenchHref">;
+type Props = Omit<
+  ScenePlayerProps,
+  "provider" | "viewer" | "landerHref" | "workbenchHref" | "initialView"
+>;
 
 export function AdminLiveScenePlayer(props: Props) {
   const { sceneId, sessionId } = props;
@@ -29,6 +32,7 @@ export function AdminLiveScenePlayer(props: Props) {
         {...props}
         provider={provider}
         viewer={{ isStaff: true }}
+        initialView="session"
         landerHref={`/scenes/${encodeURIComponent(sceneId)}`}
         workbenchHref={`/sessions/${encodeURIComponent(sessionId)}`}
       />

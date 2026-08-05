@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import type { Scene } from "@kawabunga/types";
 import {
@@ -202,7 +202,7 @@ export function SceneSandbox({
             sceneId={sceneId}
             scene={scene}
             sessionId={sessionId}
-            waveAudio={waveAudioRef.current}
+            waveAudioRef={waveAudioRef}
           />
         )}
       </div>
@@ -214,23 +214,25 @@ function SceneSandboxRunner({
   sceneId,
   scene,
   sessionId,
-  waveAudio,
+  waveAudioRef,
 }: {
   sceneId: string;
   scene: Scene;
   sessionId: string;
-  waveAudio: AudioData;
+  // Shared mutable AudioData: WavefieldStage reads the same object every
+  // animation frame, so voice audio is written into it without re-rendering.
+  waveAudioRef: RefObject<AudioData>;
 }) {
   const syncWaveAudio = useCallback(
     (audio: AudioData) => {
-      waveAudio.energy = audio.energy;
-      waveAudio.bass = audio.bass;
-      waveAudio.mid = audio.mid;
-      waveAudio.high = audio.high;
-      waveAudio.peak = audio.peak;
-      waveAudio.active = audio.active;
+      waveAudioRef.current.energy = audio.energy;
+      waveAudioRef.current.bass = audio.bass;
+      waveAudioRef.current.mid = audio.mid;
+      waveAudioRef.current.high = audio.high;
+      waveAudioRef.current.peak = audio.peak;
+      waveAudioRef.current.active = audio.active;
     },
-    [waveAudio],
+    [waveAudioRef],
   );
   const runner = useScenePlayer({ scene, sessionId, onVoiceAudio: syncWaveAudio });
   const [composer, setComposer] = useState("");
@@ -249,7 +251,7 @@ function SceneSandboxRunner({
   const logRef = useRef<HTMLDivElement | null>(null);
   const sessionEndedRef = useRef(false);
   const sceneStartedRef = useRef(false);
-  const startedAtRef = useRef(Date.now());
+  const startedAtRef = useRef<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recorderStreamRef = useRef<MediaStream | null>(null);
   const recorderChunksRef = useRef<Blob[]>([]);
@@ -261,6 +263,12 @@ function SceneSandboxRunner({
   const mic = useSceneMicCapture({
     onUtterance: (text) => void sendSceneUtterance(text),
   });
+
+  // Fallback start timestamp for sessions that end before the scene starts;
+  // startScene overwrites it with the real start time.
+  useEffect(() => {
+    startedAtRef.current ??= Date.now();
+  }, []);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
@@ -294,13 +302,29 @@ function SceneSandboxRunner({
     };
   }, [sceneId]);
 
+  function stopInputRecorder() {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
+    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recorderRef.current = null;
+    recorderStreamRef.current = null;
+    recorderChunksRef.current = [];
+    recorderStartedAtRef.current = null;
+  }
+
   async function endSessionOnce(status: "ended" | "stopped" = "ended") {
     if (sessionEndedRef.current) return;
     sessionEndedRef.current = true;
     setSessionClosed(true);
     mic.stop();
     stopInputRecorder();
-    const durationMs = Math.max(0, Date.now() - startedAtRef.current);
+    const durationMs = Math.max(0, Date.now() - (startedAtRef.current ?? Date.now()));
     const summary: EndedSceneSandboxSession = {
       id: sessionId,
       endedAt: Date.now(),
@@ -434,22 +458,6 @@ function SceneSandboxRunner({
       console.warn("[scene-sandbox] input audio recorder unavailable", err);
       stopInputRecorder();
     }
-  }
-
-  function stopInputRecorder() {
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      try {
-        recorder.stop();
-      } catch {
-        /* already stopped */
-      }
-    }
-    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
-    recorderRef.current = null;
-    recorderStreamRef.current = null;
-    recorderChunksRef.current = [];
-    recorderStartedAtRef.current = null;
   }
 
   async function takeRecordedAudioInput(): Promise<SceneSandboxAudioInput | undefined> {
@@ -986,9 +994,11 @@ function SceneDiagnosticsPanel({
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(
     latestTrace?.id ?? null,
   );
-  useEffect(() => {
-    if (!selectedTraceId && latestTrace) setSelectedTraceId(latestTrace.id);
-  }, [latestTrace, selectedTraceId]);
+  if (!selectedTraceId && latestTrace) {
+    // Pin the selection to the first trace that arrives (adjust-state-during-
+    // render pattern; the guard makes it converge immediately).
+    setSelectedTraceId(latestTrace.id);
+  }
   const selectedTrace =
     traces.find((trace) => trace.id === selectedTraceId) ?? latestTrace;
   const events = Array.isArray(selectedTrace?.trace.events)

@@ -69,7 +69,7 @@ export function OverviewTab({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/scenes/${encodeURIComponent(sceneId)}/sandbox/readiness`)
+    fetch(`/api/scenes/${encodeURIComponent(sceneId)}/live/readiness`)
       .then((res) => {
         if (!res.ok) throw new Error("readiness failed");
         return res.json() as Promise<{ report?: ReadinessReport }>;
@@ -139,8 +139,8 @@ export function OverviewTab({
           </InspectorSection>
 
           <InspectorSection
-            title="Ready to rehearse?"
-            hint="Live checks against the definition, cast, voices, and persistence."
+            title="Ready to run live?"
+            hint="Production checks against the definition, cast, voices, and persistence."
           >
             {readinessError ? (
               <p style={mutedTextStyle}>Readiness check unavailable.</p>
