@@ -16,6 +16,7 @@ type Props = {
   micLevel: number;
   currentSpeakerSlug: string | null;
   view: SceneView;
+  staff?: boolean;
   ended: boolean;
   landerHref: string;
   onViewChange(view: SceneView): void;
@@ -57,6 +58,7 @@ export function SceneStoryView({
   micLevel,
   currentSpeakerSlug,
   view,
+  staff = false,
   ended,
   landerHref,
   onViewChange,
@@ -78,7 +80,7 @@ export function SceneStoryView({
       <div className={styles.storyAtmosphere} aria-hidden="true" />
       <header className={styles.topbar}>
         <p>{title}</p>
-        {!ended ? <SceneViewToggle value={view} onChange={onViewChange} /> : null}
+        {!ended ? <SceneViewToggle value={view} staff={staff} onChange={onViewChange} /> : null}
         <div className={styles.topbarActions}>
           <time suppressHydrationWarning>{elapsed}</time>
           {!ended ? <button type="button" onClick={onLeave}>Leave quietly</button> : null}

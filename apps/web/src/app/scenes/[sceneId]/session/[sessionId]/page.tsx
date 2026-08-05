@@ -39,6 +39,9 @@ export default async function SceneSessionPage({
     startedAt={session.startedAt}
     endedAt={session.endedAt ?? null}
     ambience={orchestratorScene?.defaultAmbience ?? null}
+    arcLength={orchestratorScene?.arc?.length ?? 0}
+    staff={viewer.user.role === "admin"}
+    adminBaseUrl={process.env.NEXT_PUBLIC_ADMIN_BASE_URL ?? "http://localhost:3001"}
     sessionEnded={session.status !== "active"}
   />;
 }
