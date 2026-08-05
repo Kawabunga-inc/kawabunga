@@ -25,6 +25,8 @@ import {
   DirectorPanel,
   JournalRailRow,
   parseJournalItems,
+  type JournalDecisionItem,
+  type JournalReflectionItem,
   type SessionJournalItem,
 } from "@/components/session-journal";
 import { SessionPulse, type PulseTurn, type SceneArcBeat } from "@/components/session-pulse";
@@ -33,6 +35,13 @@ import {
   liveWorkbenchFollowReducer,
 } from "@/lib/live-workbench-follow";
 import { aggregateSessionJournalHealth } from "@/lib/session-journal-health";
+import {
+  buildTurnCausality,
+  directorClockSlice,
+  inspectorAnchorFor,
+  journalOrdinal,
+  type CausalityGraph,
+} from "@/lib/turn-causality";
 
 type Props = {
   detail: SceneSessionDetailRecord;
@@ -110,6 +119,10 @@ export function SessionDetailWorkbench({
   );
   const filteredTurns = useMemo(() => filterTurns(turns, convFilter, events), [turns, convFilter, events]);
   const journalItems = useMemo(() => parseJournalItems(events), [events]);
+  const causality = useMemo(
+    () => buildTurnCausality(turns, journalItems),
+    [turns, journalItems],
+  );
   const newestDecision = [...journalItems]
     .reverse()
     .find((item) => item.kind === "decision");
@@ -161,7 +174,7 @@ export function SessionDetailWorkbench({
       turns.map((turn, index) => ({
         id: turn.id,
         at: Date.parse(turn.startedAt) || 0,
-        index: turn.turnIndex ?? index,
+        index: turn.turnIndex != null ? Math.max(0, turn.turnIndex - 1) : index,
         speakerSlug: turn.speakerSlug ?? null,
         firstAudioMs: firstAudioMs(turn),
         status: turn.status,
@@ -174,12 +187,17 @@ export function SessionDetailWorkbench({
   const selectJournalItem = (item: SessionJournalItem) => {
     if (isLive) dispatchFollow({ type: "select" });
     setActiveJournalId(item.id);
-    setActiveTab(item.kind === "decision" ? "director" : "chronicle");
+    setActiveTab(
+      item.kind === "decision"
+        ? inspectorAnchorFor("decision")
+        : inspectorAnchorFor("reflection"),
+    );
   };
   const selectTurn = (id: string) => {
     if (isLive) dispatchFollow({ type: "select" });
     setActiveTurnId(id);
-    if (activeTab === "director" || activeTab === "chronicle") setActiveTab("pipeline");
+    setActiveJournalId(null);
+    setActiveTab(inspectorAnchorFor("turn"));
   };
   const selectJournalId = (id: string) => {
     if (isLive) dispatchFollow({ type: "select" });
@@ -283,6 +301,9 @@ export function SessionDetailWorkbench({
           journalItems={journalItems}
           activeJournalItem={activeJournalItem}
           onSelectJournalId={selectJournalId}
+          causality={causality}
+          onSelectTurn={selectTurn}
+          onSelectJournalItem={selectJournalItem}
           isLive={isLive}
           following={followState.following}
         />
@@ -1268,7 +1289,7 @@ function TurnEntry({
   userName: string;
   characterName: string;
 }) {
-  const turnNum = String((turn.turnIndex ?? index) + 1).padStart(2, "0");
+  const turnNum = String(turn.turnIndex ?? index + 1).padStart(2, "0");
   const headlineMs = firstAudioMs(turn) ?? null;
   const startedAt = formatTimecode(turn.startedAt, turn.startedAt);
   const completedAt = turn.completedAt ? formatTimecode(turn.startedAt, turn.completedAt) : null;
@@ -1677,6 +1698,9 @@ function InspectorRail({
   journalItems,
   activeJournalItem,
   onSelectJournalId,
+  causality,
+  onSelectTurn,
+  onSelectJournalItem,
   isLive,
   following,
 }: {
@@ -1692,6 +1716,9 @@ function InspectorRail({
   journalItems: SessionJournalItem[];
   activeJournalItem: SessionJournalItem | null;
   onSelectJournalId: (id: string) => void;
+  causality: CausalityGraph;
+  onSelectTurn: (id: string) => void;
+  onSelectJournalItem: (item: SessionJournalItem) => void;
   isLive: boolean;
   following: boolean;
 }) {
@@ -1702,7 +1729,7 @@ function InspectorRail({
       ? "Director"
       : "Chronicler"
     : turnIndex >= 0
-      ? `Turn ${String(turnIndex + 1).padStart(2, "0")}`
+      ? `Turn ${String(activeTurn?.turnIndex ?? turnIndex + 1).padStart(2, "0")}`
       : "No turn";
   const inspectorHeadline = inspectorHeadlineFor(activeTab);
   const turnEvents = activeTurn ? events.filter((e) => e.turnId === activeTurn.id) : [];
@@ -1711,7 +1738,15 @@ function InspectorRail({
   const activeDecision =
     activeJournalItem?.kind === "decision"
       ? activeJournalItem
+      : activeTurn
+        ? causality.decisionByTurnId.get(activeTurn.id) ?? null
       : [...journalItems].reverse().find((i) => i.kind === "decision") ?? null;
+  const activeReflection =
+    activeJournalItem?.kind === "reflection"
+      ? activeJournalItem
+      : activeTurn
+        ? causality.reflectionByTurnId.get(activeTurn.id) ?? null
+        : null;
 
   return (
     <section
@@ -1731,11 +1766,34 @@ function InspectorRail({
         usedBaseline={!!activeContext && (activeContext.promptKind === "voice-baseline" || activeContext.metadata?.cacheHit === true)}
       />
 
+      <CausalityRibbon
+        activeTab={activeTab}
+        activeTurn={activeTurn}
+        activeDecision={activeDecision?.kind === "decision" ? activeDecision : null}
+        activeReflection={activeReflection}
+        turns={turns}
+        journalItems={journalItems}
+        causality={causality}
+        onSelectTurn={onSelectTurn}
+        onSelectJournalItem={onSelectJournalItem}
+      />
+
       <TabBar tabs={TABS} active={activeTab} onChange={onTabChange} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-14)", minWidth: 0 }}>
         {activeTab === "pipeline" ? (
-          <PipelinePanel turn={activeTurn} context={activeContext} events={turnEvents} />
+          <PipelinePanel
+            turn={activeTurn}
+            context={activeContext}
+            events={turnEvents}
+            decision={
+              activeTurn
+                ? causality.decisionByTurnId.get(activeTurn.id) ?? null
+                : null
+            }
+            audioArtifacts={audioArtifacts}
+            sessionId={session.id}
+          />
         ) : null}
         {activeTab === "director" ? (
           <DirectorPanel
@@ -1745,7 +1803,7 @@ function InspectorRail({
         {activeTab === "chronicle" ? (
           <ChroniclePanel
             items={journalItems}
-            activeId={activeJournalItem?.id ?? null}
+            activeId={activeReflection?.id ?? activeJournalItem?.id ?? null}
             onSelect={onSelectJournalId}
           />
         ) : null}
@@ -1819,6 +1877,229 @@ function inspectorHeadlineFor(tab: TabKey): string {
   if (tab === "voice") return "Did the engine hear what was said";
   if (tab === "eval") return "Is this turn faithful and in-character";
   return "All session data";
+}
+
+function CausalityRibbon({
+  activeTab,
+  activeTurn,
+  activeDecision,
+  activeReflection,
+  turns,
+  journalItems,
+  causality,
+  onSelectTurn,
+  onSelectJournalItem,
+}: {
+  activeTab: TabKey;
+  activeTurn: SceneSessionTurnRecord | null;
+  activeDecision: JournalDecisionItem | null;
+  activeReflection: JournalReflectionItem | null;
+  turns: SceneSessionTurnRecord[];
+  journalItems: SessionJournalItem[];
+  causality: CausalityGraph;
+  onSelectTurn: (id: string) => void;
+  onSelectJournalItem: (item: SessionJournalItem) => void;
+}) {
+  const entity =
+    activeTab === "director"
+      ? "decision"
+      : activeTab === "chronicle"
+        ? "reflection"
+        : "turn";
+  const causedBy =
+    entity === "turn" && activeTurn
+      ? causality.decisionByTurnId.get(activeTurn.id) ?? null
+      : null;
+  const followedBy =
+    entity === "turn" && activeTurn
+      ? causality.reflectionByTurnId.get(activeTurn.id) ?? null
+      : null;
+  const producedTurn =
+    entity === "decision" && activeDecision
+      ? causality.turnByDecisionId.get(activeDecision.id) ?? null
+      : null;
+  const reviewedTurns =
+    entity === "reflection" && activeReflection
+      ? causality.turnsByReflectionId.get(activeReflection.id) ?? []
+      : [];
+
+  const empty =
+    (entity === "turn" && !causedBy && !followedBy) ||
+    (entity === "decision" && !producedTurn) ||
+    (entity === "reflection" && reviewedTurns.length === 0);
+
+  return (
+    <div
+      aria-label="Causal chain"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "var(--space-8)",
+        minHeight: 28,
+      }}
+    >
+      {causedBy ? (
+        <CausalityButton
+          testId="causality-decision"
+          mint
+          onClick={() => onSelectJournalItem(causedBy)}
+        >
+          <span style={{ color: C.mint }}>◂ caused by</span>
+          <span>{decisionChipLabel(causedBy, journalItems)}</span>
+        </CausalityButton>
+      ) : null}
+      {followedBy ? (
+        <CausalityButton
+          testId="causality-reflection"
+          onClick={() => onSelectJournalItem(followedBy)}
+        >
+          <span>{reflectionChipLabel(followedBy, journalItems)}</span>
+          <span style={{ color: C.amber }}>▸</span>
+        </CausalityButton>
+      ) : null}
+      {producedTurn ? (
+        <CausalityButton
+          testId="causality-turn"
+          mint
+          onClick={() => onSelectTurn(producedTurn.id)}
+        >
+          <span>produced {turnLabel(producedTurn, turns)}</span>
+          <span style={{ color: C.mint }}>▸</span>
+        </CausalityButton>
+      ) : null}
+      {reviewedTurns.length ? (
+        <CausalityButton
+          testId="causality-review-window"
+          onClick={() => onSelectTurn(reviewedTurns[reviewedTurns.length - 1]!.id)}
+        >
+          <span style={{ color: C.amber }}>◂ reviewed</span>
+          <span>{turnWindowLabel(reviewedTurns, turns)}</span>
+        </CausalityButton>
+      ) : null}
+      {empty ? (
+        <span
+          data-testid="causality-empty"
+          style={{
+            fontFamily: FONT_BODY,
+            fontSize: "var(--font-size-base)",
+            color: C.textLow,
+          }}
+        >
+          No causal journal link recorded for this {entity}.
+        </span>
+      ) : (
+        <span
+          style={{
+            fontFamily: FONT_BODY,
+            fontSize: "var(--font-size-base)",
+            color: C.textLow,
+          }}
+        >
+          chips walk the inspector along the causal chain
+        </span>
+      )}
+    </div>
+  );
+}
+
+function CausalityButton({
+  children,
+  onClick,
+  mint = false,
+  testId,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  mint?: boolean;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "var(--space-8)",
+        padding: "5px 12px",
+        borderRadius: "var(--radius-pill)",
+        border: `1px solid ${mint ? C.mintMid : C.borderStrong}`,
+        background: mint ? C.mintBg : "transparent",
+        color: C.textHigh,
+        fontFamily: FONT_MONO,
+        fontSize: "var(--font-size-xs)",
+        lineHeight: "14px",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function decisionChipLabel(
+  decision: JournalDecisionItem,
+  items: SessionJournalItem[],
+) {
+  const ordinal = journalOrdinal(items, decision);
+  const speculation =
+    decision.speculation?.outcome === "hit"
+      ? "spec hit"
+      : decision.speculation?.outcome === "miss"
+        ? "spec miss"
+        : decision.degraded || decision.failure
+          ? "degraded"
+          : null;
+  return [
+    `decision ${ordinal ?? "—"}`,
+    decision.action,
+    speculation,
+    decision.latencyMs != null ? `${decision.latencyMs}ms` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function reflectionChipLabel(
+  reflection: JournalReflectionItem,
+  items: SessionJournalItem[],
+) {
+  const ordinal = journalOrdinal(items, reflection);
+  const facts = reflection.factsAdded.length
+    ? `+${reflection.factsAdded.length} fact${reflection.factsAdded.length === 1 ? "" : "s"}`
+    : null;
+  return [
+    `reflection ${ordinal ?? "—"} followed`,
+    facts,
+    reflection.note ? "note revised" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function turnLabel(
+  turn: SceneSessionTurnRecord,
+  turns: SceneSessionTurnRecord[],
+) {
+  const index = turns.findIndex((candidate) => candidate.id === turn.id);
+  return `turn ${turn.turnIndex ?? (index >= 0 ? index + 1 : "—")}`;
+}
+
+function turnWindowLabel(
+  reviewed: SceneSessionTurnRecord[],
+  turns: SceneSessionTurnRecord[],
+) {
+  const labels = reviewed
+    .map((turn) => {
+      const index = turns.findIndex((candidate) => candidate.id === turn.id);
+      return turn.turnIndex ?? index + 1;
+    })
+    .filter((index) => index > 0);
+  if (labels.length === 0) return "turns —";
+  if (labels.length === 1) return `turn ${labels[0]}`;
+  return `turns ${labels[0]}–${labels[labels.length - 1]}`;
 }
 
 // ───────────── Eval panel (faithfulness + in-character quality) ─────────────
@@ -2216,7 +2497,7 @@ function TabBar({
   onChange: (key: TabKey) => void;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${C.borderSoft}` }}>
+    <div style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${C.borderSoft}`, overflowX: "auto" }}>
       {tabs.map((t) => {
         const isActive = t.key === active;
         return (
@@ -2270,54 +2551,336 @@ function PipelinePanel({
   turn,
   context,
   events,
+  decision,
+  audioArtifacts,
+  sessionId,
 }: {
   turn: SceneSessionTurnRecord | null;
   context: SceneSessionContextBuildRecord | null;
   events: SceneSessionEventRecord[];
+  decision: JournalDecisionItem | null;
+  audioArtifacts: SceneSessionAudioArtifactRecord[];
+  sessionId: string;
 }) {
   if (!turn) return <Panel>No turn selected.</Panel>;
 
-  const traceItems = pipelineTraceItems(turn, context, events);
+  const traceItems = pipelineTraceItems(turn, context, events, decision);
   const totalMs = Math.max(traceItems.reduce((max, it) => Math.max(max, it.endMs), 0), 1);
   const ticks = makeTicks(totalMs);
   const markCount = traceEvents(turn.trace).length + traceEvents(context?.timingTrace).length;
-  const headlineMetrics = pipelineHeadlineMetrics(traceItems, totalMs);
+  const headlineMetrics = pipelineHeadlineMetrics(traceItems, totalMs, turn);
 
   return (
-    <Panel>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: "var(--space-16)",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          <Eyebrow>STT → LLM → TTS data flow</Eyebrow>
+    <>
+      <Panel>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "var(--space-16)",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <Eyebrow>End of user speech → audio done</Eyebrow>
+            <span
+              style={{
+                fontFamily: FONT_DISPLAY,
+                fontWeight: 600,
+                fontSize: "var(--font-size-xl)",
+                color: C.text,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Pipeline ribbon · turn {String(turn.turnIndex ?? 1).padStart(2, "0")}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
+            <Chip>{markCount} marks</Chip>
+            <Chip>click marks to scrub</Chip>
+          </div>
+        </div>
+
+        <TimeRuler ticks={ticks} totalMs={totalMs} />
+        <PipelineLanes items={traceItems} totalMs={totalMs} />
+        {decision?.speculation?.outcome === "hit" ? (
           <span
+            data-testid="director-await-footnote"
             style={{
-              fontFamily: FONT_DISPLAY,
-              fontWeight: 600,
-              fontSize: "var(--font-size-xl)",
-              color: C.text,
-              letterSpacing: "-0.01em",
+              fontFamily: FONT_BODY,
+              fontSize: "var(--font-size-xs)",
+              color: C.textLow,
+              lineHeight: 1.5,
             }}
           >
-            Pipeline ribbon · turn {String((turn.turnIndex ?? 0) + 1).padStart(2, "0")}
+            † The director ran during the endpoint hold; only the {decision.speculation.waitedMs ?? "unknown"}ms await is on this turn&apos;s clock. Full director latency was {decision.latencyMs ?? "not captured"}ms.
           </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
-          <Chip>{markCount} marks</Chip>
-          <Chip>click marks to scrub</Chip>
-        </div>
-      </div>
+        ) : null}
+        <HeadlineMetrics metrics={headlineMetrics} />
+      </Panel>
+      <TurnContextPanels
+        turn={turn}
+        context={context}
+        decision={decision}
+        events={events}
+        audioArtifacts={audioArtifacts}
+        sessionId={sessionId}
+      />
+    </>
+  );
+}
 
-      <TimeRuler ticks={ticks} totalMs={totalMs} />
-      <PipelineLanes items={traceItems} totalMs={totalMs} />
-      <HeadlineMetrics metrics={headlineMetrics} />
-    </Panel>
+function TurnContextPanels({
+  turn,
+  context,
+  decision,
+  events,
+  audioArtifacts,
+  sessionId,
+}: {
+  turn: SceneSessionTurnRecord;
+  context: SceneSessionContextBuildRecord | null;
+  decision: JournalDecisionItem | null;
+  events: SceneSessionEventRecord[];
+  audioArtifacts: SceneSessionAudioArtifactRecord[];
+  sessionId: string;
+}) {
+  const promptChunk = context?.promptChunk ?? "";
+  const direction =
+    decision?.beat ?? lineValue(promptChunk, "Direction") ?? null;
+  const sceneCue =
+    decision?.sceneCue ?? lineValue(promptChunk, "Scene note") ?? null;
+  const agenda = lineValue(promptChunk, "Your agenda in this scene");
+  const pages = selectedPageLabels(context?.selectedPages);
+  const usage = asRecord(turn.tokenUsage);
+  const inputTokens =
+    numberField(usage, "input") ?? numberField(usage, "inputTokens");
+  const outputTokens =
+    numberField(usage, "output") ?? numberField(usage, "outputTokens");
+  const cost =
+    numberField(usage, "estimatedCostUsd") ??
+    numberField(asRecord(asRecord(turn.metadata)?.cost), "estimatedCostUsd");
+  const outputClip =
+    audioArtifacts.find(
+      (artifact) => artifact.turnId === turn.id && artifact.direction === "output",
+    ) ?? null;
+  const trace = traceEvents(turn.trace);
+  const refusalDetected = trace.filter((item) =>
+    item.name.includes("refusal_detected"),
+  );
+  const refusalRerolled = trace.some((item) =>
+    item.name.includes("refusal_rerolled"),
+  );
+  const refusalMetadata = asRecord(asRecord(turn.metadata)?.refusalGuard);
+  const refusalVerdict =
+    stringField(refusalMetadata, "verdict") ??
+    stringField(turn.metadata, "refusalGuardVerdict") ??
+    stringField(turn.metadata, "refusalVerdict");
+  const stageFlags = [
+    ...stringList(asRecord(turn.metadata)?.stageDirectionFlags),
+    ...stringList(refusalMetadata?.stageDirectionFlags),
+    stringField(turn.metadata, "stageDirection"),
+    stringField(refusalMetadata, "stageDirection"),
+  ].filter((value, index, all): value is string => Boolean(value) && all.indexOf(value) === index);
+  const bargeInMetadata = asRecord(asRecord(turn.metadata)?.bargeIn);
+  const bargeInAborted =
+    asRecord(turn.metadata)?.bargeInAborted === true ||
+    bargeInMetadata?.aborted === true;
+  const interrupted =
+    turn.status === "interrupted" ||
+    bargeInAborted ||
+    events.some(
+      (event) => event.type.includes("barge") || event.type.includes("interrupt"),
+    );
+  const ttsProvider =
+    stringField(turn.metadata, "ttsProvider") ??
+    stringField(outputClip?.metadata ?? null, "provider");
+  const ttsVoice =
+    stringField(turn.metadata, "ttsVoice") ??
+    stringField(outputClip?.metadata ?? null, "voiceSlug") ??
+    stringField(outputClip?.metadata ?? null, "voiceId");
+  const hasSpeakerContext = Boolean(
+    direction ||
+      sceneCue ||
+      agenda ||
+      context?.systemPrompt ||
+      promptChunk ||
+      pages.length ||
+      inputTokens != null ||
+      outputTokens != null ||
+      cost != null,
+  );
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+        gap: "var(--space-14)",
+        alignItems: "stretch",
+      }}
+    >
+      <Panel>
+        <Eyebrow>What {turn.speakerSlug ?? "the speaker"} was given</Eyebrow>
+        {!hasSpeakerContext ? (
+          <EmptyHint>
+            Speaker context was not captured for this turn. Older sessions may predate context persistence.
+          </EmptyHint>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-10)" }}>
+            <TurnContextRow label="direction" value={direction} />
+            <TurnContextRow label="scene cue" value={sceneCue} />
+            <TurnContextRow label="agenda" value={agenda} />
+            <TurnContextRow
+              label="system prompt"
+              value={
+                context?.systemPrompt
+                  ? `${context.systemPrompt.length.toLocaleString()} chars · turn context ${promptChunk.length.toLocaleString()} chars`
+                  : promptChunk
+                    ? `not captured · turn context ${promptChunk.length.toLocaleString()} chars`
+                    : null
+              }
+            />
+            <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-10)", minWidth: 0 }}>
+              <TurnContextLabel>curator pages</TurnContextLabel>
+              {pages.length ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-6)" }}>
+                  {pages.map((page) => (
+                    <span
+                      key={page}
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "var(--radius-pill)",
+                        border: `1px solid ${C.borderStrong}`,
+                        color: C.textHigh,
+                        fontFamily: FONT_MONO,
+                        fontSize: "var(--font-size-xs)",
+                      }}
+                    >
+                      {page}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ color: C.textLow, fontSize: "var(--font-size-sm)" }}>not captured</span>
+              )}
+            </div>
+            <TurnContextRow
+              label="tokens"
+              value={
+                inputTokens != null || outputTokens != null || cost != null
+                  ? `${inputTokens?.toLocaleString() ?? "?"} in / ${outputTokens?.toLocaleString() ?? "?"} out${cost != null ? ` · est. $${cost.toFixed(3)}` : ""}`
+                  : null
+              }
+            />
+          </div>
+        )}
+      </Panel>
+
+      <Panel>
+        <Eyebrow>Voice &amp; guards</Eyebrow>
+        {outputClip ? (
+          <audio
+            data-testid="turn-output-audio"
+            controls
+            preload="metadata"
+            src={`/api/scene-sessions/${encodeURIComponent(sessionId)}/audio/${encodeURIComponent(outputClip.id)}`}
+            style={{ width: "100%", height: 34, colorScheme: "dark" }}
+          />
+        ) : (
+          <EmptyHint>No playable output artifact was retained.</EmptyHint>
+        )}
+        <TurnContextRow
+          label="voice"
+          value={
+            [ttsProvider, ttsVoice, outputClip?.sampleRate ? `${Math.round(outputClip.sampleRate / 1000)}kHz` : null]
+              .filter(Boolean)
+              .join(" / ") || null
+          }
+        />
+        <TurnContextRow
+          label="refusal guard"
+          value={
+            refusalVerdict
+              ? refusalVerdict
+              : refusalDetected.length
+              ? `${refusalRerolled ? "re-rolled" : "flagged"} · ${refusalDetected.map((item) => refusalStage(item.name)).join(", ")}`
+              : trace.length
+                ? "clean — no re-roll"
+                : null
+          }
+          tone={
+            refusalDetected.length || (refusalVerdict && !/clean|pass|ok/i.test(refusalVerdict))
+              ? "amber"
+              : refusalVerdict || trace.length
+                ? "mint"
+                : undefined
+          }
+        />
+        <TurnContextRow
+          label="stage flags"
+          value={stageFlags.length ? stageFlags.join(" · ") : null}
+          tone={stageFlags.length ? "amber" : undefined}
+        />
+        <TurnContextRow
+          label="barge-in"
+          value={
+            interrupted
+              ? "aborted — playback interrupted"
+              : turn.completedAt
+                ? "none — played to completion"
+                : null
+          }
+          tone={interrupted ? "amber" : turn.completedAt ? "mint" : undefined}
+        />
+      </Panel>
+    </div>
+  );
+}
+
+function TurnContextRow({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | null;
+  tone?: "mint" | "amber";
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: "var(--space-10)", minWidth: 0 }}>
+      <TurnContextLabel>{label}</TurnContextLabel>
+      <span
+        style={{
+          color: tone === "mint" ? C.greenDot : tone === "amber" ? C.amber : value ? C.textHigh : C.textLow,
+          fontFamily: FONT_BODY,
+          fontSize: "var(--font-size-sm)",
+          lineHeight: 1.45,
+          minWidth: 0,
+          overflowWrap: "anywhere",
+        }}
+      >
+        {value ?? "not captured"}
+      </span>
+    </div>
+  );
+}
+
+function TurnContextLabel({ children }: { children: ReactNode }) {
+  return (
+    <span
+      style={{
+        flex: "0 0 112px",
+        color: C.textLow,
+        fontFamily: FONT_MONO,
+        fontSize: "var(--font-size-xs)",
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+      }}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -2467,7 +3030,7 @@ function HeadlineMetrics({ metrics }: { metrics: { label: string; value: string;
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${metrics.length}, minmax(0, 1fr))`,
+        gridTemplateColumns: "repeat(auto-fit, minmax(108px, 1fr))",
         marginTop: "var(--space-14)",
         border: `1px solid ${C.border}`,
         borderRadius: "var(--radius-lg)",
@@ -3636,17 +4199,20 @@ function firstAudioMs(turn: SceneSessionTurnRecord): number | null {
   return null;
 }
 
-function pipelineHeadlineMetrics(items: LaneItem[], totalMs: number) {
+function pipelineHeadlineMetrics(
+  items: LaneItem[],
+  totalMs: number,
+  turn: SceneSessionTurnRecord,
+) {
   const stt = items.find((i) => i.laneTitle.startsWith("CLIENT") && i.laneSub.toLowerCase().includes("stt"));
   const llm = items.find((i) => i.laneSub.toLowerCase().includes("llm"));
   const tts = items.find((i) => i.laneSub.toLowerCase().includes("tts"));
-  const ctx = items.find((i) => i.laneSub.toLowerCase().includes("context"));
   return [
     { label: "STT pause", value: stt ? `${Math.round(stt.endMs - stt.startMs)}ms` : "—", sub: "final after silence" },
     { label: "LLM TTFB", value: llm ? `${Math.round(llm.endMs - llm.startMs)}ms` : "—", sub: "attached → first-token" },
-    { label: "First-audio", value: ctx ? `${Math.round(ctx.endMs - ctx.startMs)}ms` : "—", sub: "first-text → audio", tone: "mint" as const },
+    { label: "First-audio", value: firstAudioMs(turn) != null ? `${firstAudioMs(turn)}ms` : "—", sub: "turn start → audio", tone: "mint" as const },
     { label: "TTS synth", value: tts ? `${Math.round(tts.endMs - tts.startMs)}ms` : "—", sub: "slowest segment", tone: "amber" as const },
-    { label: "Total", value: `${Math.round(totalMs)}ms`, sub: "interrupted at 8.2s" },
+    { label: "Total", value: `${Math.round(totalMs)}ms`, sub: "end-to-end" },
   ];
 }
 
@@ -3654,6 +4220,7 @@ function pipelineTraceItems(
   turn: SceneSessionTurnRecord,
   context: SceneSessionContextBuildRecord | null,
   events: SceneSessionEventRecord[],
+  decision: JournalDecisionItem | null,
 ): LaneItem[] {
   const turnTrace = traceEvents(turn.trace);
   const ctxTrace = traceEvents(context?.timingTrace);
@@ -3674,6 +4241,8 @@ function pipelineTraceItems(
     .map((e) => Math.max(0, new Date(e.createdAt).getTime() - turnStart))
     .filter((ms) => ms <= totalMs);
 
+  const directorLane = directorPipelineLane(decision, sttEnd);
+
   return [
     {
       laneTitle: "CLIENT",
@@ -3683,6 +4252,7 @@ function pipelineTraceItems(
       marks: sttMarks.slice(0, 12),
       label: turnTrace.length ? "stt.final" : undefined,
     },
+    ...(directorLane ? [directorLane] : []),
     {
       laneTitle: "SERVER",
       laneSub: "Context",
@@ -3717,6 +4287,35 @@ function pipelineTraceItems(
       marks: [],
     },
   ];
+}
+
+function directorPipelineLane(
+  decision: JournalDecisionItem | null,
+  sttEnd: number,
+): LaneItem | null {
+  if (!decision) return null;
+  const slice = directorClockSlice(decision);
+  if (slice.ranDuringEndpointHold) {
+    return {
+      laneTitle: "SERVER",
+      laneSub: "Director · spec HIT",
+      startMs: Math.max(0, sttEnd - slice.durationMs),
+      endMs: sttEnd,
+      marks: [],
+      highlight: true,
+      label: `${slice.durationMs}ms†`,
+    };
+  }
+  return {
+    laneTitle: "SERVER",
+    laneSub: `Director · ${slice.outcome === "miss" ? "spec MISS" : "inline"}`,
+    startMs: sttEnd,
+    endMs: sttEnd + slice.durationMs,
+    marks: [],
+    highlight: slice.outcome !== "miss",
+    amber: slice.outcome === "miss" || decision.degraded,
+    label: `${slice.durationMs}ms`,
+  };
 }
 
 function makeTicks(totalMs: number): number[] {
@@ -3797,6 +4396,44 @@ function wordCount(text: string | null | undefined) {
 
 function pageCount(value: unknown) {
   return Array.isArray(value) ? value.length : 0;
+}
+
+function lineValue(text: string, label: string) {
+  const prefix = `${label}:`;
+  const line = text
+    .split("\n")
+    .find((candidate) => candidate.trim().startsWith(prefix));
+  return line?.trim().slice(prefix.length).trim() || null;
+}
+
+function selectedPageLabels(value: unknown) {
+  return asArray(value)
+    .map((entry) => {
+      if (typeof entry === "string") return entry;
+      const record = asRecord(entry);
+      const page = asRecord(record?.page);
+      const slug =
+        stringField(page, "slug") ??
+        stringField(record, "slug") ??
+        stringField(page, "title") ??
+        stringField(record, "title");
+      const rendering =
+        stringField(record, "rendering") ?? stringField(record, "level");
+      return slug ? [slug, rendering].filter(Boolean).join(" · ") : null;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+}
+
+function stringList(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim()))
+    : [];
+}
+
+function refusalStage(name: string) {
+  if (name.includes("depict")) return "depict";
+  if (name.includes("referral")) return "referral";
+  return "refusal";
 }
 
 function formatTimecode(start: string, when: string) {
