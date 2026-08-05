@@ -43,11 +43,11 @@ describe("consumer scene lander helpers", () => {
   });
 
   it("only permits same-origin callback paths", () => {
-    expect(safeCallbackPath("/scenes/scene-1?enter=1")).toBe(
-      "/scenes/scene-1?enter=1",
-    );
-    expect(safeCallbackPath("https://example.com")).toBe("/dashboard");
-    expect(safeCallbackPath("//example.com")).toBe("/dashboard");
+    expect(safeCallbackPath("/scenes/x?enter=1")).toBe("/scenes/x?enter=1");
+    expect(safeCallbackPath("/\\evil.com")).toBe("/dashboard");
+    expect(safeCallbackPath("//evil.com")).toBe("/dashboard");
+    expect(safeCallbackPath("https://evil.com")).toBe("/dashboard");
+    expect(safeCallbackPath("\\/evil.com")).toBe("/dashboard");
     expect(safeCallbackPath(["/scenes/one", "/scenes/two"])).toBe("/dashboard");
   });
 });

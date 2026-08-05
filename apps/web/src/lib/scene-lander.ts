@@ -49,7 +49,8 @@ export function safeCallbackPath(
   if (
     typeof value !== "string" ||
     !value.startsWith("/") ||
-    value.startsWith("//")
+    value.startsWith("//") ||
+    value.includes("\\")
   ) {
     return "/dashboard";
   }
