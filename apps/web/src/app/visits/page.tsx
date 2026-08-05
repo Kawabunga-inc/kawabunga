@@ -6,17 +6,17 @@ import {
   type SceneSessionEventRecord,
   type SceneSessionTurnRecord,
 } from "@kawabunga/db";
-import { DeepTheme } from "@/components/deep-theme";
-import { VisitsView, type FreshVisit, type VisitCard } from "@/components/visits-view";
-import { auth } from "@/lib/auth";
+import { DeepTheme } from "../../components/deep-theme";
+import { VisitsView, type FreshVisit, type VisitCard } from "../../components/visits-view";
+import { auth } from "../../lib/auth";
 import {
   paginateSceneVisits,
   sessionDurationLabel,
   sessionOutcome,
   visitsSignInPath,
-} from "@/lib/consumer-scenes";
-import { classifySessionActivity } from "@/lib/session-activity";
-import { sceneTurnsToTranscript } from "@/lib/scene-story";
+} from "../../lib/consumer-scenes";
+import { classifySessionActivity } from "../../lib/session-activity";
+import { sceneTurnsToTranscript } from "../../lib/scene-story";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;
