@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SceneSessionRecord } from "@kawabunga/db";
 import {
   characterInitials,
+  canViewConsumerScene,
   descriptionExcerpt,
   isPublishableScene,
   latestArcBeatLabel,
@@ -14,6 +15,13 @@ describe("consumer scene lander helpers", () => {
     expect(isPublishableScene("active")).toBe(true);
     expect(isPublishableScene("draft")).toBe(false);
     expect(isPublishableScene("archived")).toBe(false);
+  });
+
+  it("exposes draft landers only to staff without publishing them", () => {
+    expect(canViewConsumerScene("draft", true)).toBe(true);
+    expect(canViewConsumerScene("draft", false)).toBe(false);
+    expect(canViewConsumerScene("active", false)).toBe(true);
+    expect(isPublishableScene("draft")).toBe(false);
   });
 
   it("keeps at most three authored sentences without inventing copy", () => {

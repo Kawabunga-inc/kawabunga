@@ -10,17 +10,17 @@ export async function POST(
   { params }: { params: Promise<{ sceneId: string; sessionId: string }> },
 ) {
   const viewer = await auth();
-  if (!viewer?.user?.id) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  }
+  if (!viewer?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (viewer.user.role !== "admin") return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const { sceneId, sessionId } = await params;
   const payload = (await request.json().catch(() => null)) as { reason?: unknown } | null;
   const result = await endLiveScene({
     sceneId,
     sessionId,
     reason: typeof payload?.reason === "string" ? payload.reason : "left",
-    source: "web-player",
-    access: { kind: "owner", userId: viewer.user.id },
+    source: "admin-live",
+    access: { kind: "staff" },
   });
   return result.status === 204
     ? new NextResponse(null, { status: 204 })

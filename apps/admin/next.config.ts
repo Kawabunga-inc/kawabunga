@@ -25,6 +25,7 @@ const nextConfig: NextConfig = {
     "@kawabunga/utils",
     "@kawabunga/db",
     "@kawabunga/auth",
+    "@kawabunga/live-scene",
     "@kawabunga/ui",
     "@kawabunga/voice-pipeline",
   ],

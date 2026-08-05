@@ -8,18 +8,20 @@ import {
   type SceneSessionJournalFeed,
   type SceneSessionJournalState,
 } from "../lib/scene-session-journal";
+import type { LiveSceneProvider } from "../provider";
 
 const POLL_MS = 2_000;
 
 export function useSceneSessionJournal(input: {
   sceneId: string;
   sessionId: string;
+  provider: LiveSceneProvider;
   open: boolean;
   live: boolean;
   settle: boolean;
   onSettled(): void;
 }): SceneSessionJournalState & { error: string | null } {
-  const { sceneId, sessionId, open, live, settle, onSettled } = input;
+  const { provider, open, live, settle, onSettled } = input;
   const [state, setState] = useState(EMPTY_SCENE_SESSION_JOURNAL);
   const [error, setError] = useState<string | null>(null);
   const [visible, setVisible] = useState(() =>
@@ -40,16 +42,8 @@ export function useSceneSessionJournal(input: {
     if (inFlight.current) return "busy";
     inFlight.current = true;
     try {
-      const query = new URLSearchParams();
-      if (stateRef.current.cursors.turns) query.set("turnsSince", stateRef.current.cursors.turns);
-      if (stateRef.current.cursors.events) query.set("eventsSince", stateRef.current.cursors.events);
-      const suffix = query.size ? `?${query}` : "";
-      const response = await fetch(
-        `/api/scenes/${encodeURIComponent(sceneId)}/session/${encodeURIComponent(sessionId)}/journal${suffix}`,
-        { cache: "no-store" },
-      );
-      if (!response.ok) throw new Error(`Session journal unavailable (${response.status})`);
-      const feed = (await response.json()) as SceneSessionJournalFeed;
+      if (!provider.fetchJournal) throw new Error("Session journal unavailable");
+      const feed: SceneSessionJournalFeed = await provider.fetchJournal(stateRef.current.cursors);
       setState((current) => mergeSceneSessionJournal(current, feed));
       setError(null);
       return "fetched";
@@ -59,7 +53,7 @@ export function useSceneSessionJournal(input: {
     } finally {
       inFlight.current = false;
     }
-  }, [sceneId, sessionId]);
+  }, [provider]);
 
   useEffect(() => {
     if (!shouldPollSceneSessionJournal({ open, visible, live })) return;

@@ -9,8 +9,9 @@ import {
   type RemoteTrackPublication,
 } from "livekit-client";
 import type { SceneEndedLifecycleMessage } from "@kawabunga/types";
-import { sceneEndedForSession } from "@/lib/scene-lifecycle";
-import { parseSceneTranscript, type SceneTranscriptMessage } from "@/lib/scene-captions";
+import { sceneEndedForSession } from "../lib/scene-lifecycle";
+import { parseSceneTranscript, type SceneTranscriptMessage } from "../lib/scene-captions";
+import type { LiveSceneProvider } from "../provider";
 
 export type LiveSceneStage =
   | "preparing"
@@ -23,8 +24,8 @@ export type LiveSceneStage =
   | "ended";
 
 type LiveSceneOptions = {
-  sceneId: string;
   sessionId: string;
+  provider: LiveSceneProvider;
   onTranscript(message: SceneTranscriptMessage): void;
   onSceneEnded?(message: SceneEndedLifecycleMessage): void;
   disabled?: boolean;
@@ -56,7 +57,7 @@ function meterLevel(meter: Meter | null): number {
   return Math.min(1, Math.sqrt(sum / meter.data.length) * 5.5);
 }
 
-export function useLiveScene({ sceneId, sessionId, onTranscript, onSceneEnded, disabled = false }: LiveSceneOptions) {
+export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, disabled = false }: LiveSceneOptions) {
   const [stage, setStage] = useState<LiveSceneStage>(() => disabled ? "ended" : "preparing");
   const [error, setError] = useState<string | null>(null);
   const [agentLevel, setAgentLevel] = useState(0);
@@ -154,18 +155,8 @@ export function useLiveScene({ sceneId, sessionId, onTranscript, onSceneEnded, d
       permissionStream.getTracks().forEach((track) => track.stop());
       permissionStream = null;
 
-      const response = await fetch(
-        `/api/scenes/${encodeURIComponent(sceneId)}/session/${encodeURIComponent(sessionId)}/join`,
-        { method: "POST" },
-      );
-      const payload = (await response.json().catch(() => ({}))) as {
-        url?: string;
-        token?: string;
-        error?: string;
-      };
-      if (!response.ok || !payload.url || !payload.token) {
-        throw new Error(payload.error ?? "The scene could not be reached.");
-      }
+      const payload = await provider.join();
+      if (!payload.url || !payload.token) throw new Error("The scene could not be reached.");
 
       const context = new AudioContext();
       contextRef.current = context;
@@ -245,7 +236,7 @@ export function useLiveScene({ sceneId, sessionId, onTranscript, onSceneEnded, d
       await cleanupMedia();
       leavingRef.current = false;
     }
-  }, [attachRemoteTrack, cleanupMedia, disabled, sceneId, sessionId, stage, startMeters]);
+  }, [attachRemoteTrack, cleanupMedia, disabled, provider, sessionId, stage, startMeters]);
 
   const leave = useCallback(async () => {
     leavingRef.current = true;
@@ -253,12 +244,8 @@ export function useLiveScene({ sceneId, sessionId, onTranscript, onSceneEnded, d
     roomRef.current = null;
     await room?.disconnect().catch(() => undefined);
     await cleanupMedia();
-    await fetch(
-      `/api/scenes/${encodeURIComponent(sceneId)}/session/${encodeURIComponent(sessionId)}/end`,
-      { method: "POST", keepalive: true },
-    ).catch(() => undefined);
-    window.location.assign(`/scenes/${encodeURIComponent(sceneId)}`);
-  }, [cleanupMedia, sceneId, sessionId]);
+    await provider.end("left").catch(() => undefined);
+  }, [cleanupMedia, provider]);
 
   return { stage, error, agentLevel, micLevel, begin, leave };
 }

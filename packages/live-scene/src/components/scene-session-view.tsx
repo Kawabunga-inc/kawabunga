@@ -9,8 +9,9 @@ import {
   type SessionJournalItem,
 } from "@kawabunga/orchestration/journal-reader";
 import type { SceneEndedLifecycleMessage } from "@kawabunga/types";
-import { useSceneSessionJournal } from "@/hooks/use-scene-session-journal";
-import { timedWorldEventSeconds } from "@/lib/scene-session-journal";
+import { useSceneSessionJournal } from "../hooks/use-scene-session-journal";
+import { timedWorldEventSeconds } from "../lib/scene-session-journal";
+import type { LiveSceneProvider } from "../provider";
 import { SceneViewToggle, type SceneView } from "./scene-view-toggle";
 import styles from "./scene-player.module.css";
 
@@ -20,7 +21,8 @@ type Props = {
   title: string;
   elapsed: string;
   arcLength: number;
-  adminBaseUrl: string;
+  workbenchHref: string;
+  provider: LiveSceneProvider;
   micLevel: number;
   view: SceneView;
   live: boolean;
@@ -133,6 +135,7 @@ export function SceneSessionView(props: Props) {
   const journal = useSceneSessionJournal({
     sceneId: props.sceneId,
     sessionId: props.sessionId,
+    provider: props.provider,
     open: true,
     live: props.live,
     settle: Boolean(props.lifecycleEnd),
@@ -173,7 +176,7 @@ export function SceneSessionView(props: Props) {
     : null;
   const timedDirection = timed?.direction ??
     (armedWorldEvent?.kind === "world-event" ? armedWorldEvent.direction : "—");
-  const workbenchHref = `${props.adminBaseUrl.replace(/\/$/, "")}/sessions/${encodeURIComponent(props.sessionId)}`;
+  const workbenchHref = props.workbenchHref;
 
   return (
     <section className={styles.sessionView} aria-label="Live scene session instrumentation">

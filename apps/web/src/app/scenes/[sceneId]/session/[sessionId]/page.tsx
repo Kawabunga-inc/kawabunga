@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getSceneSessionStore, getSceneStore } from "@kawabunga/db";
-import { ScenePlayer } from "@/components/scene-player/scene-player";
+import { WebLiveScenePlayer } from "@/components/web-live-scene-player";
 import { auth } from "@/lib/auth";
 import { classifySessionActivity } from "@/lib/session-activity";
 
@@ -39,7 +39,7 @@ export default async function SceneSessionPage({
     detail?.turns ?? [],
   );
 
-  return <ScenePlayer
+  return <WebLiveScenePlayer
     sceneId={sceneId}
     sessionId={sessionId}
     title={scene.title}

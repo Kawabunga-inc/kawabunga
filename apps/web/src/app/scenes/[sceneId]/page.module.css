@@ -24,6 +24,22 @@
   margin-inline: auto;
 }
 
+.draftPreview {
+  position: absolute;
+  z-index: 10;
+  top: 88px;
+  left: 64px;
+  padding: 8px 13px;
+  border: 1px solid var(--color-warning-amber);
+  border-radius: var(--radius-pill);
+  color: var(--color-warning-amber);
+  background: color-mix(in srgb, var(--color-warning-amber) 8%, transparent);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.14em;
+}
+
 .halo {
   position: absolute;
   top: 230px;

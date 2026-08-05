@@ -10,15 +10,15 @@ export async function POST(
   { params }: { params: Promise<{ sceneId: string; sessionId: string }> },
 ) {
   const viewer = await auth();
-  if (!viewer?.user?.id) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  }
+  if (!viewer?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (viewer.user.role !== "admin") return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const { sceneId, sessionId } = await params;
   const result = await joinLiveScene({
     sceneId,
     sessionId,
     identity: viewer.user.id,
-    access: { kind: "owner", userId: viewer.user.id },
+    access: { kind: "staff" },
   });
   return NextResponse.json(result.body, { status: result.status });
 }

@@ -6,6 +6,10 @@ export function isPublishableScene(status: string): boolean {
   return status === WEB_PUBLISHABLE_SCENE_STATUS;
 }
 
+export function canViewConsumerScene(status: string, isStaff: boolean): boolean {
+  return isPublishableScene(status) || (status === "draft" && isStaff);
+}
+
 export function descriptionExcerpt(value: string, sentenceLimit = 3): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (!normalized) return "";
