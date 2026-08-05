@@ -233,6 +233,7 @@ export type {
   CreateSceneSessionInput,
   UpsertSceneSessionTurnInput,
   AppendSceneSessionEventInput,
+  InitializeSceneSessionSceneInput,
   UpdateSceneSessionSceneInput,
   AddSceneSessionAudioArtifactInput,
 } from "./scene-session-store";

@@ -1,12 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { getSceneSessionStore, getSceneStore } from "@kawabunga/db";
-import { DeepTheme } from "@/components/deep-theme";
+import { ScenePlayer } from "@/components/scene-player/scene-player";
 import { auth } from "@/lib/auth";
-import styles from "../../page.module.css";
 
 export const dynamic = "force-dynamic";
 
-export default async function SceneSessionStubPage({
+export default async function SceneSessionPage({
   params,
 }: {
   params: Promise<{ sceneId: string; sessionId: string }>;
@@ -19,9 +18,10 @@ export default async function SceneSessionStubPage({
     );
   }
 
-  const [scene, session] = await Promise.all([
+  const [scene, session, orchestratorScene] = await Promise.all([
     getSceneStore().getSceneById(sceneId),
     getSceneSessionStore().getSession(sessionId),
+    getSceneStore().resolveOrchestratorScene(sceneId),
   ]);
   if (
     !scene ||
@@ -32,15 +32,11 @@ export default async function SceneSessionStubPage({
     notFound();
   }
 
-  return (
-    <main className={styles.stub} data-theme="deep">
-      <DeepTheme />
-      <div className={styles.stubInner}>
-        <div className={styles.stubEmber} aria-hidden="true" />
-        <p className={styles.stubKicker}>A living scene</p>
-        <h1>The scene is being prepared</h1>
-        <p>{scene.title} will begin here.</p>
-      </div>
-    </main>
-  );
+  return <ScenePlayer
+    sceneId={sceneId}
+    sessionId={sessionId}
+    title={scene.title}
+    startedAt={session.startedAt}
+    ambience={orchestratorScene?.defaultAmbience ?? null}
+  />;
 }

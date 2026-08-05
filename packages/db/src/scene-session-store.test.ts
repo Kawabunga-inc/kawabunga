@@ -110,4 +110,30 @@ describe("scene session live cursors (memory store)", () => {
     ]);
     expect(empty).toEqual([]);
   });
+
+  it("initializes a deferred scene snapshot without replacing later state", async () => {
+    const store = getSceneSessionStore();
+    const sessionId = "deferred-scene-snapshot";
+    await store.createSession({ id: sessionId, mode: "voice" });
+
+    await store.initializeSceneState({
+      sessionId,
+      initialScene: { beat: "opening" },
+      currentScene: { beat: "opening" },
+    });
+    await store.updateCurrentScene({
+      sessionId,
+      currentScene: { beat: "later" },
+    });
+    await store.initializeSceneState({
+      sessionId,
+      initialScene: { beat: "replacement" },
+      currentScene: { beat: "replacement" },
+    });
+
+    expect(await store.getSession(sessionId)).toMatchObject({
+      initialScene: { beat: "opening" },
+      currentScene: { beat: "later" },
+    });
+  });
 });
