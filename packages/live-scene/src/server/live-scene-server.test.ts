@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   buildSnapshot: vi.fn(() => ({ sceneState: { beat: "opening" } })),
   createInitial: vi.fn(() => ({ beat: "opening" })),
   grants: [] as Array<Record<string, unknown>>,
+  roomConfigs: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@kawabunga/db", () => ({
@@ -30,8 +31,17 @@ vi.mock("@kawabunga/orchestration/client", () => ({
 vi.mock("livekit-server-sdk", () => ({
   TrackSource: { MICROPHONE: "microphone" },
   AccessToken: class {
+    set roomConfig(config: Record<string, unknown>) { mocks.roomConfigs.push(config); }
     addGrant(grant: Record<string, unknown>) { mocks.grants.push(grant); }
     async toJwt() { return "signed-token"; }
+  },
+}));
+vi.mock("@livekit/protocol", () => ({
+  RoomAgentDispatch: class {
+    constructor(value: Record<string, unknown>) { Object.assign(this, value); }
+  },
+  RoomConfiguration: class {
+    constructor(value: Record<string, unknown>) { Object.assign(this, value); }
   },
 }));
 
@@ -56,11 +66,13 @@ describe("shared live-scene server cores", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.grants.length = 0;
+    mocks.roomConfigs.length = 0;
     mocks.getSession.mockResolvedValue(activeSession);
     mocks.resolveOrchestratorScene.mockResolvedValue({ characters: [], arc: [] });
     process.env.LIVEKIT_URL = "wss://live.example";
     process.env.LIVEKIT_API_KEY = "key";
     process.env.LIVEKIT_API_SECRET = "secret";
+    process.env.LIVEKIT_AGENT_NAME = "test-live-scene-agent";
   });
 
   it("mints the canonical staff room and initializes a missing snapshot", async () => {
@@ -85,6 +97,20 @@ describe("shared live-scene server cores", () => {
       roomJoin: true,
       canPublishData: false,
     }));
+    expect(mocks.roomConfigs).toEqual([
+      expect.objectContaining({
+        agents: [
+          expect.objectContaining({
+            agentName: "test-live-scene-agent",
+            metadata: JSON.stringify({
+              sceneId: "draft-scene",
+              sessionId: "session-1",
+              journalVersion: 1,
+            }),
+          }),
+        ],
+      }),
+    ]);
   });
 
   it("keeps the consumer join owner-only", async () => {

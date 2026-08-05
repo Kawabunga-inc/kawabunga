@@ -10,6 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import type React from "react";
+import { sanitizeChronicle } from "@kawabunga/orchestration/client";
+import {
+  sessionCostCategoryLabel,
+  summarizeSessionCostEvents,
+} from "@kawabunga/types";
 import type {
   SceneSessionAudioArtifactRecord,
   SceneSessionContextBuildRecord,
@@ -19,6 +24,7 @@ import type {
 } from "@kawabunga/db";
 import { useHeaderContent } from "@/components/header-context";
 import { C, FONT_BODY, FONT_DISPLAY, FONT_MONO } from "@/components/session-workbench-theme";
+import { SessionIdCopyButton } from "@/components/session-id-copy-button";
 import { useLiveSessionDetail } from "@/components/use-live-session-detail";
 import {
   ChroniclePanel,
@@ -382,6 +388,7 @@ function HeaderRail({
       <TopRow
         characterCrumb={characterCrumb}
         characterSlug={characterSlug}
+        sessionId={session.id}
         sessionShort={sessionShort}
         liveCluster={
           isLive ? (
@@ -414,11 +421,13 @@ function HeaderRail({
 function TopRow({
   characterCrumb,
   characterSlug,
+  sessionId,
   sessionShort,
   liveCluster,
 }: {
   characterCrumb: string;
   characterSlug: string;
+  sessionId: string;
   sessionShort: string;
   liveCluster?: ReactNode;
 }) {
@@ -475,7 +484,7 @@ function TopRow({
           <Sep />
           <span style={{ color: C.textMid }}>sessions</span>
           <Sep />
-          <span style={{ color: C.text, fontWeight: 600 }}>{sessionShort}</span>
+          <SessionIdCopyButton sessionId={sessionId} displayId={sessionShort} />
         </div>
       </div>
 
@@ -825,7 +834,7 @@ function KpiStrip({
   journalHealth: ReturnType<typeof aggregateSessionJournalHealth> | null;
   elapsed: string | null;
 }) {
-  const items: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "default" | "mint" | "amber" }[] = [
+  const items: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "default" | "mint" | "amber"; title?: string }[] = [
     { label: "Duration", value: elapsed ?? stats.duration },
     { label: "Turns", value: stats.turnCount },
     {
@@ -871,7 +880,13 @@ function KpiStrip({
       value: stats.tokens.value,
       sub: stats.tokens.sub,
     },
-    { label: "Cost", value: stats.cost.value, sub: stats.cost.sub },
+    {
+      label: "Session cost",
+      value: stats.cost.value,
+      sub: stats.cost.sub,
+      title: stats.cost.title,
+      tone: stats.cost.unpricedEntries > 0 ? "amber" : "default",
+    },
     { label: "Audio", value: stats.audio.value, sub: stats.audio.sub },
     {
       label: "STT rejected",
@@ -905,16 +920,19 @@ function KpiCell({
   sub,
   tone,
   divider,
+  title,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
   tone?: "default" | "mint" | "amber";
   divider?: boolean;
+  title?: string;
 }) {
   const valueColor = tone === "mint" ? C.mint : tone === "amber" ? C.amber : C.text;
   return (
     <div
+      title={title}
       style={{
         padding: "14px 18px",
         borderRight: divider ? `1px solid ${C.borderSoft}` : "none",
@@ -1747,6 +1765,19 @@ function InspectorRail({
       : activeTurn
         ? causality.reflectionByTurnId.get(activeTurn.id) ?? null
         : null;
+  const currentSnapshot = asRecord(session.currentScene);
+  const currentSceneState = asRecord(currentSnapshot?.sceneState);
+  const recoveredChroniclerSnapshot = {
+    chronicle: sanitizeChronicle(currentSnapshot?.chronicle),
+    directorNote:
+      typeof currentSceneState?.directorNote === "string"
+        ? currentSceneState.directorNote
+        : null,
+    updatedAt:
+      typeof currentSnapshot?.updatedAt === "string"
+        ? currentSnapshot.updatedAt
+        : null,
+  };
 
   return (
     <section
@@ -1805,6 +1836,7 @@ function InspectorRail({
             items={journalItems}
             activeId={activeReflection?.id ?? activeJournalItem?.id ?? null}
             onSelect={onSelectJournalId}
+            recoveredSnapshot={recoveredChroniclerSnapshot}
           />
         ) : null}
         {activeTab === "graph" ? <GraphPanel context={activeContext} /> : null}
@@ -2651,6 +2683,8 @@ function TurnContextPanels({
     decision?.beat ?? lineValue(promptChunk, "Direction") ?? null;
   const sceneCue =
     decision?.sceneCue ?? lineValue(promptChunk, "Scene note") ?? null;
+  const delivery =
+    decision?.delivery ?? lineValue(promptChunk, "Delivery")?.split(".", 1)[0] ?? null;
   const agenda = lineValue(promptChunk, "Your agenda in this scene");
   const pages = selectedPageLabels(context?.selectedPages);
   const usage = asRecord(turn.tokenUsage);
@@ -2703,6 +2737,7 @@ function TurnContextPanels({
   const hasSpeakerContext = Boolean(
     direction ||
       sceneCue ||
+      delivery ||
       agenda ||
       context?.systemPrompt ||
       promptChunk ||
@@ -2730,6 +2765,7 @@ function TurnContextPanels({
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-10)" }}>
             <TurnContextRow label="direction" value={direction} />
+            <TurnContextRow label="delivery" value={delivery} />
             <TurnContextRow label="scene cue" value={sceneCue} />
             <TurnContextRow label="agenda" value={agenda} />
             <TurnContextRow
@@ -4068,7 +4104,7 @@ function computeStats(detail: SceneSessionDetailRecord) {
 
   let inTokens = 0;
   let outTokens = 0;
-  let estimatedCostUsd = 0;
+  let legacyEstimatedCostUsd = 0;
   for (const t of turns) {
     const usage = asRecord(t.tokenUsage);
     inTokens +=
@@ -4081,11 +4117,15 @@ function computeStats(detail: SceneSessionDetailRecord) {
       numberField(usage, "outputTokens") ??
       numberField(usage, "completionTokens") ??
       0;
-    estimatedCostUsd +=
+    legacyEstimatedCostUsd +=
       numberField(usage, "estimatedCostUsd") ??
       numberField(asRecord(t.metadata?.cost), "estimatedCostUsd") ??
       0;
   }
+  const ledger = summarizeSessionCostEvents(events);
+  const estimatedCostUsd = ledger.hasLedger
+    ? ledger.amountUsd
+    : legacyEstimatedCostUsd;
   for (const c of contextBuilds) {
     inTokens += c.tokensUsed ?? 0;
   }
@@ -4110,7 +4150,19 @@ function computeStats(detail: SceneSessionDetailRecord) {
     },
     cost: {
       value: formatCost(estimatedCostUsd),
-      sub: estimatedCostUsd > 0 ? "est. model cost" : undefined,
+      sub: ledger.hasLedger
+        ? ledger.unpricedEntries > 0
+          ? `${ledger.entries} ops · ${ledger.unpricedEntries} unpriced`
+          : `${ledger.entries} ops · all priced`
+        : "legacy · character only",
+      title: ledger.hasLedger
+        ? ledger.categories
+            .map((category) =>
+              `${sessionCostCategoryLabel(category.category)}: ${formatCost(category.amountUsd)} (${category.entries} ops${category.unpricedEntries ? `, ${category.unpricedEntries} unpriced` : ""})`,
+            )
+            .join("\n")
+        : "Legacy session: only completed character-model estimates were recorded.",
+      unpricedEntries: ledger.unpricedEntries,
     },
     audio: {
       value: formatBytes(audioBytes),
@@ -4507,9 +4559,10 @@ function formatNumber(n: number) {
 }
 
 function formatCost(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return "$0.0000";
-  if (value < 0.01) return `$${value.toFixed(4)}`;
-  return `$${value.toFixed(3)}`;
+  if (!Number.isFinite(value) || value <= 0) return "$0.000000";
+  if (value < 0.000001) return "<$0.000001";
+  if (value < 0.01) return `$${value.toFixed(6)}`;
+  return `$${value.toFixed(4)}`;
 }
 
 function formatBytes(bytes: number) {

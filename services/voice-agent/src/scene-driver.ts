@@ -45,11 +45,19 @@ import {
   type SceneSessionSnapshot,
   type SceneTurnForPlanning,
 } from "@kawabunga/orchestration";
-import type { OrchestratorDecision, Scene, SceneState, SfxCue } from "@kawabunga/types";
-import { isRefusalBoilerplate } from "@kawabunga/voice-pipeline";
+import type {
+  OrchestratorDecision,
+  Scene,
+  SceneState,
+  SessionCostEntry,
+  SfxCue,
+} from "@kawabunga/types";
+import { buildLlmSessionCostEntry, isRefusalBoilerplate } from "@kawabunga/voice-pipeline";
 
 /** Don't speculate off a stray opener ("uh", "so") — wait for some real intent. */
 const MIN_SPECULATE_CHARS = 8;
+/** Enough accumulated words to identify intent before spending a director call. */
+const MIN_SPECULATE_WORDS = 8;
 /** Accept a speculation only if it was computed off ≥ this fraction of the final
  *  turn (and is a prefix of it) — so the speaker was chosen from ~the whole intent,
  *  not a short lead-in that happens to prefix-match. */
@@ -71,8 +79,8 @@ const PROACTIVE_TURN_MESSAGE = "(The user has gone quiet.)";
  *  of the intention architecture). Fire-and-forget after spoken turns; the fast
  *  director reads the note as its own earlier reflection. Kill-switch: =0. */
 const DRAMATURG_ENABLED = process.env.VOICE_AGENT_DRAMATURG !== "0";
-/** Strong model, off the hot path — quality is the point, latency is free. */
-const DEFAULT_DRAMATURG_MODEL = "claude-sonnet-4-5";
+/** Fast structured model: Chronicle must settle promptly when a visitor leaves. */
+const DEFAULT_DRAMATURG_MODEL = "gpt-oss-120b";
 const DRAMATURG_MODEL = resolveDramaturgModel(process.env.VOICE_AGENT_DRAMATURG_MODEL);
 
 /**
@@ -103,7 +111,17 @@ export function resolveDramaturgModel(raw: string | undefined): string {
 }
 /** Reflect every N completed spoken turns (1 = every turn). */
 const DRAMATURG_EVERY = Math.max(1, Number(process.env.VOICE_AGENT_DRAMATURG_EVERY ?? 2));
-const DRAMATURG_TIMEOUT_MS = 20_000;
+const DRAMATURG_TIMEOUT_MS = Math.max(
+  2_000,
+  Number(process.env.VOICE_AGENT_DRAMATURG_TIMEOUT_MS ?? 10_000),
+);
+// gpt-oss counts hidden reasoning against this ceiling. A small cap can finish
+// successfully with zero visible Chronicle text, so leave enough room for both
+// reasoning and the structured reflection.
+const DRAMATURG_MAX_TOKENS = Math.max(
+  800,
+  Math.min(3_200, Number(process.env.VOICE_AGENT_DRAMATURG_MAX_TOKENS ?? 2_400)),
+);
 /** Session-open budget for a generated opening — nobody is mid-conversation,
  *  but the listener is waiting for the scene to start. */
 const OPENING_TIMEOUT_MS = 12_000;
@@ -229,12 +247,14 @@ export class SceneDriver {
     abort: AbortController;
     promise: Promise<DecideResult>;
   } | null = null;
+  #speculationStartedForTurn = false;
   // Optional persistence hook — invoked with a fresh snapshot after every decision.
   #onState: ((snapshot: SceneSessionSnapshot) => void) | null = null;
   // The scene journal sink — receives typed entries for every decision,
   // reflection, and world-event arming (the session's flight recorder).
   // Fire-and-forget: never awaited, throws swallowed.
   #journal: SceneJournalSink | null = null;
+  #cost: ((entry: SessionCostEntry) => void) | null = null;
   #onSfx: ((cues: SfxCue[]) => void) | null = null;
   // Voices a `narrate` decision. Optional — unset = narration is recorded in
   // the transcript (so the director keeps continuity) but not spoken.
@@ -378,6 +398,11 @@ export class SceneDriver {
     this.#journal = cb;
   }
 
+  /** Wire the durable cost ledger sink. */
+  onCost(cb: (entry: SessionCostEntry) => void): void {
+    this.#cost = cb;
+  }
+
   /** Wire a callback invoked with the decision's (roster-validated) sfx cues,
    *  fired BEFORE the speaker's turn so `at:"now"` cues truly precede the voice.
    *  Optional — unset = sfx decisions are ignored (e.g. non-LiveKit hosts). */
@@ -510,16 +535,26 @@ export class SceneDriver {
       sceneFacts: this.#sceneFacts,
       chronicle: this.#chronicle,
     });
+    const costOperationId = `chronicle:${crypto.randomUUID()}`;
     this.#reflection = provider
       .complete({
         model: DRAMATURG_MODEL,
         system: [{ type: "text", text: request.system }],
         messages: [{ role: "user", content: request.user }],
         // Chronicle sections + note; the chronicle is the bulk of the reply.
-        maxTokens: 450,
+        maxTokens: DRAMATURG_MAX_TOKENS,
         signal: AbortSignal.timeout(DRAMATURG_TIMEOUT_MS),
       })
       .then((response) => {
+        this.#cost?.(
+          buildLlmSessionCostEntry({
+            operationId: costOperationId,
+            category: "chronicle_llm",
+            provider: provider.id,
+            model: response.model,
+            usage: response,
+          }),
+        );
         const { note, landed, facts, gone, chronicle } = parseDramaturgReflection(response.text);
         // Validate landed labels against the authored arc (tolerant match →
         // canonical label), then expand: the arc is ordered, so a later beat
@@ -650,6 +685,18 @@ export class SceneDriver {
         }
       })
       .catch((err) => {
+        this.#cost?.(
+          buildLlmSessionCostEntry({
+            operationId: costOperationId,
+            category: "chronicle_llm",
+            provider: provider.id,
+            model: DRAMATURG_MODEL,
+            status: "failed",
+            usage: {},
+            usageKnown: false,
+            note: (err as Error).message,
+          }),
+        );
         console.warn(`[dramaturg] reflection failed: ${(err as Error).message}`);
         if (this.#journal) {
           try {
@@ -689,6 +736,15 @@ export class SceneDriver {
     if (this.#reflection) await this.#reflection;
   }
 
+  /** Invalidate every active drive/cascade and cancel speculative director
+   *  work. Used by the host when the visitor leaves the LiveKit room. */
+  cancelActiveWork(): void {
+    this.#epoch += 1;
+    this.#speculation?.abort.abort();
+    this.#speculation = null;
+    this.#speculationStartedForTurn = false;
+  }
+
   #persistState(): void {
     if (!this.#onState) return;
     try {
@@ -714,11 +770,11 @@ export class SceneDriver {
   speculate(partialText: string): void {
     const text = partialText.trim();
     if (text.length < MIN_SPECULATE_CHARS) return;
+    if (text.split(/\s+/).filter(Boolean).length < MIN_SPECULATE_WORDS) return;
     if (!SOLO_CUE_ENABLED && this.#presentRoster().length <= 1) return;
+    if (this.#speculationStartedForTurn) return;
     if (this.#speculation?.basedOnText === text) return;
-    // A longer partial supersedes the in-flight speculation — cancel the
-    // provider call instead of letting it burn tokens to be discarded.
-    this.#speculation?.abort.abort();
+    this.#speculationStartedForTurn = true;
     const abort = new AbortController();
     this.#speculation = {
       basedOnText: text,
@@ -739,6 +795,7 @@ export class SceneDriver {
     const superseded = () => epoch !== this.#epoch || opts?.signal?.aborted === true;
     const spec = this.#speculation;
     this.#speculation = null;
+    this.#speculationStartedForTurn = false;
 
     this.#recentTurns.push({ speakerSlug: "user", text: userText });
     this.#trim();
@@ -949,11 +1006,12 @@ export class SceneDriver {
     // line (preserves the pre-unification single-char floor, which sent no
     // promptChunk). Applies to the character's solo scene (scene.solo) and the
     // legacy synthetic fallback alike. Once the orchestrator supplies a per-turn
-    // `beat`/`sceneCue` (Phase 3), it flows through to the character unchanged.
+    // `beat`/`sceneCue`/`delivery`, it flows through to the character unchanged.
     const sandboxNoCue =
       (this.scene.solo === true || this.scene.id.startsWith("character-sandbox:")) &&
       !resolution.decision.beat &&
-      !resolution.decision.sceneCue;
+      !resolution.decision.sceneCue &&
+      !resolution.decision.delivery;
     const replyText = await speak(
       {
         characterId: character.id,
@@ -1010,6 +1068,7 @@ export class SceneDriver {
     }
 
     const request = buildOpeningNarrationMessages(this.scene);
+    const costOperationId = `opening:${crypto.randomUUID()}`;
     try {
       const response = await provider.complete({
         model: DRAMATURG_MODEL,
@@ -1018,10 +1077,31 @@ export class SceneDriver {
         maxTokens: 250,
         signal: AbortSignal.timeout(OPENING_TIMEOUT_MS),
       });
+      this.#cost?.(
+        buildLlmSessionCostEntry({
+          operationId: costOperationId,
+          category: "opening_llm",
+          provider: provider.id,
+          model: response.model,
+          usage: response,
+        }),
+      );
       const text = sanitizeOpeningNarration(response.text);
       if (text) return text;
       console.warn("[voice-agent] generated opening was empty — using authored");
     } catch (err) {
+      this.#cost?.(
+        buildLlmSessionCostEntry({
+          operationId: costOperationId,
+          category: "opening_llm",
+          provider: provider.id,
+          model: DRAMATURG_MODEL,
+          status: "failed",
+          usage: {},
+          usageKnown: false,
+          note: (err as Error).message,
+        }),
+      );
       console.warn(
         `[voice-agent] generated opening failed (${(err as Error).message}) — using authored`,
       );
@@ -1183,13 +1263,18 @@ export class SceneDriver {
       speakerCharacter?.displayName ?? character.title ?? resolution.speakerSlug;
 
     const beat = resolution.decision.beat ?? this.#sceneState.beat;
-    const hasCue = Boolean(resolution.decision.beat || resolution.decision.sceneCue);
+    const hasCue = Boolean(
+      resolution.decision.beat ||
+      resolution.decision.sceneCue ||
+      resolution.decision.delivery,
+    );
     // Shared with the reactive path (buildSpeakerTurnRequest) so the
     // speaker's authored agenda — and the multi-party attribution
     // convention — ride along on proactive turns too.
     const directive = buildDirectiveChunk({
       beat,
       sceneCue: resolution.decision.sceneCue,
+      delivery: resolution.decision.delivery,
       speaker: speakerCharacter,
       othersPresent: this.scene.characters
         .filter(
@@ -1368,8 +1453,24 @@ export class SceneDriver {
     });
 
     const startedAt = Date.now();
+    const costOperationId = `director:${crypto.randomUUID()}`;
+    let costRecorded = false;
     try {
-      const decision = await executor.execute(request, { signal });
+      const decision = await executor.execute(request, {
+        signal,
+        onUsage: (usage) => {
+          costRecorded = true;
+          this.#cost?.(
+            buildLlmSessionCostEntry({
+              operationId: costOperationId,
+              category: "director_llm",
+              provider: executor.provider,
+              model: executor.model,
+              usage,
+            }),
+          );
+        },
+      });
       console.log(
         `[voice-agent] orchestrate[${phase}] ${Date.now() - startedAt}ms → ${decision.action} ${decision.speakerId ?? ""}`.trimEnd(),
       );
@@ -1392,6 +1493,20 @@ export class SceneDriver {
       };
     } catch (err) {
       const failed = err instanceof Error ? err.message : String(err);
+      if (!costRecorded) {
+        this.#cost?.(
+          buildLlmSessionCostEntry({
+            operationId: costOperationId,
+            category: "director_llm",
+            provider: executor.provider,
+            model: executor.model,
+            status: signal?.aborted ? "cancelled" : "failed",
+            usage: {},
+            usageKnown: false,
+            note: failed,
+          }),
+        );
+      }
       if (!signal?.aborted) console.error("[voice-agent] orchestrate failed", err);
       return {
         decision: soloFloor ?? defaultSceneDecision(this.scene, this.#sceneState),

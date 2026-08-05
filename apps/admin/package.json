@@ -19,6 +19,7 @@
     "@kawabunga/types": "*",
     "@kawabunga/ui": "*",
     "@kawabunga/utils": "*",
+    "@kawabunga/voice-pipeline": "*",
     "@kawabunga/wiki-curator": "*",
     "@kawabunga/wiki-ingest": "*",
     "@paper-design/shaders-react": "^0.0.72",

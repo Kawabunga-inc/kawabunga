@@ -104,6 +104,7 @@ export type JournalDecisionItem = {
   speculation: { outcome: string; basedOnText: string | null; waitedMs: number | null } | null;
   beat: string | null;
   sceneCue: string | null;
+  delivery?: string | null;
   previousState: JournalSceneState | null;
   nextState: JournalSceneState | null;
   decisionRaw: unknown;
@@ -183,6 +184,7 @@ export function parseJournalItems(events: SceneSessionEventRecord[]): SessionJou
           : null,
         beat: str(decision?.beat),
         sceneCue: str(decision?.sceneCue),
+        delivery: str(decision?.delivery),
         previousState: asSceneState(payload.previousSceneState),
         nextState: asSceneState(payload.nextSceneState),
         decisionRaw: payload.decision ?? null,

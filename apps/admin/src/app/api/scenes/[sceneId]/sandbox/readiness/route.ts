@@ -46,7 +46,7 @@ export async function GET(
     summary:
       scene.description.trim() && scene.openingBeat.trim()
         ? "Prompt and opening beat are configured."
-        : "Scene prompt and opening beat are required before rehearsal.",
+        : "Scene prompt and opening beat are required before going live.",
     });
 
   checks.push(await ambienceTrackCheck(scene.defaultAmbience));
@@ -61,7 +61,7 @@ export async function GET(
         ? `${scene.characters.length} characters are available to the orchestrator.`
         : scene.characters.length === 1
           ? "Solo scene is valid; orchestration will use one speaker."
-          : "Add at least one character before rehearsing.",
+          : "Add at least one character before going live.",
   });
 
   const speakerChecks = await Promise.all(

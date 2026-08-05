@@ -41,12 +41,31 @@ import {
 import {
   AudioSource,
   LocalAudioTrack,
+  RoomEvent,
   TrackPublishOptions,
   TrackSource,
 } from "@livekit/rtc-node";
 import { BackgroundVoiceCancellation } from "@livekit/noise-cancellation-node";
-import { type CharacterRecord, getCharacterStore, getSceneSessionStore } from "@kawabunga/db";
-import { runVoiceStream } from "@kawabunga/voice-pipeline";
+import {
+  type CharacterRecord,
+  getCharacterStore,
+  getSceneSessionStore,
+} from "@kawabunga/db";
+import {
+  encodePcm16Wav,
+  makeAudioStorageKey,
+  summarizePcm16,
+  writeSessionAudio,
+} from "@kawabunga/db/session-audio-storage";
+import { resolveLiveSceneAgentName, SESSION_COST_EVENT_TYPE } from "@kawabunga/types";
+import {
+  buildInfrastructureSessionCostEntry,
+  buildStreamingSttOperationId,
+  buildSttSessionCostEntry,
+  buildTtsSessionCostEntry,
+  resolveTtsModelId,
+  runVoiceStream,
+} from "@kawabunga/voice-pipeline";
 import { toAudioFrame } from "./audio-frame";
 import {
   buildNarrationTurnRecord,
@@ -56,6 +75,7 @@ import {
 import { SceneDriver } from "./scene-driver";
 import { createSceneEndPublisher } from "./scene-lifecycle";
 import { buildSceneKeyterms, supportsKeyterms } from "./stt-keyterms";
+import { resolveLiveVoiceMaxTokens } from "./live-turn-policy";
 import { WorldAudioChannel } from "./world-audio";
 
 // --- Railway healthcheck: the agents worker doesn't serve HTTP itself, so expose
@@ -150,6 +170,12 @@ const PERSIST_SCENE = process.env.VOICE_AGENT_PERSIST_SCENE === "1";
 // without a default bed stay silent, so the only audible change is authored beds.
 // Kill-switch: =0. Gains are dB relative to the ingest-normalized assets.
 const WORLD_AUDIO_ENABLED = process.env.VOICE_AGENT_WORLD_AUDIO !== "0";
+// Headless E2E feeds synthetic speech directly into LiveKit. Background-voice
+// cancellation correctly treats that speaker as non-primary and removes it, so
+// tests can disable only this pre-STT filter while production remains default-on.
+const NOISE_CANCELLATION_ENABLED =
+  process.env.VOICE_AGENT_NOISE_CANCELLATION !== "0";
+const LIVE_VOICE_MAX_TOKENS = resolveLiveVoiceMaxTokens();
 const WORLD_GAIN_DB = Number(process.env.VOICE_AGENT_WORLD_GAIN_DB ?? -12);
 const WORLD_DUCK_DB = Number(process.env.VOICE_AGENT_WORLD_DUCK_DB ?? -12);
 
@@ -293,6 +319,8 @@ export default defineAgent({
     };
     const sceneSession = existingSession ?? (await createStampedSession());
     const sessionId = sceneSession.id;
+    const ledgerStartedAt = Date.now();
+    const agentName = resolveLiveSceneAgentName(process.env.LIVEKIT_AGENT_NAME);
     console.log(
       `[voice-agent] session ${sessionId} (${existingSession ? "reused sandbox session — gradeable" : "created"})`,
     );
@@ -345,8 +373,14 @@ export default defineAgent({
     // unconditionally, like turn rows: it IS the session's debugging record —
     // matching the browser orchestrate route, which has always persisted its
     // decision events.
-    sceneDriver.onJournal((entry) => {
-      void sessionStore
+    const pendingJournalWrites = new Set<Promise<void>>();
+    const persistJournalEntry = (entry: {
+      turnId?: string;
+      type: string;
+      source: string;
+      payload: Record<string, unknown>;
+    }) => {
+      const write = sessionStore
         .appendEvent({
           sessionId,
           turnId: entry.turnId ?? null,
@@ -357,6 +391,28 @@ export default defineAgent({
         .catch((err) =>
           console.warn(`[voice-agent] journal append failed: ${(err as Error).message}`),
         );
+      pendingJournalWrites.add(write);
+      void write.finally(() => pendingJournalWrites.delete(write));
+      return write;
+    };
+    sceneDriver.onJournal((entry) => {
+      persistJournalEntry(entry);
+    });
+    sceneDriver.onCost((entry) => {
+      persistJournalEntry({
+        type: SESSION_COST_EVENT_TYPE,
+        source: "billing",
+        payload: entry,
+      });
+    });
+    persistJournalEntry({
+      type: "scene.journal.ready",
+      source: "orchestration",
+      payload: {
+        journalVersion: 1,
+        agentName,
+        sceneId: sceneDriver.scene.id,
+      },
     });
 
     // Phase 3: the director's sfx cues (already roster-validated by
@@ -378,13 +434,32 @@ export default defineAgent({
     // continuity), so a mangled name breaks the scene silently — observed:
     // "Abraham, are you there?" transcribed as "Married, are you there?".
     const keyterms = buildSceneKeyterms(sceneDriver.scene);
-    const sttConfig =
-      supportsKeyterms(STT_MODEL) && keyterms.length > 0
-        ? new inference.STT({
-            model: STT_MODEL,
-            modelOptions: { keyterms },
-          })
-        : STT_MODEL;
+    const sttConfig = new inference.STT({
+      model: STT_MODEL,
+      ...(supportsKeyterms(STT_MODEL) && keyterms.length > 0
+        ? { modelOptions: { keyterms } }
+        : {}),
+    });
+    let sttUsageSequence = 0;
+    sttConfig.on("metrics_collected", (metrics) => {
+      sttUsageSequence += 1;
+      persistJournalEntry({
+        type: SESSION_COST_EVENT_TYPE,
+        source: "billing",
+        payload: buildSttSessionCostEntry({
+          operationId: buildStreamingSttOperationId({
+            requestId: metrics.requestId,
+            timestamp: metrics.timestamp,
+            sequence: sttUsageSequence,
+          }),
+          provider: `livekit/${metrics.metadata?.modelProvider || "inference"}`,
+          model: metrics.metadata?.modelName || STT_MODEL,
+          audioDurationMs: metrics.audioDurationMs,
+          inputTokens: metrics.inputTokens,
+          outputTokens: metrics.outputTokens,
+        }),
+      });
+    });
     if (supportsKeyterms(STT_MODEL) && keyterms.length > 0) {
       console.log(`[voice-agent] stt keyterms: ${keyterms.join(", ")}`);
     }
@@ -472,10 +547,15 @@ export default defineAgent({
       // voice turns are debuggable in /sessions, not just the SSE sandbox.
       const turnId = crypto.randomUUID();
       let replyText = "";
+      const capturedAudio: Int16Array[] = [];
+      let capturedSampleRate = 0;
+      let capturedSamples = 0;
       try {
         for await (const ev of runVoiceStream(
           {
             ...streamInput,
+            promptChunk: streamInput.promptChunk,
+            maxTokens: LIVE_VOICE_MAX_TOKENS,
             sessionId,
             turnId,
             // Worker-level experiment override (VOICE_AGENT_BRAIN_MODEL) —
@@ -487,7 +567,11 @@ export default defineAgent({
           if (signal.aborted) break;
           if (ev.event === "audio") {
             const d = ev.data as { pcm: string; sampleRate: number };
-            await audioSource.captureFrame(toAudioFrame(d.pcm, d.sampleRate));
+            const frame = toAudioFrame(d.pcm, d.sampleRate);
+            capturedSampleRate ||= frame.sampleRate;
+            capturedSamples += frame.samplesPerChannel;
+            capturedAudio.push(frame.data.slice());
+            await audioSource.captureFrame(frame);
           } else if (ev.event === "token") {
             const delta = (ev.data as { delta: string }).delta;
             if (delta) {
@@ -507,6 +591,56 @@ export default defineAgent({
         }
       } catch (err) {
         if (!signal.aborted) console.error("[voice-agent] turn failed", err);
+      }
+      if (capturedAudio.length > 0 && capturedSampleRate > 0) {
+        const artifactId = crypto.randomUUID();
+        const mimeType = "audio/wav";
+        const storageKey = makeAudioStorageKey({
+          sessionId,
+          artifactId,
+          direction: "output",
+          mimeType,
+        });
+        try {
+          const bytes = encodePcm16Wav(capturedAudio, capturedSampleRate);
+          await writeSessionAudio(storageKey, bytes);
+          const artifact = await sessionStore.addAudioArtifact({
+            id: artifactId,
+            sessionId,
+            turnId,
+            direction: "output",
+            mimeType,
+            durationMs: Math.round((capturedSamples / capturedSampleRate) * 1_000),
+            sampleRate: capturedSampleRate,
+            byteSize: bytes.byteLength,
+            storageKey,
+            waveformSummary: summarizePcm16(capturedAudio),
+            metadata: {
+              source: "voice-agent",
+              speakerSlug: speaker?.slug ?? null,
+              speakerName: speaker?.name ?? null,
+              status: signal.aborted ? "aborted" : "completed",
+            },
+          });
+          await sessionStore.appendEvent({
+            sessionId,
+            turnId,
+            type: "audio.artifact",
+            source: "assistant",
+            payload: {
+              artifactId: artifact.id,
+              direction: artifact.direction,
+              mimeType: artifact.mimeType,
+              byteSize: artifact.byteSize,
+              durationMs: artifact.durationMs,
+              sampleRate: artifact.sampleRate,
+            },
+          });
+        } catch (error) {
+          console.warn(
+            `[voice-agent] output audio persist failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
       return replyText;
     };
@@ -541,6 +675,7 @@ export default defineAgent({
         const turnId = crypto.randomUUID();
         const startedAt = new Date();
         let voiced = false;
+        let narrationStatus: "succeeded" | "failed" | "cancelled" = "succeeded";
         publishTurn({
           role: "agent",
           id: turnId,
@@ -559,6 +694,9 @@ export default defineAgent({
               worldAudio?.flushSpeakerCues();
             },
           });
+        } catch (error) {
+          narrationStatus = signal?.aborted ? "cancelled" : "failed";
+          throw error;
         } finally {
           speaking = false;
           worldAudio?.setDucked(false);
@@ -583,6 +721,19 @@ export default defineAgent({
             .catch((err) =>
               console.warn(`[voice-agent] narration turn persist failed: ${(err as Error).message}`),
             );
+          persistJournalEntry({
+            turnId,
+            type: SESSION_COST_EVENT_TYPE,
+            source: "billing",
+            payload: buildTtsSessionCostEntry({
+              operationId: `narration:${turnId}:tts`,
+              provider: narrationRouting.provider,
+              model: resolveTtsModelId(narrationRouting.provider),
+              characters: text.length,
+              status: signal?.aborted ? "cancelled" : narrationStatus,
+              note: "Narrator speech synthesis.",
+            }),
+          });
         }
       });
     }
@@ -674,19 +825,40 @@ export default defineAgent({
 
     // The director may end the scene; we just stop driving (go quiet). Room teardown
     // is left to the client.
-    const endScene = () => {
-      if (sceneEnded) return;
+    const stopSceneWork = (): boolean => {
+      if (sceneEnded) return false;
       sceneEnded = true;
       clearIdle();
       if (worldEventTimer) {
         clearTimeout(worldEventTimer);
         worldEventTimer = null;
       }
+      turn?.abort();
+      audioSource.clearQueue();
+      worldAudio?.setDucked(false);
+      speaking = false;
+      sceneDriver.cancelActiveWork();
+      return true;
+    };
+    const endScene = () => {
+      if (!stopSceneWork()) return;
       void publishSceneEnded("director").catch((error) =>
         console.error(`[voice-agent] scene-ended publish failed: ${(error as Error).message}`),
       );
       console.log("[voice-agent] scene ended by director — going quiet");
     };
+
+    // The browser disconnects from LiveKit before marking the session ended in
+    // the HTTP store. Treat that transport event as the authoritative stop
+    // signal: abort the active voice request and invalidate any momentum chain
+    // before another director/model/TTS operation can begin.
+    ctx.room.on(RoomEvent.ParticipantDisconnected, () => {
+      const newlyStopped = stopSceneWork();
+      session.shutdown({ drain: false });
+      if (newlyStopped) {
+        console.log("[voice-agent] visitor left — active turn and scene cascade cancelled");
+      }
+    });
 
     // Reply at the REAL end of the user's turn (gated by the v1 detector), superseding
     // whatever's in flight. Every room routes through the driver (who speaks + the
@@ -763,7 +935,9 @@ export default defineAgent({
       // Krisp background-voice + noise cancellation on the USER's audio, applied
       // before STT / VAD / turn-detection — so room noise and other voices don't
       // trigger turns or interrupt the agent.
-      inputOptions: { noiseCancellation: BackgroundVoiceCancellation() },
+      inputOptions: NOISE_CANCELLATION_ENABLED
+        ? { noiseCancellation: BackgroundVoiceCancellation() }
+        : {},
     });
     // Publish our output track now that the room is connected.
     await ctx.room.localParticipant!.publishTrack(
@@ -783,6 +957,21 @@ export default defineAgent({
       ctx.addShutdownCallback(() => worldAudio.close());
     }
     ctx.addShutdownCallback(async () => {
+      // A participant can leave while the off-path chronicler is still
+      // finishing. Let it land, then drain its journal write before the job
+      // process exits so the post-session Chronicle never loses the tail.
+      await sceneDriver.settleReflection();
+      await persistJournalEntry({
+        type: SESSION_COST_EVENT_TYPE,
+        source: "billing",
+        payload: buildInfrastructureSessionCostEntry({
+          operationId: `session:${sessionId}:livekit`,
+          provider: "livekit",
+          sessionDurationMs: Date.now() - ledgerStartedAt,
+          note: "LiveKit room/media allocation for this session.",
+        }),
+      });
+      await Promise.allSettled([...pendingJournalWrites]);
       await publishSceneEnded("host").catch((error) =>
         console.error(`[voice-agent] scene-ended publish failed: ${(error as Error).message}`),
       );
@@ -799,11 +988,13 @@ export default defineAgent({
     if (openingNarration && narrationRouting) {
       turn = new AbortController();
       const openingSignal = turn.signal;
+      const openingTurnId = crypto.randomUUID();
+      let openingStatus: "succeeded" | "failed" | "cancelled" = "succeeded";
       speaking = true;
       worldAudio?.setDucked(true);
       publishTurn({
         role: "agent",
-        id: `n${Date.now()}`,
+        id: openingTurnId,
         text: openingNarration,
         final: true,
         speaker: { slug: "narrator", name: "Narrator" },
@@ -817,11 +1008,25 @@ export default defineAgent({
         onFirstAudio: () => worldAudio?.flushSpeakerCues(),
       })
         .catch((err) => {
+          openingStatus = openingSignal.aborted ? "cancelled" : "failed";
           if (!openingSignal.aborted) {
             console.warn(`[voice-agent] opening narration failed: ${(err as Error).message}`);
           }
         })
         .finally(() => {
+          persistJournalEntry({
+            turnId: openingTurnId,
+            type: SESSION_COST_EVENT_TYPE,
+            source: "billing",
+            payload: buildTtsSessionCostEntry({
+              operationId: `narration:${openingTurnId}:tts`,
+              provider: narrationRouting.provider,
+              model: resolveTtsModelId(narrationRouting.provider),
+              characters: openingNarration.length,
+              status: openingSignal.aborted ? "cancelled" : openingStatus,
+              note: "Opening narration speech synthesis.",
+            }),
+          });
           speaking = false;
           worldAudio?.setDucked(false);
           armFirstMove(); // the scene's first move follows the opening promptly
@@ -859,4 +1064,7 @@ export default defineAgent({
   },
 });
 
-cli.runApp(new WorkerOptions({ agent: fileURLToPath(import.meta.url) }));
+cli.runApp(new WorkerOptions({
+  agent: fileURLToPath(import.meta.url),
+  agentName: resolveLiveSceneAgentName(process.env.LIVEKIT_AGENT_NAME),
+}));

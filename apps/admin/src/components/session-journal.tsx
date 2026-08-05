@@ -28,10 +28,17 @@ export {
 } from "@kawabunga/orchestration/journal-reader";
 import {
   parseJournalItems,
+  type JournalChronicle,
   type JournalDecisionItem,
   type JournalReflectionItem,
   type SessionJournalItem,
 } from "@kawabunga/orchestration/journal-reader";
+
+export type RecoveredChroniclerSnapshot = {
+  chronicle: JournalChronicle | null;
+  directorNote: string | null;
+  updatedAt: string | null;
+};
 
 // ───────────── Live feed ─────────────
 
@@ -638,20 +645,53 @@ export function ChroniclePanel({
   items,
   activeId,
   onSelect,
+  recoveredSnapshot = null,
 }: {
   items: SessionJournalItem[];
   activeId: string | null;
   onSelect: (id: string) => void;
+  recoveredSnapshot?: RecoveredChroniclerSnapshot | null;
 }) {
   const reflections = items.filter((i): i is JournalReflectionItem => i.kind === "reflection");
   if (reflections.length === 0) {
+    const recoveredChronicle = recoveredSnapshot?.chronicle ?? null;
+    const hasRecoveredState = Boolean(recoveredSnapshot?.directorNote || recoveredChronicle);
     return (
       <Panel>
-        <PanelEyebrow color={C.amberDeep}>Chronicler</PanelEyebrow>
-        <EmptyPanelHint>
-          No reflections recorded. Voice sessions journal the chronicler from
-          the scene driver; older sessions predate the journal.
-        </EmptyPanelHint>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-10)" }}>
+          <PanelEyebrow color={C.amberDeep}>Chronicler</PanelEyebrow>
+          {hasRecoveredState ? <Chip color={C.amberDeep} bg={C.amberSoft}>recovered snapshot</Chip> : null}
+        </div>
+        {hasRecoveredState ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-10)" }}>
+            <EmptyPanelHint>
+              The per-reflection causal journal is missing, but the voice worker
+              saved its final chronicler state. This is the recovered ending,
+              not a reconstructed timeline.
+            </EmptyPanelHint>
+            {recoveredSnapshot?.directorNote ? (
+              <KV label="latest note to director">{recoveredSnapshot.directorNote}</KV>
+            ) : null}
+            {recoveredChronicle ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)", borderTop: `1px solid ${C.borderSoft}`, paddingTop: "var(--space-10)" }}>
+                <PanelEyebrow>Final chronicle snapshot</PanelEyebrow>
+                {recoveredChronicle.story ? <ChronicleSection label="story" lines={[recoveredChronicle.story]} /> : null}
+                <ChronicleSection label="thread" lines={recoveredChronicle.threads} />
+                <ChronicleSection label="world" lines={recoveredChronicle.world} />
+                <ChronicleSection label="intent" lines={recoveredChronicle.intents.map((i) => `when ${i.trigger}: ${i.direction}`)} />
+                <ChronicleSection label="timed" lines={recoveredChronicle.timed.map((t) => `in ~${t.afterSeconds}s: ${t.direction}`)} />
+                <ChronicleSection label="draft" lines={recoveredChronicle.drafts} />
+              </div>
+            ) : null}
+            {recoveredSnapshot?.updatedAt ? (
+              <span style={{ fontFamily: FONT_MONO, fontSize: "var(--font-size-xs)", color: C.textLow }}>
+                snapshot saved {new Date(recoveredSnapshot.updatedAt).toLocaleString()}
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyPanelHint>No chronicler state was recorded for this session.</EmptyPanelHint>
+        )}
       </Panel>
     );
   }

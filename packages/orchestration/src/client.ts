@@ -3,6 +3,7 @@ import {
   orchestratorDecisionSchema,
   sceneStateSchema,
   type OrchestratorDecision,
+  type OrchestratorDelivery,
   type Scene,
   type SceneCharacter,
   type SceneState,
@@ -733,6 +734,7 @@ export function buildSpeakerTurnRequest(input: {
   const promptChunk = buildDirectiveChunk({
     beat,
     sceneCue: input.decision.sceneCue,
+    delivery: input.decision.delivery,
     speaker: character,
     othersPresent: input.scene.characters
       .filter(
@@ -806,6 +808,7 @@ function sanitizeAudioCues(
 export function buildDirectiveChunk(input: {
   beat: string;
   sceneCue?: string;
+  delivery?: OrchestratorDelivery;
   speaker?: Pick<SceneCharacter, "motivations" | "behaviorTriggers" | "speakingStyle">;
   /** Display names of the OTHER present characters — when set, declares the
    *  multi-party transcript convention (name-prefixed lines) so the speaker
@@ -823,6 +826,22 @@ export function buildDirectiveChunk(input: {
     "Match your reply's shape to the direction - if it says to pause, land,",
     "concede, or act, end there; do not tack a question onto the end.",
   ];
+  if (input.delivery === "brief") {
+    lines.push(
+      "Delivery: brief. Land one sharp line or compact reaction, then yield the floor.",
+    );
+  } else if (input.delivery === "natural") {
+    lines.push(
+      "Delivery: natural. Take the space an ordinary spoken exchange needs; complete",
+      "the move without turning it into a speech.",
+    );
+  } else if (input.delivery === "expansive") {
+    lines.push(
+      "Delivery: expansive. The director is deliberately giving you the floor for a",
+      "story, explanation, confession, or revelation. Let it breathe, then stop when",
+      "the dramatic move has landed.",
+    );
+  }
   if (input.othersPresent?.length) {
     lines.push(
       `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
@@ -1042,6 +1061,22 @@ function buildOrchestratorSystemPrompt(
     "  - ask: \"Turn the question back on them - ask why they're really asking.\"",
     "Set `beat` on EVERY `speak`. Never script the words - that's the character's",
     "job; the `beat` is intent, not lines.",
+    "Set `delivery` on EVERY `speak`; you are the storyteller deciding how much",
+    "floor this dramatic move deserves:",
+    "  - `brief`: one sharp line or compact reaction - interruptions, quick",
+    "    answers, actions, concessions, and crisis beats that must keep moving.",
+    "  - `natural`: an ordinary conversational turn with enough room to complete",
+    "    the move, but no speech for its own sake. This is the usual choice.",
+    "  - `expansive`: deliberately yield the floor for a requested story or",
+    "    explanation, a confession, a major revelation, or a monologue the arc has",
+    "    earned. Use it because the moment needs breadth, never just atmosphere.",
+    "Length is dramatic pacing: honor an explicit request to tell or explain, and",
+    "keep fast exchanges brief. Do not encode wording or sentence counts in `beat`.",
+    "The visitor's explicit request is binding: words like 'briefly', 'simply',",
+    "'one line', or 'yes or no' REQUIRE `brief`; 'the full story', 'in detail',",
+    "'tell me everything', or a request for a sustained explanation REQUIRE",
+    "`expansive`. Use `natural` only when the visitor and the dramatic moment do",
+    "not clearly ask for either edge.",
     "",
     "Set `speakerId` to the character's slug from the roster below (NOT their name).",
     ...(narratorMode(scene) !== "off"

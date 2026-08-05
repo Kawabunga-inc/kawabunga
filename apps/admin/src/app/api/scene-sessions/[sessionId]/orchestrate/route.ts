@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSceneSessionStore } from "@kawabunga/db";
-import { type OrchestratorDecision, type SceneState } from "@kawabunga/types";
+import {
+  SESSION_COST_EVENT_TYPE,
+  type OrchestratorDecision,
+  type SceneState,
+} from "@kawabunga/types";
+import { buildLlmSessionCostEntry } from "@kawabunga/voice-pipeline";
 import {
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
@@ -250,6 +255,7 @@ export async function POST(
     });
   }
   const executor = executorResolution.executor;
+  const costOperationId = `director:${crypto.randomUUID()}`;
   trace.mark("orchestrate.provider.resolved", {
     provider: executor.provider,
     model: executor.model,
@@ -261,8 +267,25 @@ export async function POST(
       model: executor.model,
     });
     const llmStartedAt = Date.now();
-    const rawDecision = await executor.execute(decisionRequest);
+    let usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number } | null = null;
+    const rawDecision = await executor.execute(decisionRequest, {
+      onUsage: (value) => { usage = value; },
+    });
     const llmLatencyMs = Date.now() - llmStartedAt;
+    if (usage) {
+      await store.appendEvent({
+        sessionId,
+        type: SESSION_COST_EVENT_TYPE,
+        source: "billing",
+        payload: buildLlmSessionCostEntry({
+          operationId: costOperationId,
+          category: "director_llm",
+          provider: executor.provider,
+          model: executor.model,
+          usage,
+        }),
+      }).catch((costErr) => console.error("[orchestrate] cost append failed", costErr));
+    }
     trace.mark("orchestrate.llm.done", {
       provider: executor.provider,
       model: executor.model,
@@ -286,6 +309,21 @@ export async function POST(
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    await store.appendEvent({
+      sessionId,
+      type: SESSION_COST_EVENT_TYPE,
+      source: "billing",
+      payload: buildLlmSessionCostEntry({
+        operationId: costOperationId,
+        category: "director_llm",
+        provider: executor.provider,
+        model: executor.model,
+        status: "failed",
+        usage: {},
+        usageKnown: false,
+        note: message,
+      }),
+    }).catch((costErr) => console.error("[orchestrate] cost append failed", costErr));
     trace.mark("orchestrate.error", {
       provider: executor.provider,
       model: executor.model,

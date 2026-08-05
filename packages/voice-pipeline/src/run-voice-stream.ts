@@ -20,6 +20,7 @@ import {
   type VoiceForRouting,
 } from "@kawabunga/engine";
 import { curate, type Scene as CuratorScene, type SemanticSeed } from "@kawabunga/wiki-curator";
+import { SESSION_COST_EVENT_TYPE, type SessionCostEntry } from "@kawabunga/types";
 import { TraceEnvelope } from "./voice-trace";
 import { VOICE_STREAM_SSE_EVENT_NAMES } from "./voice-stream-events";
 import { buildVoicePromptPlan } from "@kawabunga/orchestration/server";
@@ -50,7 +51,13 @@ import {
   stripReasoningPreamble,
 } from "./refusal-guard";
 import { createEmbeddingSignedUrl } from "./voice-embedding-url";
-import { estimateSessionTurnCost } from "./session-cost";
+import {
+  buildLlmSessionCostEntry,
+  buildEmbeddingSessionCostEntry,
+  buildTtsSessionCostEntry,
+  estimateSessionTurnCost,
+  resolveTtsModelId,
+} from "./session-cost";
 import { createEventQueue } from "./event-queue";
 
 export type VoiceStreamEventName = (typeof VOICE_STREAM_SSE_EVENT_NAMES)[keyof typeof VOICE_STREAM_SSE_EVENT_NAMES];
@@ -440,7 +447,55 @@ export async function* runVoiceStream(
 
     const startedAt = performance.now();
     const startedAtWall = Date.now();
+    const costOperationRoot = input.turnId ?? crypto.randomUUID();
+    const recordCost = async (entry: SessionCostEntry): Promise<void> => {
+      if (!input.sessionId) return;
+      try {
+        await Promise.resolve(getSceneSessionStore().appendEvent({
+          sessionId: input.sessionId,
+          turnId: input.turnId ?? null,
+          type: SESSION_COST_EVENT_TYPE,
+          source: "billing",
+          payload: entry,
+        }));
+      } catch (error) {
+        console.error("[voice-stream] cost append failed", error);
+      }
+    };
     const serverTrace = new TraceEnvelope();
+    let embeddingAttempt = 0;
+    const embedWithLedger = async (text: string): Promise<number[] | null> => {
+      embeddingAttempt += 1;
+      const operationId = `${costOperationRoot}:embedding:${embeddingAttempt}`;
+      let usageRecorded = false;
+      try {
+        return await embedText(text, {
+          onUsage: ({ inputTokens, requests }) => {
+            usageRecorded = true;
+            void recordCost(buildEmbeddingSessionCostEntry({
+              operationId,
+              provider: "openai",
+              model: "text-embedding-3-small",
+              inputTokens,
+              requests,
+            }));
+          },
+        });
+      } catch (error) {
+        if (!usageRecorded) {
+          await recordCost(buildEmbeddingSessionCostEntry({
+            operationId,
+            provider: "openai",
+            model: "text-embedding-3-small",
+            inputTokens: 0,
+            status: "failed",
+            usageKnown: false,
+            note: error instanceof Error ? error.message : String(error),
+          }));
+        }
+        throw error;
+      }
+    };
     serverTrace.mark("server.request.received", {
       requestedProvider,
       chosenProvider: provider,
@@ -470,6 +525,65 @@ export async function* runVoiceStream(
     let cachedAckAudio: CachedVoiceAckAudio | null = null;
     let mainTokenGateOpen = true;
     const queuedMainTokenDeltas: string[] = [];
+    const ttsUsage = new Map<
+      string,
+      { provider: string; model: string | null; characters: number; audioSamples: number }
+    >();
+    let ttsCostPersisted = false;
+    let turnTerminalPersisted = false;
+    const finalizeNonCompletedTurn = async (
+      status: "aborted" | "failed",
+      note?: string,
+    ): Promise<void> => {
+      if (turnTerminalPersisted || !input.sessionId || !input.turnId) return;
+      try {
+        await getSceneSessionStore().upsertTurn({
+          id: input.turnId,
+          sessionId: input.sessionId,
+          inputMode: "voice",
+          speakerSlug: character.slug,
+          userText: message,
+          ...(replyText ? { assistantText: replyText } : {}),
+          provider,
+          model: modelId,
+          status,
+          startedAt: new Date(startedAtWall).toISOString(),
+          completedAt: new Date().toISOString(),
+          trace: serverTrace.toJSON(),
+          metadata: {
+            source: "character-sandbox",
+            ...(note ? { terminalReason: note } : {}),
+          },
+        });
+        turnTerminalPersisted = true;
+      } catch (turnErr) {
+        console.error(`[voice-stream] upsertTurn (${status}) failed`, turnErr);
+      }
+    };
+    const persistTtsCosts = async (
+      status: "succeeded" | "failed" | "cancelled" = "succeeded",
+      note?: string,
+    ): Promise<void> => {
+      if (ttsCostPersisted) return;
+      ttsCostPersisted = true;
+      await Promise.all(
+        [...ttsUsage.values()].map((usage, index) =>
+          recordCost(
+            buildTtsSessionCostEntry({
+              operationId: `${costOperationRoot}:tts:${usage.provider}:${usage.model ?? "default"}:${index}`,
+              provider: usage.provider,
+              model: usage.model,
+              characters: usage.characters,
+              audioDurationMs: Math.round(
+                (usage.audioSamples / POCKET_TTS_SAMPLE_RATE) * 1000,
+              ),
+              status,
+              note,
+            }),
+          ),
+        ),
+      );
+    };
 
     const emitMainTokenDelta = (delta: string) => {
       if (!mainTokenGateOpen) {
@@ -675,10 +789,10 @@ export async function* runVoiceStream(
                   message: bgeErr instanceof Error ? bgeErr.message : String(bgeErr),
                 });
                 usedBge = false;
-                queryEmbedding = await embedText(embedQuery);
+                queryEmbedding = await embedWithLedger(embedQuery);
               }
             } else {
-              queryEmbedding = await embedText(embedQuery);
+              queryEmbedding = await embedWithLedger(embedQuery);
             }
             // Split the retrieval span: embed (Move 01's target) vs search.
             serverTrace.mark("server.retrieval.embedded", {
@@ -1015,6 +1129,19 @@ export async function* runVoiceStream(
           attempt: "primary" | "fallback",
         ) => {
           let openedTraced = false;
+          let attemptSamples = 0;
+          const model = resolveTtsModelId(
+            routing.provider,
+            routing.voiceContext.providerConfig,
+          );
+          const key = `${routing.provider}:${model ?? "default"}`;
+          const previous = ttsUsage.get(key);
+          ttsUsage.set(key, {
+            provider: routing.provider,
+            model,
+            characters: (previous?.characters ?? 0) + chunkText.length,
+            audioSamples: previous?.audioSamples ?? 0,
+          });
           for await (const frame of routing.adapter.stream({
             text: chunkText,
             voice: routing.voiceContext,
@@ -1032,6 +1159,7 @@ export async function* runVoiceStream(
             }
             if (frame.type === "audio") {
               totalSamples += frame.samples;
+              attemptSamples += frame.samples;
               if (kind === "ack" && ackFirstAudioAt === null) {
                 ackFirstAudioAt = performance.now();
                 serverTrace.mark("server.ack.tts.first-audio", {
@@ -1072,6 +1200,15 @@ export async function* runVoiceStream(
             provider: routing.provider,
             attempt,
           });
+          if (!signal.aborted) {
+            const current = ttsUsage.get(key)!;
+            ttsUsage.set(key, {
+              provider: routing.provider,
+              model,
+              characters: current.characters,
+              audioSamples: current.audioSamples + attemptSamples,
+            });
+          }
         };
 
         try {
@@ -1363,6 +1500,15 @@ export async function* runVoiceStream(
               signal: AbortSignal.any([signal, attemptAbort.signal]),
               onToken,
             }));
+            await recordCost(
+              buildLlmSessionCostEntry({
+                operationId: `${costOperationRoot}:character_llm:${roll}:${attempt}`,
+                category: "character_llm",
+                provider,
+                model: modelId,
+                usage: { inputTokens, outputTokens },
+              }),
+            );
             chosenProvider = provider;
             serverTrace.mark("server.llm.succeeded", {
               provider,
@@ -1372,6 +1518,20 @@ export async function* runVoiceStream(
             });
             break;
           } catch (providerErr) {
+            await recordCost(
+              buildLlmSessionCostEntry({
+                operationId: `${costOperationRoot}:character_llm:${roll}:${attempt}`,
+                category: "character_llm",
+                provider,
+                model: modelId,
+                status: signal.aborted || attemptAbort.signal.aborted ? "cancelled" : "failed",
+                usage: {},
+                usageKnown: false,
+                note: providerErr instanceof Error ? providerErr.message : String(providerErr),
+              }),
+            ).catch((costErr) => {
+              console.error("[voice-stream] character cost append failed", costErr);
+            });
             // The guard aborted this roll on purpose — hand control to the
             // re-roll logic below instead of the failure path.
             if (rerollRequested && !signal.aborted) break;
@@ -1501,6 +1661,7 @@ export async function* runVoiceStream(
       // browser. Errors from any chunk surface here. On success, the
       // browser has already received every audio frame.
       await drainChain;
+      await persistTtsCosts();
       releaseMainTokenGate();
 
       serverTrace.mark("server.tts.done", {
@@ -1599,6 +1760,7 @@ export async function* runVoiceStream(
                 ackAudioCacheHit: Boolean(cachedAckAudio),
               },
             });
+            turnTerminalPersisted = true;
           } catch (turnErr) {
             console.error("[voice-stream] upsertTurn (complete) failed", turnErr);
           }
@@ -1661,6 +1823,8 @@ export async function* runVoiceStream(
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      await persistTtsCosts(signal.aborted ? "cancelled" : "failed", msg);
+      await finalizeNonCompletedTurn(signal.aborted ? "aborted" : "failed", msg);
       serverTrace.mark("server.error", { message: msg });
       if (input.sessionId) {
         await getSceneSessionStore().appendEvent({
@@ -1676,6 +1840,9 @@ export async function* runVoiceStream(
       }
       sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.error, { message: msg });
     } finally {
+      if (signal.aborted) {
+        await finalizeNonCompletedTurn("aborted", "request aborted");
+      }
       // Cancel any in-flight adapter.stream() reads — relevant when a
       // chunk's drain threw and later chunks are still mid-iteration.
       // On success this is a no-op since every chunk has already drained.

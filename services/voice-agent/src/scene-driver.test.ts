@@ -10,7 +10,12 @@ import type {
   SceneDecisionRequest,
   SceneSessionSnapshot,
 } from "@kawabunga/orchestration";
-import type { OrchestratorDecision, Scene, SfxCue } from "@kawabunga/types";
+import type {
+  OrchestratorDecision,
+  Scene,
+  SessionCostEntry,
+  SfxCue,
+} from "@kawabunga/types";
 
 // Kill the env-driven dramaturg BEFORE the driver module loads its flags —
 // tests that want reflection inject a fake provider via deps instead.
@@ -100,10 +105,15 @@ function fakeSpeak(replies: string[] | ((input: SceneSpeakInput) => string)) {
   return { speak, inputs };
 }
 
-const speakDecision = (speakerId: string, beat?: string): OrchestratorDecision => ({
+const speakDecision = (
+  speakerId: string,
+  beat?: string,
+  delivery?: OrchestratorDecision["delivery"],
+): OrchestratorDecision => ({
   action: "speak",
   speakerId,
   ...(beat ? { beat } : {}),
+  ...(delivery ? { delivery } : {}),
 });
 
 /** A ChatProvider whose `complete` returns fixed text — for the dramaturg
@@ -135,7 +145,10 @@ function lastDialogue(requests: SceneDecisionRequest[]): string {
 
 describe("SceneDriver — speaker turns", () => {
   it("routes a speak decision to the chosen character and records the reply", async () => {
-    const exec = fakeExecutor([speakDecision("sarah", "Deny the laugh"), speakDecision("abraham")]);
+    const exec = fakeExecutor([
+      speakDecision("sarah", "Deny the laugh", "brief"),
+      speakDecision("abraham"),
+    ]);
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
@@ -149,6 +162,7 @@ describe("SceneDriver — speaker turns", () => {
     expect(inputs[0]!.speaker).toEqual({ slug: "sarah", name: "Sarah" });
     expect(inputs[0]!.message).toBe("Sarah, did you laugh?");
     expect(inputs[0]!.promptChunk).toContain("Direction: Deny the laugh");
+    expect(inputs[0]!.promptChunk).toContain("Delivery: brief");
 
     // The reply is in the transcript the NEXT decision sees.
     await driver.drive("And what do you say, Abraham?", speak);
@@ -512,8 +526,8 @@ describe("SceneDriver — speculation", () => {
     });
     const { speak } = fakeSpeak(["I heard no laugh."]);
 
-    driver.speculate("Sarah, did you laugh at the");
-    await driver.drive("Sarah, did you laugh at the promise?", speak);
+    driver.speculate("Sarah, did you laugh at the promise today");
+    await driver.drive("Sarah, did you laugh at the promise today?", speak);
     expect(exec.calls).toBe(1); // the speculative call was reused
   });
 
@@ -525,7 +539,7 @@ describe("SceneDriver — speculation", () => {
     });
     const { speak, inputs } = fakeSpeak(["Welcome, traveler."]);
 
-    driver.speculate("Sarah, did you");
+    driver.speculate("Sarah, did you laugh at the promise today");
     await driver.drive("Abraham, tell me of the strangers.", speak);
     expect(exec.calls).toBe(2); // speculative + fresh final call
     expect(inputs[0]!.characterId).toBe("id-abraham");
@@ -565,8 +579,8 @@ describe("SceneDriver — solo scenes", () => {
     });
     const { speak, inputs } = fakeSpeak(["Doubt? Yes... I know doubt."]);
 
-    driver.speculate("Do you ever doubt the promise");
-    await driver.drive("Do you ever doubt the promise you were given?", speak);
+    driver.speculate("Do you ever truly doubt the promise you received");
+    await driver.drive("Do you ever truly doubt the promise you received?", speak);
     expect(exec.calls).toBe(1);
     expect(inputs[0]!.promptChunk).toContain("Direction: Let the doubt show");
   });
@@ -579,8 +593,8 @@ describe("SceneDriver — solo scenes", () => {
     });
     const { speak, inputs } = fakeSpeak(["unused"]);
 
-    driver.speculate("Farewell, Abraham, I must go now");
-    const outcome = await driver.drive("Farewell, Abraham, I must go now.", speak);
+    driver.speculate("Farewell, Abraham, I truly must leave this place now");
+    const outcome = await driver.drive("Farewell, Abraham, I truly must leave this place now.", speak);
     expect(outcome.action).toBe("end-scene");
     expect(inputs).toHaveLength(0);
   });
@@ -601,7 +615,7 @@ describe("SceneDriver — proactive turns", () => {
   });
 
   it("voices a proactive follow-up with the silence framing", async () => {
-    const exec = fakeExecutor([speakDecision("abraham", "Re-engage gently")]);
+    const exec = fakeExecutor([speakDecision("abraham", "Re-engage gently", "expansive")]);
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
@@ -612,6 +626,7 @@ describe("SceneDriver — proactive turns", () => {
     expect(spoke).toBe(true);
     expect(inputs[0]!.message).toBe("(The user has gone quiet.)");
     expect(inputs[0]!.promptChunk).toContain("Direction: Re-engage gently");
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
   });
 
   it("holds instead of echoing refusal boilerplate", async () => {
@@ -737,6 +752,38 @@ describe("SceneDriver — degraded-decision recovery", () => {
   });
 });
 
+describe("SceneDriver — cost ledger", () => {
+  it("emits the director usage returned by the provider", async () => {
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: () => ({
+        executor: {
+          provider: "cerebras",
+          model: "gpt-oss-120b",
+          execute: async (_request, opts) => {
+            opts?.onUsage?.({ inputTokens: 1_000, outputTokens: 100, cacheReadTokens: 0 });
+            return speakDecision("abraham");
+          },
+        },
+      }),
+      resolveCharacter: fakeCharacters(),
+    });
+    const costs: SessionCostEntry[] = [];
+    driver.onCost((entry) => costs.push(entry));
+
+    await driver.drive("Hello?", fakeSpeak(["Welcome."]).speak);
+
+    expect(costs).toHaveLength(1);
+    expect(costs[0]).toMatchObject({
+      category: "director_llm",
+      provider: "cerebras",
+      model: "gpt-oss-120b",
+      status: "succeeded",
+      usage: { inputTokens: 1_000, outputTokens: 100 },
+    });
+    expect(costs[0]!.amountUsd).toBeGreaterThan(0);
+  });
+});
+
 describe("SceneDriver — speculation cancellation", () => {
   /** Executor that records each call's abort signal and never resolves until released. */
   const signalRecordingExecutor = (decision: OrchestratorDecision) => {
@@ -756,18 +803,18 @@ describe("SceneDriver — speculation cancellation", () => {
     };
   };
 
-  it("aborts the in-flight speculation when a longer partial supersedes it", async () => {
+  it("issues at most one speculative director call per user turn", async () => {
     const exec = signalRecordingExecutor(speakDecision("abraham"));
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
     });
 
-    driver.speculate("Sarah, did you laugh");
+    driver.speculate("Sarah, did you laugh"); // not enough words yet
     driver.speculate("Sarah, did you laugh at the promise of a son");
-    expect(exec.signals).toHaveLength(2);
-    expect(exec.signals[0]?.aborted).toBe(true);
-    expect(exec.signals[1]?.aborted).toBe(false);
+    driver.speculate("Sarah, did you laugh at the promise of a son today");
+    expect(exec.signals).toHaveLength(1);
+    expect(exec.signals[0]?.aborted).toBe(false);
   });
 
   it("aborts a stale speculation on a MISS", async () => {
@@ -778,7 +825,7 @@ describe("SceneDriver — speculation cancellation", () => {
     });
     const { speak } = fakeSpeak(["Welcome."]);
 
-    driver.speculate("Sarah, did you");
+    driver.speculate("Sarah, did you laugh at the promise today");
     await driver.drive("Abraham, tell me of the strangers.", speak);
     expect(exec.signals[0]?.aborted).toBe(true);
   });
@@ -832,6 +879,7 @@ describe("SceneDriver — dramaturg", () => {
     await driver.drive("Sarah, I heard you laugh.", speak); // 2nd spoken turn → reflect
     await driver.settleReflection();
     expect(reflections).toHaveLength(1);
+    expect(reflections[0]?.maxTokens).toBe(2_400);
 
     await driver.drive("Abraham, do you believe her?", speak);
     const system = exec.requests[exec.requests.length - 1]!.messages[0]!.content;
@@ -1013,6 +1061,27 @@ describe("SceneDriver — the scene's first move", () => {
 });
 
 describe("SceneDriver — momentum cascades", () => {
+  it("stops before the next momentum operation when the host cancels active work", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "Act now"), momentum: true },
+      { ...speakDecision("sarah", "This must never run"), momentum: true },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const inputs: string[] = [];
+    const outcome = await driver.drive("The visitor leaves.", async (input) => {
+      inputs.push(input.speaker.slug);
+      driver.cancelActiveWork();
+      return "The first line began.";
+    });
+
+    expect(outcome.superseded).toBe(true);
+    expect(inputs).toEqual(["abraham"]);
+    expect(exec.calls).toBe(1);
+  });
+
   it("keeps advancing while decisions carry momentum, then stops when it clears", async () => {
     const exec = fakeExecutor([
       { ...speakDecision("abraham", "Dying words"), momentum: true },
@@ -1078,8 +1147,8 @@ describe("SceneDriver — momentum cascades", () => {
 
 describe("resolveDramaturgModel", () => {
   it("keeps the default when unset", () => {
-    expect(resolveDramaturgModel(undefined)).toBe("claude-sonnet-4-5");
-    expect(resolveDramaturgModel("  ")).toBe("claude-sonnet-4-5");
+    expect(resolveDramaturgModel(undefined)).toBe("gpt-oss-120b");
+    expect(resolveDramaturgModel("  ")).toBe("gpt-oss-120b");
   });
 
   it("accepts a registry model id", () => {
@@ -1089,7 +1158,7 @@ describe("resolveDramaturgModel", () => {
   it("falls back to the default on an unknown id, with a warning", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      expect(resolveDramaturgModel("claude-sonnet-4-5-typo")).toBe("claude-sonnet-4-5");
+      expect(resolveDramaturgModel("claude-sonnet-4-5-typo")).toBe("gpt-oss-120b");
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('"claude-sonnet-4-5-typo" is not in the model registry'),
       );

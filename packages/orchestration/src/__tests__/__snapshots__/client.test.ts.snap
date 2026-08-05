@@ -20,6 +20,22 @@ turn to turn - a scene where every line ends in a question is dead. Moves:
   - ask: "Turn the question back on them - ask why they're really asking."
 Set \`beat\` on EVERY \`speak\`. Never script the words - that's the character's
 job; the \`beat\` is intent, not lines.
+Set \`delivery\` on EVERY \`speak\`; you are the storyteller deciding how much
+floor this dramatic move deserves:
+  - \`brief\`: one sharp line or compact reaction - interruptions, quick
+    answers, actions, concessions, and crisis beats that must keep moving.
+  - \`natural\`: an ordinary conversational turn with enough room to complete
+    the move, but no speech for its own sake. This is the usual choice.
+  - \`expansive\`: deliberately yield the floor for a requested story or
+    explanation, a confession, a major revelation, or a monologue the arc has
+    earned. Use it because the moment needs breadth, never just atmosphere.
+Length is dramatic pacing: honor an explicit request to tell or explain, and
+keep fast exchanges brief. Do not encode wording or sentence counts in \`beat\`.
+The visitor's explicit request is binding: words like 'briefly', 'simply',
+'one line', or 'yes or no' REQUIRE \`brief\`; 'the full story', 'in detail',
+'tell me everything', or a request for a sustained explanation REQUIRE
+\`expansive\`. Use \`natural\` only when the visitor and the dramatic moment do
+not clearly ask for either edge.
 
 Set \`speakerId\` to the character's slug from the roster below (NOT their name).
 

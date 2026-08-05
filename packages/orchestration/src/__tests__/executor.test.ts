@@ -23,9 +23,9 @@ function decisionRequest() {
   });
 }
 
-function okResponse(decision: unknown): Response {
+function okResponse(decision: unknown, usage?: { prompt_tokens: number; completion_tokens: number }): Response {
   return new Response(
-    JSON.stringify({ choices: [{ message: { content: JSON.stringify(decision) } }] }),
+    JSON.stringify({ choices: [{ message: { content: JSON.stringify(decision) } }], usage }),
     { status: 200 },
   );
 }
@@ -51,6 +51,21 @@ describe("orchestrator executor", () => {
     // The hung-provider timeout is always armed, so fetch always gets a signal.
     expect(seenSignal).toBeInstanceOf(AbortSignal);
     expect(seenSignal!.aborted).toBe(false);
+  });
+
+  it("reports director token usage from the provider response", async () => {
+    let usage: unknown;
+    const { executor } = resolveOrchestratorExecutor({
+      provider: "cerebras",
+      cerebrasApiKey: "test-key",
+      fetchImpl: async () =>
+        okResponse(
+          { action: "speak", speakerId: "ada" },
+          { prompt_tokens: 420, completion_tokens: 36 },
+        ),
+    });
+    await executor!.execute(decisionRequest(), { onUsage: (value) => { usage = value; } });
+    expect(usage).toEqual({ inputTokens: 420, outputTokens: 36, cacheReadTokens: 0 });
   });
 
   it("aborts a hung provider call via ORCHESTRATOR_TIMEOUT_MS", async () => {

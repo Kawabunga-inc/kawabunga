@@ -14,7 +14,9 @@
  */
 
 import { getDb, sceneSessionEventsTable } from "@kawabunga/db";
+import { SESSION_COST_EVENT_TYPE } from "@kawabunga/types";
 import { and, desc, eq } from "drizzle-orm";
+import { buildLlmSessionCostEntry, type SessionTokenUsage } from "./session-cost";
 
 const VOICE_SUMMARY_EVENT_TYPE = "voice.summary";
 
@@ -141,30 +143,82 @@ export function summarizeTurnInBackground(args: {
   // detached. Errors are swallowed (logged) — a failed summary doesn't
   // break the next turn, it just means the next turn lacks one bullet.
   void (async () => {
+    const operationId = `memory:${turnId ?? crypto.randomUUID()}:llm`;
+    let result: CerebrasSummaryResult | null = null;
     try {
-      const summary = await callCerebrasSummary({
+      result = await callCerebrasSummary({
         cerebrasApiKey,
         cerebrasModel,
         characterTitle,
         userMessage: userTrimmed,
         agentReply: replyTrimmed,
       });
-      if (!summary) return;
       // Lazy-import the store to avoid pulling drizzle into the request hot
       // path; this background task can afford the cost.
       const { getSceneSessionStore } = await import("@kawabunga/db");
-      await getSceneSessionStore().appendEvent({
+      const store = getSceneSessionStore();
+      await store.appendEvent({
         sessionId,
         turnId: turnId ?? null,
-        type: VOICE_SUMMARY_EVENT_TYPE,
-        source: "system",
-        payload: { summary, userChars: userTrimmed.length, replyChars: replyTrimmed.length },
+        type: SESSION_COST_EVENT_TYPE,
+        source: "billing",
+        payload: buildLlmSessionCostEntry({
+          operationId,
+          category: "memory_llm",
+          provider: "cerebras",
+          model: cerebrasModel,
+          usage: result.usage,
+          note: "Background conversation-memory summary.",
+        }),
       });
+      if (result.summary) {
+        await store.appendEvent({
+          sessionId,
+          turnId: turnId ?? null,
+          type: VOICE_SUMMARY_EVENT_TYPE,
+          source: "system",
+          payload: {
+            summary: result.summary,
+            userChars: userTrimmed.length,
+            replyChars: replyTrimmed.length,
+          },
+        }).catch((error) => {
+          console.error("[voice-context] background summary persist failed", error);
+        });
+      }
     } catch (error) {
       console.error("[voice-context] background summary failed", error);
+      try {
+        const { getSceneSessionStore } = await import("@kawabunga/db");
+        await getSceneSessionStore().appendEvent({
+          sessionId,
+          turnId: turnId ?? null,
+          type: SESSION_COST_EVENT_TYPE,
+          source: "billing",
+          payload: buildLlmSessionCostEntry({
+            operationId,
+            category: "memory_llm",
+            provider: "cerebras",
+            model: cerebrasModel,
+            status: result ? "succeeded" : "failed",
+            usage: result?.usage ?? {},
+            usageKnown: Boolean(result),
+            note: result
+              ? "Background memory cost record retried after a persistence failure."
+              : `Background memory request failed: ${(error as Error).message}`,
+          }),
+        });
+      } catch (persistError) {
+        console.error("[voice-context] background summary cost persist failed", persistError);
+      }
     }
   })();
 }
+
+type CerebrasSummaryResult = {
+  summary: string | null;
+  usage: SessionTokenUsage;
+};
 
 async function callCerebrasSummary(args: {
   cerebrasApiKey: string;
@@ -172,7 +226,7 @@ async function callCerebrasSummary(args: {
   characterTitle: string;
   userMessage: string;
   agentReply: string;
-}): Promise<string | null> {
+}): Promise<CerebrasSummaryResult> {
   const systemPrompt =
     "You write one-sentence conversation memos so a voice agent can remember " +
     "what was just said. Output a single sentence, ≤30 words, third-person, " +
@@ -199,13 +253,23 @@ async function callCerebrasSummary(args: {
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
     console.error(`[voice-context] summarizer Cerebras ${resp.status}: ${text.slice(0, 200)}`);
-    return null;
+    throw new Error(`Cerebras summarizer returned ${resp.status}`);
   }
   const json = (await resp.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
   };
   const summary = json.choices?.[0]?.message?.content?.trim();
-  if (!summary) return null;
+  const usage: SessionTokenUsage = {
+    inputTokens: json.usage?.prompt_tokens,
+    outputTokens: json.usage?.completion_tokens,
+    cacheReadTokens: json.usage?.prompt_tokens_details?.cached_tokens,
+  };
+  if (!summary) return { summary: null, usage };
   // Strip any wrapping quotes or trailing periods that hurt the next prompt's flow.
-  return summary.replace(/^["']|["']$/g, "").trim();
+  return { summary: summary.replace(/^["']|["']$/g, "").trim(), usage };
 }

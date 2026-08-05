@@ -7,6 +7,8 @@ import {
   buildSceneSessionSnapshot,
   createInitialSceneState,
 } from "@kawabunga/orchestration/client";
+import { resolveLiveSceneAgentName } from "@kawabunga/types";
+import { RoomAgentDispatch, RoomConfiguration } from "@livekit/protocol";
 import { AccessToken, TrackSource } from "livekit-server-sdk";
 import { authorizeSceneJoin, authorizeSceneTranscript } from "../lib/scene-player-access";
 import { sceneTurnsToTranscript } from "../lib/scene-story";
@@ -109,6 +111,18 @@ export async function joinLiveScene(input: {
     canPublishSources: [TrackSource.MICROPHONE],
     canPublishData: false,
     canSubscribe: true,
+  });
+  accessToken.roomConfig = new RoomConfiguration({
+    agents: [
+      new RoomAgentDispatch({
+        agentName: resolveLiveSceneAgentName(process.env.LIVEKIT_AGENT_NAME),
+        metadata: JSON.stringify({
+          sceneId: input.sceneId,
+          sessionId: input.sessionId,
+          journalVersion: 1,
+        }),
+      }),
+    ],
   });
 
   return { status: 200, body: { url, token: await accessToken.toJwt() } };
