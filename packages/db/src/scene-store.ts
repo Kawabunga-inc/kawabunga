@@ -135,6 +135,20 @@ export function selectDefaultAmbienceTrackId(
   return trackId || fallback || null;
 }
 
+/** Lift the optional experience dials from the nullable DB definition into
+ * the omit-when-default runtime Scene shape. Accessors in orchestration apply
+ * the legacy defaults when a field is absent. */
+export function resolveSceneExperienceFields(
+  definition: SceneDefinition,
+): Pick<Scene, "initiative" | "userRole" | "userCharacter" | "userDirector"> {
+  return {
+    ...(definition.initiative ? { initiative: definition.initiative } : {}),
+    ...(definition.userRole ? { userRole: definition.userRole } : {}),
+    ...(definition.userCharacter ? { userCharacter: definition.userCharacter } : {}),
+    ...(definition.userDirector !== null ? { userDirector: definition.userDirector } : {}),
+  };
+}
+
 /**
  * Lift the authored-intention fields off a character node's `data` jsonb
  * (validated at write time by characterDataSchema, but guarded here since
@@ -510,6 +524,7 @@ function neonStore(): SceneStore {
         ...(effectiveSounds.length > 0 ? { sounds: effectiveSounds } : {}),
         ...(objective ? { objective } : {}),
         ...(drive ? { drive } : {}),
+        ...resolveSceneExperienceFields(record.definition),
         ...(openingNarration ? { openingNarration } : {}),
         ...(openingNarrationVariants.length ? { openingNarrationVariants } : {}),
         ...(openingMode ? { openingMode } : {}),

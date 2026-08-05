@@ -33,7 +33,13 @@ import { GameTab } from "@/components/scene-tabs/game-tab";
 import { NarratorTab } from "@/components/scene-tabs/narrator-tab";
 import { OverviewTab } from "@/components/scene-tabs/overview-tab";
 import { relativeTime, splitVariants } from "@/components/scene-tabs/shared";
-import type { SceneTab } from "@/components/scene-tabs/types";
+import {
+  serializeSceneExperienceDials,
+  type SceneInitiative,
+  type SceneTab,
+  type SceneUserCharacter,
+  type SceneUserRole,
+} from "@/components/scene-tabs/types";
 import { useLiveSessionDetail } from "@/components/use-live-session-detail";
 import {
   buildSceneOnAirPresentation,
@@ -53,6 +59,10 @@ type SceneEditorProps = {
     narratorVoiceId: string | null;
     objective: string | null;
     drive: "gentle" | "balanced" | "insistent" | null;
+    initiative: SceneInitiative | null;
+    userRole: SceneUserRole | null;
+    userCharacter: SceneUserCharacter | null;
+    userDirector: boolean | null;
     openingNarration: string | null;
     openingNarrationVariants: string[] | null;
     openingMode: "authored" | "generated" | "off" | null;
@@ -183,6 +193,12 @@ function SceneEditorContent({
   const [drive, setDrive] = useState<"gentle" | "balanced" | "insistent">(
     scene.drive ?? "balanced",
   );
+  const [initiative, setInitiative] = useState<SceneInitiative>(scene.initiative ?? "user");
+  const [userRole, setUserRole] = useState<SceneUserRole>(scene.userRole ?? "visitor");
+  const [userCharacter, setUserCharacter] = useState<SceneUserCharacter>(
+    scene.userCharacter ?? { name: "", blurb: "", relationship: "" },
+  );
+  const [userDirector, setUserDirector] = useState(scene.userDirector ?? true);
   const [stage, setStage] = useState<StageConfig | null>(scene.stage);
   const [graphNodes, setGraphNodes] = useState(graph.nodes);
 
@@ -235,6 +251,12 @@ function SceneEditorContent({
         narratorVoiceId,
         objective: objective.trim() || null,
         drive: drive === "balanced" ? null : drive,
+        ...serializeSceneExperienceDials({
+          initiative,
+          userRole,
+          userCharacter,
+          userDirector,
+        }),
         openingNarration: openingNarration.trim() || null,
         narrator: narrator === "minimal" ? null : narrator,
         openingNarrationVariants: splitVariants(openingVariants),
@@ -250,6 +272,10 @@ function SceneEditorContent({
     openingBeat,
     objective,
     drive,
+    initiative,
+    userRole,
+    userCharacter,
+    userDirector,
     openingNarration,
     narrator,
     openingVariants,
@@ -275,6 +301,10 @@ function SceneEditorContent({
     narratorVoiceId,
     objective,
     drive,
+    initiative,
+    userRole,
+    userCharacter,
+    userDirector,
     openingNarration,
     narrator,
     openingVariants,
@@ -573,10 +603,26 @@ function SceneEditorContent({
             sceneId={scene.id}
             pending={pending}
             graphNodes={graphNodes}
-            scene={{ objective, drive }}
+            scene={{
+              objective,
+              drive,
+              initiative,
+              narrator,
+              userDirector,
+              userRole,
+              userCharacter,
+            }}
             selectedNodeId={selectedNodeId}
             onSelect={setSelectedNodeId}
-            onSceneChange={{ setObjective, setDrive }}
+            onSceneChange={{
+              setObjective,
+              setDrive,
+              setInitiative,
+              setNarrator,
+              setUserDirector,
+              setUserRole,
+              setUserCharacter,
+            }}
             onAddEvent={addEvent}
             onRemoveNode={removeNode}
             onNodeSaved={updateLocalNode}

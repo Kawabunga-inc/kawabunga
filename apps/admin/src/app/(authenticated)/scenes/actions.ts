@@ -47,6 +47,17 @@ export async function updateSceneConfig(
     objective?: string | null;
     /** How hard the director presses toward goals. null = balanced. */
     drive?: "gentle" | "balanced" | "insistent" | null;
+    /** Who originates beats between visitor turns. null = user-paced. */
+    initiative?: "user" | "shared" | "narrator" | null;
+    /** Whether the visitor enters as themselves or an authored role. */
+    userRole?: "visitor" | "character" | null;
+    userCharacter?: {
+      name: string;
+      blurb: string;
+      relationship?: string;
+    } | null;
+    /** Whether narrator-addressed world declarations have director authority. */
+    userDirector?: boolean | null;
     /** The unseen narrator's authored opening lines, played on entry. */
     openingNarration?: string | null;
     /** Narrator presence. null = minimal (the default). */
@@ -68,6 +79,10 @@ export async function updateSceneConfig(
     narratorVoiceId,
     objective,
     drive,
+    initiative,
+    userRole,
+    userCharacter,
+    userDirector,
     openingNarration,
     narrator,
     openingNarrationVariants,
@@ -81,6 +96,10 @@ export async function updateSceneConfig(
   if (narratorVoiceId !== undefined) definitionPatch.narratorVoiceId = narratorVoiceId;
   if (objective !== undefined) definitionPatch.objective = objective;
   if (drive !== undefined) definitionPatch.drive = drive;
+  if (initiative !== undefined) definitionPatch.initiative = initiative;
+  if (userRole !== undefined) definitionPatch.userRole = userRole;
+  if (userCharacter !== undefined) definitionPatch.userCharacter = userCharacter;
+  if (userDirector !== undefined) definitionPatch.userDirector = userDirector;
   if (openingNarration !== undefined) definitionPatch.openingNarration = openingNarration;
   if (narrator !== undefined) definitionPatch.narrator = narrator;
   if (openingNarrationVariants !== undefined) {

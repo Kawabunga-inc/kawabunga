@@ -154,6 +154,21 @@ export function narratorMode(scene: Scene): "off" | "minimal" | "scenic" {
   return scene.narrator ?? "minimal";
 }
 
+/** Who originates beats between visitor turns. Legacy scenes are user-paced. */
+export function initiativeMode(scene: Scene): "user" | "shared" | "narrator" {
+  return scene.initiative ?? "user";
+}
+
+/** Whether the visitor is themselves or plays an authored role. */
+export function userRoleFor(scene: Scene): "visitor" | "character" {
+  return scene.userRole ?? "visitor";
+}
+
+/** Whether narrator-addressed declarations may author world events. */
+export function userDirectorEnabled(scene: Scene): boolean {
+  return scene.userDirector !== false;
+}
+
 /**
  * How this scene opens. Explicit `openingMode` wins; otherwise a scene with
  * authored lines opens `authored`, and one without opens `off` — so scenes
@@ -744,6 +759,10 @@ export function buildSpeakerTurnRequest(input: {
       )
       .map((c) => c.displayName),
     narratorPresent: narratorMode(input.scene) !== "off",
+    visitorRole:
+      userRoleFor(input.scene) === "character"
+        ? input.scene.userCharacter?.name.trim() || undefined
+        : undefined,
   });
 
   return {
@@ -817,6 +836,8 @@ export function buildDirectiveChunk(input: {
   /** When true, declares the stage-direction convention: bracketed lines are
    *  events in the world (narration), reacted to but never answered. */
   narratorPresent?: boolean;
+  /** Authored name of the role the visitor plays, when this is roleplay. */
+  visitorRole?: string;
 }): string {
   const lines = [
     `Direction: ${input.beat}`,
@@ -843,22 +864,42 @@ export function buildDirectiveChunk(input: {
     );
   }
   if (input.othersPresent?.length) {
-    lines.push(
-      `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
-      'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
-      "speaking; unmarked lines are the visitor you are all speaking with. Speak",
-      "only as yourself - never write the others' lines.",
-    );
+    if (input.visitorRole) {
+      lines.push(
+        `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
+        'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
+        `speaking; unmarked lines are ${input.visitorRole}, the role the visitor plays. Speak`,
+        "only as yourself - never write the others' lines.",
+      );
+    } else {
+      lines.push(
+        `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
+        'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
+      );
+    }
   }
   if (input.narratorPresent) {
-    lines.push(
-      "A line in [brackets] is something HAPPENING around you - the world",
-      "itself, not anyone speaking. React to it as an event; never answer it",
-      'as if it were words. In bracketed lines, "you"/"your" refers to THE',
-      "VISITOR - the narration speaks to them, not to you. If a bracketed",
-      "line says the visitor did something, the visitor did it - attribute",
-      "the act to them, not to anyone else present.",
-    );
+    if (input.visitorRole) {
+      lines.push(
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        `as if it were words. In bracketed lines, "you"/"your" refers to ${input.visitorRole} -`,
+        "the narration speaks to them, not to you. If a bracketed line says",
+        `${input.visitorRole} did something, ${input.visitorRole} did it - attribute`,
+        "the act to them, not to anyone else present.",
+      );
+    } else {
+      lines.push(
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        'as if it were words. In bracketed lines, "you"/"your" refers to THE',
+        "VISITOR - the narration speaks to them, not to you. If a bracketed",
+        "line says the visitor did something, the visitor did it - attribute",
+        "the act to them, not to anyone else present.",
+      );
+    }
   }
   if (input.sceneCue) lines.push(`Scene note: ${input.sceneCue}`);
   if (input.speaker?.motivations) {
@@ -1090,6 +1131,14 @@ function buildOrchestratorSystemPrompt(
           "  something HAPPENING — a first- or third-person declared action, an",
           "  arrival, a blow, or a change coming over a character. An `event` gets",
           "  an immediate character reaction; an `answer` holds for the user.",
+          ...(!userDirectorEnabled(scene)
+            ? [
+                "- The visitor does NOT hold director powers. If they address you to",
+                "  declare a world event (\"Narrator, Sarah falls\"), do not render it:",
+                "  nothing happens by fiat. A character may react to what they SAID.",
+                "  Perception questions about what they see or hear still get answers.",
+              ]
+            : []),
           "- When the user addresses the narrator (\"narrator, ...\") or asks about",
           "  the space itself (what they see, hear, smell), answer with `narrate`.",
           "- When the user declares a first-person ACTION (\"I punch Abraham\", \"I",
@@ -1150,6 +1199,13 @@ function buildOrchestratorSystemPrompt(
           ...scene.characters
             .filter((c) => !state.presentCharacterSlugs.includes(c.characterSlug))
             .map((c) => `  - ${c.displayName} (${c.characterSlug})`),
+        ]
+      : []),
+    ...(userRoleFor(scene) === "character" && scene.userCharacter
+      ? [
+          "",
+          `THE VISITOR PLAYS A ROLE in this fiction: they are ${scene.userCharacter.name} — ${scene.userCharacter.blurb}${scene.userCharacter.relationship ? ` (${scene.userCharacter.relationship})` : ""}.`,
+          `Everything they say and do, they say and do AS ${scene.userCharacter.name}. Characters relate to ${scene.userCharacter.name}'s standing and claims within the fiction, not to a stranger.`,
         ]
       : []),
     "",
@@ -1260,14 +1316,35 @@ function buildOrchestratorSystemPrompt(
           "  conditions, don't force or announce it, and never skip ahead of the arc.",
         ]
       : []),
+    ...(initiativeMode(scene) === "narrator"
+      ? [
+          "- The world drives this scene. Between the visitor's turns, advance one",
+          "  beat at a time; do not wait to be spoken to. On proactive turns prefer",
+          "  a character acting or the world moving over holding, and use chronicle",
+          "  intents and timed events aggressively.",
+        ]
+      : initiativeMode(scene) === "shared"
+        ? [
+            "- Initiative is shared: advance whenever tension invites it. Momentum",
+            "  may carry rising tension, not only an immediate crisis.",
+          ]
+        : []),
     "- Use `action: \"wait-for-user\"` when the last turn already put something to the",
     "  user, or after 2-3 consecutive AI turns - give the user room to answer.",
     "- MOMENTUM: set `momentum: true` when the moment is UNRESOLVED and the",
     "  next beat must follow at once without the user - a blow just landed, a",
     "  death is unanswered, a hold is still held, a revelation mid-detonation.",
-    "  The runtime then gives you the next turn immediately. Momentum is for",
-    "  CRISIS, never conversation: in ordinary dialogue leave it null - a",
-    "  cascade of unprompted turns at a calm listener is a broken scene. The",
+    ...(initiativeMode(scene) === "shared"
+      ? [
+          "  The runtime then gives you the next turn immediately. In this shared-",
+          "  initiative scene, rising tension may carry momentum before it becomes",
+          "  crisis; calm conversation still yields the floor to the visitor. The",
+        ]
+      : [
+          "  The runtime then gives you the next turn immediately. Momentum is for",
+          "  CRISIS, never conversation: in ordinary dialogue leave it null - a",
+          "  cascade of unprompted turns at a calm listener is a broken scene. The",
+        ]),
     "  cascade ends when you emit a decision without momentum (or the user",
     "  speaks; they always take the floor instantly).",
     ...(narratorMode(scene) === "off"

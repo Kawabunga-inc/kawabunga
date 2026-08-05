@@ -141,6 +141,22 @@ export const sceneSchema = z.object({
   // How hard the director presses toward goals. Absent = balanced (the
   // current default behavior).
   drive: z.enum(["gentle", "balanced", "insistent"]).optional(),
+  // Who originates the next beat between the visitor's turns. Absent = user:
+  // the visitor paces the story and proactive ticks only fill silence.
+  initiative: z.enum(["user", "shared", "narrator"]).optional(),
+  // Who the visitor is in the fiction. Absent = a real visitor; character
+  // means they play the authored role described by userCharacter.
+  userRole: z.enum(["visitor", "character"]).optional(),
+  userCharacter: z
+    .object({
+      name: z.string(),
+      blurb: z.string(),
+      relationship: z.string().optional(),
+    })
+    .optional(),
+  // Whether narrator-addressed third-person declarations can author events.
+  // Absent = true, preserving the current behavior.
+  userDirector: z.boolean().optional(),
   // True when this is a character's canonical solo scene (auto-provisioned;
   // definition.soloCharacterId set) — the character-sandbox floor. The driver
   // uses it to preserve sandbox behaviors (e.g. no stale Direction line on
@@ -242,6 +258,17 @@ export const sceneDefinitionSchema = z.object({
   // Authored intention on the scene root (see sceneSchema.objective/drive).
   objective: z.string().nullable().default(null),
   drive: z.enum(["gentle", "balanced", "insistent"]).nullable().default(null),
+  initiative: z.enum(["user", "shared", "narrator"]).nullable().default(null),
+  userRole: z.enum(["visitor", "character"]).nullable().default(null),
+  userCharacter: z
+    .object({
+      name: z.string(),
+      blurb: z.string(),
+      relationship: z.string().optional(),
+    })
+    .nullable()
+    .default(null),
+  userDirector: z.boolean().nullable().default(null),
   // Overhead-canvas stage settings (ground color, snap, saved viewport,
   // spawn point). Nullable default keeps pre-stage definitions parsing
   // unchanged; merge-patched via updateSceneConfig like everything else.

@@ -69,6 +69,29 @@ describe("buildDramaturgMessages", () => {
     expect(request.user).not.toContain("previous note");
     expect(request.user).toContain("(no dialogue yet)");
   });
+
+  it("writes forward under narrator initiative and attributes a played role", () => {
+    const configured: Scene = {
+      ...scene,
+      initiative: "narrator",
+      userRole: "character",
+      userCharacter: {
+        name: "Miriam",
+        blurb: "A royal archivist carrying a sealed decree.",
+        relationship: "Ada's former patron",
+      },
+    };
+    const request = buildDramaturgMessages({
+      scene: configured,
+      sceneState: createInitialSceneState(configured),
+      recentTurns: [{ speakerSlug: "user", text: "I break the seal." }],
+    });
+    expect(request.system).toContain("FORWARD AUTHORSHIP IS REQUIRED");
+    expect(request.system).toContain("at least one INTENT with a near trigger");
+    expect(request.system).toContain("TIMED event within ~60-120s");
+    expect(request.user).toContain("Visitor role: Miriam — A royal archivist");
+    expect(request.user).toContain("Attribute the user's words and deeds to Miriam");
+  });
 });
 
 describe("arc in the dramaturg review", () => {

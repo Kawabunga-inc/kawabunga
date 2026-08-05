@@ -22,6 +22,9 @@ import {
   updateSceneMemory,
   type Scene,
   getScene,
+  initiativeMode,
+  userDirectorEnabled,
+  userRoleFor,
 } from "../client";
 
 const scene: Scene = {
@@ -630,6 +633,69 @@ describe("narrator — game-master surface", () => {
     const off = system({ ...scene, narrator: "off" });
     expect(off).not.toContain("THE NARRATOR");
     expect(off).toContain("without a narrator");
+  });
+});
+
+describe("scene experience dials", () => {
+  const systemFor = (configured: Scene) =>
+    buildSceneDecisionRequest({
+      scene: configured,
+      sceneState: createInitialSceneState(configured),
+      recentTurns: [],
+    }).messages[0]!.content;
+
+  it("keeps legacy defaults and adds no initiative copy", () => {
+    expect(initiativeMode(scene)).toBe("user");
+    expect(userRoleFor(scene)).toBe("visitor");
+    expect(userDirectorEnabled(scene)).toBe(true);
+    expect(systemFor(scene)).not.toContain("The world drives this scene");
+    expect(systemFor(scene)).not.toContain("THE VISITOR PLAYS A ROLE");
+    expect(systemFor(scene)).not.toContain("does NOT hold director powers");
+  });
+
+  it("renders narrator initiative, visitor role, and disabled director powers", () => {
+    const configured: Scene = {
+      ...scene,
+      initiative: "narrator",
+      userRole: "character",
+      userCharacter: {
+        name: "Miriam",
+        blurb: "A royal archivist carrying a sealed decree.",
+        relationship: "Ada's former patron",
+      },
+      userDirector: false,
+    };
+    const system = systemFor(configured);
+    expect(system).toContain("The world drives this scene");
+    expect(system).toContain("THE VISITOR PLAYS A ROLE");
+    expect(system).toContain("they are Miriam — A royal archivist");
+    expect(system).toContain("Ada's former patron");
+    expect(system).toContain("does NOT hold director powers");
+  });
+
+  it("allows rising-tension momentum under shared initiative", () => {
+    expect(systemFor({ ...scene, initiative: "shared" })).toContain(
+      "may carry rising tension",
+    );
+  });
+
+  it("names the played role in reactive speaker attribution", () => {
+    const roleScene: Scene = {
+      ...scene,
+      userRole: "character",
+      userCharacter: { name: "Miriam", blurb: "A royal archivist." },
+    };
+    const request = buildSpeakerTurnRequest({
+      scene: roleScene,
+      sceneState: createInitialSceneState(roleScene),
+      decision: { action: "speak", speakerId: "ada", beat: "Challenge her claim." },
+      recentTurns: [{ speakerSlug: "user", text: "The decree bears the royal seal." }],
+    });
+    expect(request?.promptChunk).toContain(
+      "unmarked lines are Miriam, the role the visitor plays",
+    );
+    expect(request?.promptChunk).toContain('"you"/"your" refers to Miriam');
+    expect(request?.promptChunk).toContain("Miriam did something, Miriam did it");
   });
 });
 
