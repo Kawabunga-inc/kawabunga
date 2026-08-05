@@ -10,7 +10,7 @@ import {
   type SceneSessionHealthRow,
 } from "@/components/scene-sessions-rollup";
 import { resolveScene } from "@/lib/scene-orchestration";
-import { aggregateSessionJournalHealth } from "@/lib/session-journal-health";
+import { aggregateSessionHealthRollup } from "@/lib/session-health-rollup";
 
 export const dynamic = "force-dynamic";
 
@@ -27,60 +27,12 @@ function asRecord(value: unknown): JsonRecord | null {
     : null;
 }
 
-function firstAudioMsOf(turn: SceneSessionTurnRecord): number | null {
-  const metrics = asRecord(turn.audioMetrics);
-  const latency = asRecord(turn.latencySummary);
-  const value =
-    (typeof metrics?.firstAudioMs === "number" ? metrics.firstAudioMs : null) ??
-    (typeof metrics?.firstAudio === "number" ? metrics.firstAudio : null) ??
-    (typeof latency?.firstAudioMs === "number" ? latency.firstAudioMs : null) ??
-    (typeof latency?.firstAudio === "number" ? latency.firstAudio : null);
-  return typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
-}
-
-function durationLabel(session: SceneSessionRecord): string {
-  const start = Date.parse(session.startedAt);
-  const end = Date.parse(session.endedAt ?? session.lastActiveAt);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return "—";
-  const totalSeconds = Math.max(0, Math.round((end - start) / 1000));
-  return `${Math.floor(totalSeconds / 60)}m ${String(totalSeconds % 60).padStart(2, "0")}s`;
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)]!;
-}
-
 function healthRow(
   session: SceneSessionRecord,
   turns: SceneSessionTurnRecord[],
   events: SceneSessionEventRecord[],
   hasArc: boolean,
 ): SceneSessionHealthRow {
-  const health = aggregateSessionJournalHealth(events);
-
-  // Arc completion: the persisted snapshot is authoritative; journal
-  // decisions fill in when snapshot persistence was off.
-  let arcLandedCount: number | null = null;
-  if (hasArc) {
-    const snapshotState = asRecord(asRecord(session.currentScene)?.sceneState);
-    const fromSnapshot = Array.isArray(snapshotState?.arcLanded)
-      ? snapshotState.arcLanded.filter((v) => typeof v === "string").length
-      : 0;
-    let fromJournal = 0;
-    for (let i = events.length - 1; i >= 0; i -= 1) {
-      const event = events[i]!;
-      if (!event.type.startsWith("scene.decision.")) continue;
-      const nextState = asRecord(asRecord(event.payload)?.nextSceneState);
-      if (Array.isArray(nextState?.arcLanded)) {
-        fromJournal = nextState.arcLanded.filter((v) => typeof v === "string").length;
-        break;
-      }
-    }
-    arcLandedCount = Math.max(fromSnapshot, fromJournal);
-  }
-
   const meta = asRecord(session.metadata);
   const userLabel =
     (typeof meta?.userName === "string" && meta.userName) ||
@@ -94,13 +46,7 @@ function healthRow(
     mode: session.mode,
     status: session.status,
     userLabel,
-    turnCount: turns.length,
-    durationLabel: durationLabel(session),
-    p50FirstAudioMs: median(
-      turns.map(firstAudioMsOf).filter((v): v is number => v != null),
-    ),
-    ...health,
-    arcLandedCount,
+    ...aggregateSessionHealthRollup(session, turns, events, hasArc),
   };
 }
 

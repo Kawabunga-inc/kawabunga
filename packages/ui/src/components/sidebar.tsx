@@ -17,6 +17,8 @@ export type SidebarItem = {
   href: string;
   label: string;
   icon?: ReactNode;
+  /** Optional compact value rendered in the trailing nav lane. */
+  badge?: string | number;
   /** Optional group key — items sharing the same section are clustered under a label. */
   section?: string;
   /**
@@ -386,13 +388,31 @@ export function Sidebar({
           style={{
             width: TRAILING_LANE,
             flexShrink: 0,
-            textAlign: "right",
+            display: "flex",
+            justifyContent: "flex-end",
             fontFamily: MONO,
             fontSize: 10,
             color: active ? "var(--accent-strong)" : "var(--text-quaternary)",
             transition: "color 150ms",
           }}
-        />
+        >
+          {item.badge != null ? (
+            <span
+              style={{
+                minWidth: 20,
+                padding: "2px 6px",
+                borderRadius: "var(--radius-pill)",
+                background: "var(--color-status-live)",
+                color: "var(--color-accent-on)",
+                fontWeight: 700,
+                lineHeight: "14px",
+                textAlign: "center",
+              }}
+            >
+              {item.badge}
+            </span>
+          ) : null}
+        </span>
       </LinkTag>
     );
   };

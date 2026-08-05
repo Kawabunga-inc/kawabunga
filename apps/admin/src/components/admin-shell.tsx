@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Sidebar, type SidebarItem, type SidebarTab } from "@kawabunga/ui";
 import { HeaderProvider, useHeaderContent } from "./header-context";
@@ -132,7 +132,15 @@ function isFlushRoute(pathname: string | null): boolean {
   );
 }
 
-function AdminShellInner({ children, initialCollapsed }: { children: React.ReactNode; initialCollapsed?: boolean }) {
+function AdminShellInner({
+  children,
+  initialCollapsed,
+  activeSessionCount,
+}: {
+  children: React.ReactNode;
+  initialCollapsed?: boolean;
+  activeSessionCount: number;
+}) {
   const pathname = usePathname();
   const { content: headerContent, flush } = useHeaderContent();
   /* Either explicit (a client component called setFlush) or implicit
@@ -186,12 +194,21 @@ function AdminShellInner({ children, initialCollapsed }: { children: React.React
   const userName = session?.user?.name?.trim() || "Admin";
   const userRole = session?.user?.role === "admin" ? "Admin" : "User";
   const userEmail = session?.user?.email ?? undefined;
+  const navItems = useMemo(
+    () =>
+      items.map((item) =>
+        item.href === "/sessions" && activeSessionCount > 0
+          ? { ...item, badge: activeSessionCount }
+          : item,
+      ),
+    [activeSessionCount],
+  );
 
   return (
     <Sidebar
       brand="Kawabunga"
       brandIcon={kawabungaWordmark}
-      items={items}
+      items={navItems}
       tabs={tabs}
       pathname={pathname}
       linkComponent={Link}
@@ -240,13 +257,20 @@ function AdminShellInner({ children, initialCollapsed }: { children: React.React
 export function AdminShell({
   children,
   initialCollapsed,
+  activeSessionCount = 0,
 }: {
   children: React.ReactNode;
   initialCollapsed?: boolean;
+  activeSessionCount?: number;
 }) {
   return (
     <HeaderProvider>
-      <AdminShellInner initialCollapsed={initialCollapsed}>{children}</AdminShellInner>
+      <AdminShellInner
+        initialCollapsed={initialCollapsed}
+        activeSessionCount={activeSessionCount}
+      >
+        {children}
+      </AdminShellInner>
     </HeaderProvider>
   );
 }
