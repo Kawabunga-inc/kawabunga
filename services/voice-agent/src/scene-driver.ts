@@ -887,72 +887,22 @@ export class SceneDriver {
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
       const voiced = await this.#narrate(resolution.decision.narration.trim(), userText);
       if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
-      // A narration that ANSWERED a narrator QUESTION ("Narrator, what do I
-      // see?") is complete in itself — hold for the user rather than chaining
-      // a character turn that would only restate it. But addressing the
-      // narrator while DECLARING AN ACTION ("Narrator, I take Sarah hostage")
-      // is an event, not a question: somebody must react, or the scene
-      // freezes until the idle timer fires (observed: 4.6s of dead air).
-      if (isNarratorAddressed(userText) && !declaresUserAction(userText)) {
+      // Prefer the director's semantic classification. Older/degraded model
+      // output has no narrationKind, so preserve the previous text heuristic.
+      const narrationKind = resolution.decision.narrationKind;
+      const shouldChain =
+        narrationKind === "event" ||
+        (narrationKind == null &&
+          !(isNarratorAddressed(userText) && !declaresUserAction(userText)));
+      if (!shouldChain) {
+        if (resolution.decision.momentum === true) {
+          const cascade = await this.#momentumCascade(1, speak, superseded);
+          return { action: "narrate", spoke: voiced || cascade.spoke };
+        }
         return { action: "narrate", spoke: voiced };
       }
-      // EVENT CHAINING: a reactive narration otherwise renders something that
-      // just HAPPENED (the user's declared action, an unfolding event) — give
-      // the director ONE immediate follow-up so a character can react to it.
-      // Bounded: a chained narrate is applied but never chains again.
-      const chain = await this.#decide(NARRATED_EVENT_MARKER, "chain");
-      if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
-      // A `wait-for-user` here is the dead-air failure: something just happened
-      // in the world and the scene would sit silent until the idle timer fired
-      // (observed: 4.1s after a narrated punch, the reaction arriving as a
-      // proactive turn). The prompt asks for a reaction; this guarantees one.
-      let chainDecision = chain.decision;
-      let chainRecovered: SceneDecisionJournalExtras["recovered"];
-      if (chainDecision.action === "wait-for-user") {
-        const reactor = this.#fallbackSpeaker();
-        if (reactor) {
-          console.log(
-            `[voice-agent] scene: chain returned wait after an event — ${reactor} reacts instead`,
-          );
-          chainDecision = { action: "speak", speakerId: reactor };
-          chainRecovered = "chain-reactor";
-        }
-      }
-      const chainResolution = resolveSceneDecision(
-        { scene: this.scene, sceneState: this.#sceneState },
-        chainDecision,
-      );
-      this.#sceneState = chainResolution.sceneState;
-      this.#persistState();
-      this.#journalDecision(chainResolution, {
-        trigger: "chain",
-        cascadeDepth: 1,
-        ...(chainRecovered ? { recovered: chainRecovered } : {}),
-        decide: chain,
-      });
-      this.#emitSfx(chainResolution.decision.sfx);
-      if (
-        chainResolution.decision.action === "narrate" &&
-        chainResolution.decision.narration?.trim()
-      ) {
-        const voicedAgain = await this.#narrate(chainResolution.decision.narration.trim());
-        if (chainResolution.decision.momentum === true) {
-          const cascade = await this.#momentumCascade(1, speak, superseded);
-          return { action: "narrate", spoke: voiced || voicedAgain || cascade.spoke };
-        }
-        return { action: "narrate", spoke: voiced || voicedAgain };
-      }
-      if (chainResolution.decision.action === "speak" && chainResolution.speakerSlug) {
-        const spoke = await this.#speakTurn(chainResolution, speak, superseded);
-        if (spoke === "superseded") return { action: "speak", spoke: voiced, superseded: true };
-        if (chainResolution.decision.momentum === true) {
-          const cascade = await this.#momentumCascade(1, speak, superseded);
-          return { action: "speak", spoke: voiced || spoke || cascade.spoke };
-        }
-        return { action: "speak", spoke: voiced || spoke };
-      }
-      console.log(`[voice-agent] scene: narrate chain → ${chainResolution.decision.action}`);
-      return { action: chainResolution.decision.action, spoke: voiced };
+      const chained = await this.#chainNarratedEvent(speak, superseded);
+      return { ...chained, spoke: voiced || chained.spoke };
     }
 
     if (resolution.decision.action !== "speak" || !resolution.speakerSlug) {
@@ -1039,6 +989,70 @@ export class SceneDriver {
       this.#maybeReflect();
     }
     return Boolean(replyText);
+  }
+
+  /** Give one narrated event an immediate director-chosen reaction. Shared by
+   *  user turns and due world events; deliberately never chains a second time. */
+  async #chainNarratedEvent(
+    speak: SceneSpeakFn,
+    superseded: () => boolean,
+  ): Promise<SceneDriveOutcome> {
+    const chain = await this.#decide(NARRATED_EVENT_MARKER, "chain");
+    if (superseded()) return { action: "narrate", spoke: false, superseded: true };
+
+    // A hold after an event is dead air. Guarantee a present reactor when one
+    // exists, matching the user-turn recovery behavior.
+    let chainDecision = chain.decision;
+    let chainRecovered: SceneDecisionJournalExtras["recovered"];
+    if (chainDecision.action === "wait-for-user") {
+      const reactor = this.#fallbackSpeaker();
+      if (reactor) {
+        console.log(
+          `[voice-agent] scene: chain returned wait after an event — ${reactor} reacts instead`,
+        );
+        chainDecision = { action: "speak", speakerId: reactor };
+        chainRecovered = "chain-reactor";
+      }
+    }
+    const chainResolution = resolveSceneDecision(
+      { scene: this.scene, sceneState: this.#sceneState },
+      chainDecision,
+    );
+    this.#sceneState = chainResolution.sceneState;
+    this.#persistState();
+    this.#journalDecision(chainResolution, {
+      trigger: "chain",
+      cascadeDepth: 1,
+      ...(chainRecovered ? { recovered: chainRecovered } : {}),
+      decide: chain,
+    });
+    this.#emitSfx(chainResolution.decision.sfx);
+
+    if (
+      chainResolution.decision.action === "narrate" &&
+      chainResolution.decision.narration?.trim()
+    ) {
+      const voiced = await this.#narrate(chainResolution.decision.narration.trim());
+      if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
+      if (chainResolution.decision.momentum === true) {
+        const cascade = await this.#momentumCascade(1, speak, superseded);
+        return { action: "narrate", spoke: voiced || cascade.spoke };
+      }
+      return { action: "narrate", spoke: voiced };
+    }
+    if (chainResolution.decision.action === "speak" && chainResolution.speakerSlug) {
+      const spoke = await this.#speakTurn(chainResolution, speak, superseded);
+      if (spoke === "superseded") {
+        return { action: "speak", spoke: false, superseded: true };
+      }
+      if (chainResolution.decision.momentum === true) {
+        const cascade = await this.#momentumCascade(1, speak, superseded);
+        return { action: "speak", spoke: spoke || cascade.spoke };
+      }
+      return { action: "speak", spoke };
+    }
+    console.log(`[voice-agent] scene: narrate chain → ${chainResolution.decision.action}`);
+    return { action: chainResolution.decision.action, spoke: false };
   }
 
   /**
@@ -1215,7 +1229,10 @@ export class SceneDriver {
         recovered: "world-event-narrated",
         decide: decideResult,
       });
-      return await this.#narrate(worldEvent.direction);
+      const voiced = await this.#narrate(worldEvent.direction);
+      if (superseded()) return voiced;
+      const chained = await this.#chainNarratedEvent(speak, superseded);
+      return voiced || chained.spoke;
     }
     let recovered: SceneDecisionJournalExtras["recovered"];
     if (resolution.decision.action === "wait-for-user") {
@@ -1243,7 +1260,17 @@ export class SceneDriver {
 
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
       console.log("[voice-agent] proactive: narrator bridges");
-      return await this.#narrate(resolution.decision.narration.trim());
+      const voiced = await this.#narrate(resolution.decision.narration.trim());
+      if (superseded()) return voiced;
+      if (worldEvent) {
+        const chained = await this.#chainNarratedEvent(speak, superseded);
+        return voiced || chained.spoke;
+      }
+      if (resolution.decision.momentum === true) {
+        const cascade = await this.#momentumCascade(1, speak, superseded);
+        return voiced || cascade.spoke;
+      }
+      return voiced;
     }
 
     if (resolution.decision.action !== "speak" || !resolution.speakerSlug) {
