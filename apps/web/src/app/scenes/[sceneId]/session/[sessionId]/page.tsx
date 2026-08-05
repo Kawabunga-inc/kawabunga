@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getSceneSessionStore, getSceneStore } from "@kawabunga/db";
 import { ScenePlayer } from "@/components/scene-player/scene-player";
 import { auth } from "@/lib/auth";
+import { classifySessionActivity } from "@/lib/session-activity";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,12 @@ export default async function SceneSessionPage({
     );
   }
 
-  const [scene, session, orchestratorScene] = await Promise.all([
+  const [scene, detail, orchestratorScene] = await Promise.all([
     getSceneStore().getSceneById(sceneId),
-    getSceneSessionStore().getSession(sessionId),
+    getSceneSessionStore().getSessionDetail(sessionId),
     getSceneStore().resolveOrchestratorScene(sceneId),
   ]);
+  const session = detail?.session ?? null;
   if (
     !scene ||
     !session ||
@@ -31,6 +33,11 @@ export default async function SceneSessionPage({
   ) {
     notFound();
   }
+  const activity = classifySessionActivity(
+    session,
+    detail?.events ?? [],
+    detail?.turns ?? [],
+  );
 
   return <ScenePlayer
     sceneId={sceneId}
@@ -42,6 +49,6 @@ export default async function SceneSessionPage({
     arcLength={orchestratorScene?.arc?.length ?? 0}
     staff={viewer.user.role === "admin"}
     adminBaseUrl={process.env.NEXT_PUBLIC_ADMIN_BASE_URL ?? "http://localhost:3001"}
-    sessionEnded={session.status !== "active"}
+    sessionEnded={!activity.isActive}
   />;
 }

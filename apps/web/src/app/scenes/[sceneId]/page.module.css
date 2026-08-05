@@ -24,57 +24,6 @@
   margin-inline: auto;
 }
 
-.header {
-  position: absolute;
-  z-index: 3;
-  top: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 28px 64px;
-}
-
-.wordmark {
-  font-family: var(--font-display), system-ui, sans-serif;
-  font-size: 17px;
-  font-weight: var(--font-weight-bold);
-  line-height: 22px;
-  letter-spacing: 0.02em;
-}
-
-.nav {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  color: var(--color-text-secondary);
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-medium);
-  line-height: 18px;
-}
-
-.nav a {
-  transition: color 160ms ease;
-}
-
-.nav a:hover {
-  color: var(--color-text-primary);
-}
-
-.viewerAvatar {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  color: var(--color-accent-strong);
-  background: var(--color-accent-fill);
-  border: 1px solid var(--color-accent-border);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-md);
-  font-weight: var(--font-weight-semibold);
-}
-
 .halo {
   position: absolute;
   top: 230px;
@@ -557,25 +506,12 @@
     padding-bottom: 32px;
   }
 
-  .header,
   .hero,
   .actions,
   .cast,
   .resumeChip {
     position: relative;
     inset: auto;
-  }
-
-  .header {
-    padding: 26px 32px;
-  }
-
-  .nav {
-    gap: 20px;
-  }
-
-  .nav > span:first-child {
-    display: none;
   }
 
   .halo {
@@ -648,7 +584,6 @@
 }
 
 @media (max-width: 620px) {
-  .header,
   .stub {
     padding-inline: 24px;
   }

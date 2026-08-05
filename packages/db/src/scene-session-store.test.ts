@@ -136,4 +136,20 @@ describe("scene session live cursors (memory store)", () => {
       currentScene: { beat: "later" },
     });
   });
+
+  it("lists only the requested user's sessions in newest-first pages", async () => {
+    const store = getSceneSessionStore();
+
+    vi.setSystemTime(new Date("2026-08-04T10:01:00.000Z"));
+    await store.createSession({ id: "visit-older", userId: "visitor-c5", mode: "voice" });
+    vi.setSystemTime(new Date("2026-08-04T10:02:00.000Z"));
+    await store.createSession({ id: "visit-other-user", userId: "someone-else", mode: "voice" });
+    vi.setSystemTime(new Date("2026-08-04T10:03:00.000Z"));
+    await store.createSession({ id: "visit-newer", userId: "visitor-c5", mode: "voice" });
+
+    const page = await store.listSessionsForUser("visitor-c5", 2);
+
+    expect(page.map((session) => session.id)).toEqual(["visit-newer", "visit-older"]);
+    expect(page.every((session) => session.userId === "visitor-c5")).toBe(true);
+  });
 });
