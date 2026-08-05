@@ -13,6 +13,7 @@
     "@kawabunga/auth": "*",
     "@kawabunga/db": "*",
     "@kawabunga/engine": "*",
+    "@kawabunga/live-scene": "*",
     "@kawabunga/orchestration": "*",
     "@kawabunga/scene-player": "*",
     "@kawabunga/types": "*",

@@ -26,7 +26,7 @@ vi.mock("../../lib/consumer-scenes", () => ({
 vi.mock("../../lib/session-activity", () => ({
   classifySessionActivity: () => ({ isActive: false, ageMs: 60_000 }),
 }));
-vi.mock("../../lib/scene-story", () => ({ sceneTurnsToTranscript: () => [] }));
+vi.mock("@kawabunga/live-scene", () => ({ sceneTurnsToTranscript: () => [] }));
 vi.mock("@kawabunga/db", () => ({
   getSceneSessionStore: () => ({
     listSessionsForUser: mocks.listSessionsForUser,

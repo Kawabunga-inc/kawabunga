@@ -7,9 +7,10 @@ import {
   selectAgentCaptionLines,
   selectSceneTranscript,
   type SceneTranscriptMessage,
-} from "@/lib/scene-captions";
+} from "../lib/scene-captions";
+import type { LiveSceneProvider } from "../provider";
 
-export function useSceneCaptions({ sceneId, sessionId }: { sceneId: string; sessionId: string }) {
+export function useSceneCaptions({ provider }: { provider: LiveSceneProvider }) {
   const [state, dispatch] = useReducer(sceneCaptionReducer, initialSceneCaptionState);
   const [historyReady, setHistoryReady] = useState(false);
   const lines = useMemo(() => selectAgentCaptionLines(state), [state]);
@@ -17,15 +18,9 @@ export function useSceneCaptions({ sceneId, sessionId }: { sceneId: string; sess
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(
-      `/api/scenes/${encodeURIComponent(sceneId)}/session/${encodeURIComponent(sessionId)}/transcript`,
-      { signal: controller.signal, cache: "no-store" },
-    )
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Transcript unavailable");
-        return response.json() as Promise<{ messages?: SceneTranscriptMessage[] }>;
-      })
+    void provider.fetchTranscript()
       .then((payload) => {
+        if (controller.signal.aborted) return;
         dispatch({ type: "hydrated", messages: payload.messages ?? [] });
         setHistoryReady(true);
       })
@@ -34,7 +29,7 @@ export function useSceneCaptions({ sceneId, sessionId }: { sceneId: string; sess
         setHistoryReady(true);
       });
     return () => controller.abort();
-  }, [sceneId, sessionId]);
+  }, [provider]);
 
   return {
     state,

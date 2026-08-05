@@ -160,6 +160,7 @@ export default async function SceneDetailPage({
     <>
       <SceneOnAirRefresh activeCount={onAir.candidates.length} />
       <SceneEditor
+        consumerBaseUrl={process.env.NEXT_PUBLIC_WEB_BASE_URL ?? "http://localhost:3000"}
         scene={{
           id: scene.id,
           title: scene.title,

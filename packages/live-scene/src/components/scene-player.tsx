@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { DeepTheme } from "@/components/deep-theme";
-import { useLiveScene } from "@/hooks/use-live-scene";
-import { useSceneCaptions } from "@/hooks/use-scene-captions";
+import { DeepTheme } from "../deep-theme";
+import { useLiveScene } from "../hooks/use-live-scene";
+import { useSceneCaptions } from "../hooks/use-scene-captions";
 import type { SceneEndedLifecycleMessage } from "@kawabunga/types";
 import { SceneSessionView } from "./scene-session-view";
 import { SceneStoryView } from "./scene-story-view";
 import type { SceneView } from "./scene-view-toggle";
 import { SceneWaveformView } from "./scene-waveform-view";
-import { visitTimeOfDay } from "@/lib/scene-story";
+import { visitTimeOfDay } from "../lib/scene-story";
+import type { LiveSceneProvider, LiveSceneViewerContext } from "../provider";
 import styles from "./scene-player.module.css";
 
-type Props = {
+export type ScenePlayerProps = {
   sceneId: string;
   sessionId: string;
   title: string;
@@ -21,8 +22,10 @@ type Props = {
   endedAt: string | null;
   ambience: string | null;
   arcLength: number;
-  staff: boolean;
-  adminBaseUrl: string;
+  provider: LiveSceneProvider;
+  viewer: LiveSceneViewerContext;
+  landerHref: string;
+  workbenchHref: string;
   sessionEnded: boolean;
 };
 
@@ -33,8 +36,8 @@ function elapsedLabel(startedAt: string, endedAt: string | null = null): string 
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, ambience, arcLength, staff, adminBaseUrl, sessionEnded }: Props) {
-  const captions = useSceneCaptions({ sceneId, sessionId });
+export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, ambience, arcLength, provider, viewer, landerHref, workbenchHref, sessionEnded }: ScenePlayerProps) {
+  const captions = useSceneCaptions({ provider });
   const [lifecycleEnd, setLifecycleEnd] = useState<SceneEndedLifecycleMessage | null>(null);
   const [lifecycleAt, setLifecycleAt] = useState<number | null>(null);
   const [sessionSettled, setSessionSettled] = useState(false);
@@ -49,8 +52,8 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
   }, []);
   const settleSession = useCallback(() => setSessionSettled(true), []);
   const live = useLiveScene({
-    sceneId,
     sessionId,
+    provider,
     onTranscript: receiveTranscript,
     onSceneEnded: receiveSceneEnded,
     disabled: sessionEnded,
@@ -58,8 +61,11 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
   const [elapsed, setElapsed] = useState(() => elapsedLabel(startedAt, sessionEnded ? endedAt : null));
   const [view, setView] = useState<SceneView>("waveform");
   const [readEndedStory, setReadEndedStory] = useState(sessionEnded);
-  const landerHref = useMemo(() => `/scenes/${encodeURIComponent(sceneId)}`, [sceneId]);
   const chapter = useMemo(() => visitTimeOfDay(startedAt), [startedAt]);
+  const leave = useCallback(async () => {
+    await live.leave();
+    window.location.assign(landerHref);
+  }, [landerHref, live]);
 
   useEffect(() => {
     if (sessionEnded) return;
@@ -89,7 +95,7 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
     );
   }
 
-  const settlingSession = staff && view === "session" && lifecycleEnd != null && !sessionSettled;
+  const settlingSession = viewer.isStaff && view === "session" && lifecycleEnd != null && !sessionSettled;
   if (live.stage === "connected" || live.stage === "reconnecting" || settlingSession) {
     const currentSpeakerSlug = captions.current?.final ? null : captions.current?.speaker?.slug ?? null;
     return (
@@ -107,9 +113,9 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
             current={captions.current}
             previous={captions.previous}
             view={view}
-            staff={staff}
+            staff={viewer.isStaff}
             onViewChange={setView}
-            onLeave={() => void live.leave()}
+            onLeave={() => void leave()}
             onToggleCaptions={() => captions.setVisible(!captions.state.visible)}
           />
         ) : view === "story" ? (
@@ -122,11 +128,11 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
             micLevel={live.micLevel}
             currentSpeakerSlug={currentSpeakerSlug}
             view={view}
-            staff={staff}
+            staff={viewer.isStaff}
             ended={false}
             landerHref={landerHref}
             onViewChange={setView}
-            onLeave={() => void live.leave()}
+            onLeave={() => void leave()}
           />
         ) : (
           <SceneSessionView
@@ -135,7 +141,8 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
             title={title}
             elapsed={elapsed}
             arcLength={arcLength}
-            adminBaseUrl={adminBaseUrl}
+            workbenchHref={workbenchHref}
+            provider={provider}
             micLevel={live.micLevel}
             view={view}
             live={live.stage === "connected" || live.stage === "reconnecting"}
@@ -143,7 +150,7 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
             lifecycleAt={lifecycleAt}
             onSettled={settleSession}
             onViewChange={setView}
-            onLeave={() => void live.leave()}
+            onLeave={() => void leave()}
           />
         )}
       </main>
@@ -196,7 +203,7 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
             </p>
             <div className={styles.gateActions}>
               <button type="button" onClick={() => void live.begin()}>Try again</button>
-              <button type="button" className={styles.secondary} onClick={() => void live.leave()}>
+              <button type="button" className={styles.secondary} onClick={() => void leave()}>
                 Leave quietly
               </button>
             </div>

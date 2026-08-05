@@ -67,12 +67,14 @@ function groupBySession<T extends { sessionId: string }>(rows: T[]) {
   return grouped;
 }
 
-function transportOf(
+export function sessionTransportOf(
   metadata: JsonRecord | null,
 ): SessionIndexRow["transport"] {
   const source =
     typeof metadata?.source === "string" ? metadata.source.toLowerCase() : "";
-  if (source === "scene-voice" || source.includes("livekit")) return "livekit";
+  if (source === "scene-voice" || source === "admin-live" || source.includes("livekit")) {
+    return "livekit";
+  }
   if (source.includes("sandbox")) return "sandbox";
   return "web";
 }
@@ -176,7 +178,7 @@ export const getSessionsIndexData = cache(
         sceneTitle: scene?.title ?? fallbackSceneTitle(session),
         userLabel: session.user?.name?.trim() || "anonymous",
         mode: session.mode,
-        transport: transportOf(metadata),
+        transport: sessionTransportOf(metadata),
         status: activity.displayStatus,
         startedAt: session.startedAt,
         lastActiveAt: session.lastActiveAt,

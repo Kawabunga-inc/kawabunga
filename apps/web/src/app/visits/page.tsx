@@ -16,7 +16,7 @@ import {
   visitsSignInPath,
 } from "../../lib/consumer-scenes";
 import { classifySessionActivity } from "../../lib/session-activity";
-import { sceneTurnsToTranscript } from "../../lib/scene-story";
+import { sceneTurnsToTranscript } from "@kawabunga/live-scene";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { visitTimeOfDay } from "@/lib/scene-story";
+import { visitTimeOfDay } from "@kawabunga/live-scene";
 
 const subscribe = () => () => undefined;
 

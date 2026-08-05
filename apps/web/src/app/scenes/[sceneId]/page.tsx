@@ -6,17 +6,17 @@ import {
   getSceneSessionStore,
   getSceneStore,
 } from "@kawabunga/db";
-import { ConsumerSceneNav } from "@/components/consumer-scene-nav";
-import { DeepTheme } from "@/components/deep-theme";
-import { SceneEnterControls, VisitAgainButton } from "@/components/scene-enter-controls";
-import { auth } from "@/lib/auth";
+import { ConsumerSceneNav } from "../../../components/consumer-scene-nav";
+import { DeepTheme } from "../../../components/deep-theme";
+import { SceneEnterControls, VisitAgainButton } from "../../../components/scene-enter-controls";
+import { auth } from "../../../lib/auth";
 import {
   characterInitials,
+  canViewConsumerScene,
   descriptionExcerpt,
-  isPublishableScene,
   latestArcBeatLabel,
   latestSessionForUser,
-} from "@/lib/scene-lander";
+} from "../../../lib/scene-lander";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
@@ -28,14 +28,13 @@ type PageProps = {
 
 export default async function SceneLanderPage({ params, searchParams }: PageProps) {
   const [{ sceneId }, query] = await Promise.all([params, searchParams]);
-  const scene = await getSceneStore().getSceneById(sceneId);
-
-  if (!scene || !isPublishableScene(scene.status)) notFound();
-
-  const [viewer, graph] = await Promise.all([
+  const [scene, viewer] = await Promise.all([
+    getSceneStore().getSceneById(sceneId),
     auth(),
-    getSceneGraphStore().getGraph(sceneId),
   ]);
+  const staff = viewer?.user?.role === "admin";
+  if (!scene || !canViewConsumerScene(scene.status, staff)) notFound();
+  const graph = await getSceneGraphStore().getGraph(sceneId);
   const characterNodes = graph.nodes.filter(
     (node) => node.kind === "character" && node.refId,
   );
@@ -74,6 +73,11 @@ export default async function SceneLanderPage({ params, searchParams }: PageProp
       <DeepTheme />
       <div className={styles.atmosphere} aria-hidden="true" />
       <div className={styles.frame}>
+        {scene.status === "draft" ? (
+          <div className={styles.draftPreview} role="status">
+            DRAFT PREVIEW · visible only to staff
+          </div>
+        ) : null}
         <ConsumerSceneNav
           active={null}
           viewerInitial={viewerInitial}

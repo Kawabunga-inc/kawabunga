@@ -1,8 +1,8 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { SceneTranscriptMessage } from "@/lib/scene-captions";
-import type { LiveSceneStage } from "@/hooks/use-live-scene";
+import type { SceneTranscriptMessage } from "../lib/scene-captions";
+import type { LiveSceneStage } from "../hooks/use-live-scene";
 import { SceneViewToggle, type SceneView } from "./scene-view-toggle";
 import styles from "./scene-player.module.css";
 

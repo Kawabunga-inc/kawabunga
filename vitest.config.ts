@@ -6,6 +6,7 @@ export default defineConfig({
     environment: "node",
     include: [
       "packages/engine/src/**/*.test.ts",
+      "packages/live-scene/src/**/*.test.{ts,tsx}",
       "packages/db/src/**/*.test.ts",
       "packages/wiki-curator/src/**/*.test.ts",
       "packages/orchestration/src/**/*.test.ts",
@@ -21,6 +22,8 @@ export default defineConfig({
       "@kawabunga/utils": path.resolve(__dirname, "packages/utils/src"),
       "@kawabunga/db": path.resolve(__dirname, "packages/db/src"),
       "@kawabunga/engine": path.resolve(__dirname, "packages/engine/src"),
+      "@kawabunga/live-scene/server": path.resolve(__dirname, "packages/live-scene/src/server/index.ts"),
+      "@kawabunga/live-scene": path.resolve(__dirname, "packages/live-scene/src/index.ts"),
       "@kawabunga/wiki-curator": path.resolve(__dirname, "packages/wiki-curator/src"),
       "@kawabunga/orchestration": path.resolve(__dirname, "packages/orchestration/src"),
       "@kawabunga/orchestration/client": path.resolve(__dirname, "packages/orchestration/src/client.ts"),

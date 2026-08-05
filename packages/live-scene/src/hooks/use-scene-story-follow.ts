@@ -4,7 +4,7 @@ import { useCallback, useEffect, useReducer, useRef } from "react";
 import {
   initialSceneStoryFollowState,
   sceneStoryFollowReducer,
-} from "@/lib/scene-story-follow";
+} from "../lib/scene-story-follow";
 
 export function useSceneStoryFollow(newestVersion: string) {
   const [state, dispatch] = useReducer(

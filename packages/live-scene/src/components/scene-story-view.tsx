@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { SceneTranscriptMessage } from "@/lib/scene-captions";
-import type { LiveSceneStage } from "@/hooks/use-live-scene";
-import { useSceneStoryFollow } from "@/hooks/use-scene-story-follow";
+import type { SceneTranscriptMessage } from "../lib/scene-captions";
+import type { LiveSceneStage } from "../hooks/use-live-scene";
+import { useSceneStoryFollow } from "../hooks/use-scene-story-follow";
 import { SceneViewToggle, type SceneView } from "./scene-view-toggle";
 import styles from "./scene-player.module.css";
 

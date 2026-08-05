@@ -42,6 +42,7 @@ import {
 } from "@/lib/scene-on-air";
 
 type SceneEditorProps = {
+  consumerBaseUrl: string;
   scene: {
     id: string;
     title: string;
@@ -146,6 +147,7 @@ function LiveSceneEditor({
 }
 
 function SceneEditorContent({
+  consumerBaseUrl,
   scene,
   graph,
   libraryCharacters,
@@ -396,6 +398,7 @@ function SceneEditorContent({
     setContent(
       <ScenePageHeader
         sceneId={scene.id}
+        consumerBaseUrl={consumerBaseUrl}
         title={title}
         status={status}
         onTitleChange={saveTitle}
@@ -586,6 +589,7 @@ function SceneEditorContent({
 
 function ScenePageHeader({
   sceneId,
+  consumerBaseUrl,
   title,
   status,
   pending,
@@ -595,6 +599,7 @@ function ScenePageHeader({
   onSelectOnAirSession,
 }: {
   sceneId: string;
+  consumerBaseUrl: string;
   title: string;
   status: SceneEditorProps["scene"]["status"];
   pending: boolean;
@@ -633,9 +638,20 @@ function ScenePageHeader({
           onSelectSession={onSelectOnAirSession}
         />
       )}
+      <a
+        href={`${consumerBaseUrl.replace(/\/$/, "")}/scenes/${encodeURIComponent(sceneId)}`}
+        target="_blank"
+        rel="noreferrer"
+        style={consumerLinkStyle}
+      >
+        View consumer page →
+      </a>
       <Link href={`/scenes/${sceneId}/sandbox`} style={sandboxLinkStyle}>
         rehearse
       </Link>
+      <form action={`/api/scenes/${encodeURIComponent(sceneId)}/live`} method="post">
+        <button type="submit" style={runLiveLinkStyle}>Run live</button>
+      </form>
       <button
         type="button"
         aria-label="Archive scene"
@@ -750,6 +766,23 @@ const sandboxLinkStyle: CSSProperties = {
   fontFamily: adminTokens.fontBody,
   fontSize: "var(--font-size-base)",
   fontWeight: 600,
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+};
+
+const runLiveLinkStyle: CSSProperties = {
+  ...sandboxLinkStyle,
+  boxShadow: "0 0 22px var(--accent-wash)",
+  cursor: "pointer",
+};
+
+const consumerLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 30,
+  color: "var(--text-secondary)",
+  fontFamily: adminTokens.fontBody,
+  fontSize: "var(--font-size-sm)",
   textDecoration: "none",
   whiteSpace: "nowrap",
 };

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSceneSessionStore, getSceneStore } from "@kawabunga/db";
-import { auth } from "@/lib/auth";
-import { isPublishableScene } from "@/lib/scene-lander";
+import { auth } from "../../../../../lib/auth";
+import { canViewConsumerScene } from "../../../../../lib/scene-lander";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function POST(
   }
 
   const scene = await getSceneStore().getSceneById(sceneId);
-  if (!scene || !isPublishableScene(scene.status)) {
+  if (!scene || !canViewConsumerScene(scene.status, viewer.user.role === "admin")) {
     return NextResponse.json({ error: "Scene not found." }, { status: 404 });
   }
 
