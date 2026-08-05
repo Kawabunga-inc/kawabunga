@@ -32,6 +32,7 @@ import {
 } from "@/components/scene-tabs/shared";
 import { STAGE_ART_STYLES, STAGE_ART_STYLE_KEYS } from "@/lib/stage-art-styles";
 import { SceneStage, type StageGhost } from "./scene-stage";
+import type { SceneOnAirPresentation } from "@/lib/scene-on-air";
 import {
   clampToWorld,
   isPlaced,
@@ -77,6 +78,7 @@ export function CanvasTab({
   onSelect,
   onNodeSaved,
   onRemoveNode,
+  onAir,
 }: {
   sceneId: string;
   pending: boolean;
@@ -89,6 +91,12 @@ export function CanvasTab({
   onSelect: (nodeId: string | null) => void;
   onNodeSaved: (nodeId: string, patch: Partial<SceneNode>) => void;
   onRemoveNode: (nodeId: string) => void;
+  onAir: {
+    candidate: { userLabel: string };
+    presentation: SceneOnAirPresentation;
+    arcLength: number;
+    lastEventAgeMs: number | null;
+  } | null;
 }) {
   const router = useRouter();
   const viewportRef = useRef<Viewport | null>(null);
@@ -395,6 +403,20 @@ export function CanvasTab({
           onViewport={(vp) => {
             viewportRef.current = vp;
           }}
+          onAir={
+            onAir
+              ? {
+                  userLabel: onAir.candidate.userLabel,
+                  presentation: onAir.presentation,
+                  arcLength: onAir.arcLength,
+                  lastEventAgeMs: onAir.lastEventAgeMs,
+                  hasSoundNodes: Object.keys(onAir.presentation.recentSfxByNodeId).length > 0 ||
+                    graphNodes.some(
+                      (node) => node.kind === "audio" || node.kind === "ambience",
+                    ),
+                }
+              : null
+          }
         />
       </div>
 

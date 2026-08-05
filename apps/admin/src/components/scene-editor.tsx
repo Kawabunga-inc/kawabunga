@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { CSSProperties } from "react";
+import type { SceneSessionDetailRecord } from "@kawabunga/db";
 import { useRouter } from "next/navigation";
 import type {
   SceneGraphPayload,
@@ -33,6 +34,12 @@ import { NarratorTab } from "@/components/scene-tabs/narrator-tab";
 import { OverviewTab } from "@/components/scene-tabs/overview-tab";
 import { relativeTime, splitVariants } from "@/components/scene-tabs/shared";
 import type { SceneTab } from "@/components/scene-tabs/types";
+import { useLiveSessionDetail } from "@/components/use-live-session-detail";
+import {
+  buildSceneOnAirPresentation,
+  type SceneOnAirCandidate,
+  type SceneOnAirPresentation,
+} from "@/lib/scene-on-air";
 
 type SceneEditorProps = {
   scene: {
@@ -56,15 +63,96 @@ type SceneEditorProps = {
   libraryCharacters: SceneLibraryCharacter[];
   librarySounds: SceneLibrarySound[];
   libraryArtifacts: SceneLibraryArtifact[];
+  onAir: {
+    candidates: SceneOnAirCandidate[];
+    selectedDetail: SceneSessionDetailRecord | null;
+    nodeCharacterSlugs: Record<string, string>;
+    soundNodeSlugs: Record<string, string>;
+    arcLength: number;
+  };
 };
 
-export function SceneEditor({
+type LiveOnAirState = {
+  candidate: SceneOnAirCandidate;
+  candidates: SceneOnAirCandidate[];
+  detail: SceneSessionDetailRecord;
+  presentation: SceneOnAirPresentation;
+  arcLength: number;
+  lastEventAgeMs: number | null;
+  nowMs: number;
+};
+
+export function SceneEditor(props: SceneEditorProps) {
+  const detail = props.onAir.selectedDetail;
+  return detail ? (
+    <LiveSceneEditor {...props} initialDetail={detail} />
+  ) : (
+    <SceneEditorContent {...props} liveOnAir={null} />
+  );
+}
+
+function LiveSceneEditor({
+  initialDetail,
+  ...props
+}: SceneEditorProps & { initialDetail: SceneSessionDetailRecord }) {
+  const live = useLiveSessionDetail(initialDetail);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!live.isLive) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [live.isLive]);
+
+  const effectiveDetail =
+    live.detail.session.id === initialDetail.session.id
+      ? live.detail
+      : initialDetail;
+  const presentation = useMemo(
+    () =>
+      buildSceneOnAirPresentation({
+        detail: effectiveDetail,
+        nodeCharacterSlugs: props.onAir.nodeCharacterSlugs,
+        soundNodeSlugs: props.onAir.soundNodeSlugs,
+        defaultAmbience: props.scene.defaultAmbience,
+        nowMs,
+      }),
+    [
+      effectiveDetail,
+      nowMs,
+      props.onAir.nodeCharacterSlugs,
+      props.onAir.soundNodeSlugs,
+      props.scene.defaultAmbience,
+    ],
+  );
+  const candidate =
+    props.onAir.candidates.find(
+      (entry) => entry.id === initialDetail.session.id,
+    ) ?? props.onAir.candidates[0];
+  const liveOnAir: LiveOnAirState | null =
+    live.isLive && candidate
+      ? {
+          candidate,
+          candidates: props.onAir.candidates,
+          detail: effectiveDetail,
+          presentation,
+          arcLength: props.onAir.arcLength,
+          lastEventAgeMs: live.lastEventAgeMs,
+          nowMs,
+        }
+      : null;
+
+  return <SceneEditorContent {...props} liveOnAir={liveOnAir} />;
+}
+
+function SceneEditorContent({
   scene,
   graph,
   libraryCharacters,
   librarySounds,
   libraryArtifacts,
-}: SceneEditorProps) {
+  liveOnAir,
+}: SceneEditorProps & { liveOnAir: LiveOnAirState | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -288,6 +376,16 @@ export function SceneEditor({
     [],
   );
 
+  const selectOnAirSession = useCallback(
+    (sessionId: string) => {
+      router.replace(
+        `/scenes/${encodeURIComponent(scene.id)}?onAirSession=${encodeURIComponent(sessionId)}`,
+        { scroll: false },
+      );
+    },
+    [router, scene.id],
+  );
+
   const { setFlush, setContent } = useHeaderContent();
   useEffect(() => {
     setFlush(true);
@@ -303,10 +401,22 @@ export function SceneEditor({
         onTitleChange={saveTitle}
         onArchive={archive}
         pending={pending}
+        onAir={liveOnAir}
+        onSelectOnAirSession={selectOnAirSession}
       />,
     );
     return () => setContent(null);
-  }, [archive, pending, saveTitle, scene.id, setContent, status, title]);
+  }, [
+    archive,
+    liveOnAir,
+    pending,
+    saveTitle,
+    scene.id,
+    selectOnAirSession,
+    setContent,
+    status,
+    title,
+  ]);
 
   const castCount = graphNodes.filter((n) => n.kind === "character").length;
   const soundCount = graphNodes.filter(
@@ -335,8 +445,10 @@ export function SceneEditor({
     },
   ];
 
-  const saveState = pending
-    ? "saving…"
+  const saveState = liveOnAir
+    ? "saved · edits apply to future sessions, not the one on air"
+    : pending
+      ? "saving…"
     : savedAt
       ? `auto-saved · ${relativeTime(savedAt)}`
       : "auto-save on";
@@ -397,6 +509,7 @@ export function SceneEditor({
             onSelect={setSelectedNodeId}
             onNodeSaved={updateLocalNode}
             onRemoveNode={removeNode}
+            onAir={liveOnAir}
           />
         )}
 
@@ -478,6 +591,8 @@ function ScenePageHeader({
   pending,
   onTitleChange,
   onArchive,
+  onAir,
+  onSelectOnAirSession,
 }: {
   sceneId: string;
   title: string;
@@ -485,6 +600,8 @@ function ScenePageHeader({
   pending: boolean;
   onTitleChange: (next: string) => void | Promise<void>;
   onArchive: () => void;
+  onAir: LiveOnAirState | null;
+  onSelectOnAirSession: (sessionId: string) => void;
 }) {
   return (
     <div
@@ -510,6 +627,12 @@ function ScenePageHeader({
         {status}
       </AdminStatusPill>
       <div style={{ flex: 1 }} />
+      {onAir && (
+        <OnAirHeaderCluster
+          onAir={onAir}
+          onSelectSession={onSelectOnAirSession}
+        />
+      )}
       <Link href={`/scenes/${sceneId}/sandbox`} style={sandboxLinkStyle}>
         rehearse
       </Link>
@@ -539,6 +662,57 @@ function ScenePageHeader({
       </button>
     </div>
   );
+}
+
+function OnAirHeaderCluster({
+  onAir,
+  onSelectSession,
+}: {
+  onAir: LiveOnAirState;
+  onSelectSession: (sessionId: string) => void;
+}) {
+  const elapsed = elapsedLabel(onAir.candidate.startedAt, onAir.nowMs);
+  return (
+    <div style={onAirClusterStyle}>
+      <span aria-hidden style={onAirDotStyle} />
+      <span style={onAirLabelStyle}>on air</span>
+      {onAir.candidates.length > 1 ? (
+        <label style={onAirPickerLabelStyle}>
+          <span>{onAir.candidates.length} live</span>
+          <select
+            aria-label="Session monitored on the scene canvas"
+            value={onAir.candidate.id}
+            onChange={(event) => onSelectSession(event.target.value)}
+            style={onAirPickerStyle}
+          >
+            {onAir.candidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.userLabel} · {candidate.id.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <span style={onAirMetaStyle}>{onAir.candidate.userLabel}</span>
+      )}
+      <span style={onAirMetaStyle}>{elapsed}</span>
+      <Link
+        href={`/sessions/${onAir.candidate.id}`}
+        style={onAirWorkbenchLinkStyle}
+      >
+        Watch in workbench →
+      </Link>
+    </div>
+  );
+}
+
+function elapsedLabel(startIso: string, nowMs: number): string {
+  const startedMs = Date.parse(startIso);
+  const seconds = Number.isFinite(startedMs)
+    ? Math.max(0, Math.floor((nowMs - startedMs) / 1_000))
+    : 0;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${String(seconds % 60).padStart(2, "0")}s`;
 }
 
 const tabBandStyle: CSSProperties = {
@@ -591,4 +765,74 @@ const headerIconButtonStyle: CSSProperties = {
   background: "transparent",
   color: "var(--text-tertiary)",
   cursor: "pointer",
+};
+
+const onAirClusterStyle: CSSProperties = {
+  minHeight: 34,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--space-8)",
+  padding: "4px 5px 4px 14px",
+  border: "1px solid var(--accent-soft)",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--accent-wash)",
+  whiteSpace: "nowrap",
+};
+
+const onAirDotStyle: CSSProperties = {
+  width: 7,
+  height: 7,
+  borderRadius: "var(--radius-pill)",
+  background: "var(--accent-strong)",
+  boxShadow: "0 0 0 4px var(--accent-wash)",
+};
+
+const onAirLabelStyle: CSSProperties = {
+  color: "var(--accent-strong)",
+  fontFamily: adminTokens.fontMono,
+  fontSize: "var(--font-size-xs)",
+  fontWeight: 700,
+  letterSpacing: "0.12em",
+  textTransform: "uppercase",
+};
+
+const onAirMetaStyle: CSSProperties = {
+  paddingLeft: "var(--space-8)",
+  borderLeft: "1px solid var(--accent-soft)",
+  color: "var(--text-secondary)",
+  fontFamily: adminTokens.fontMono,
+  fontSize: "var(--font-size-xs)",
+};
+
+const onAirPickerLabelStyle: CSSProperties = {
+  ...onAirMetaStyle,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--space-6)",
+};
+
+const onAirPickerStyle: CSSProperties = {
+  maxWidth: 130,
+  height: 24,
+  padding: "0 var(--space-6)",
+  border: "1px solid var(--accent-soft)",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--surface-2)",
+  color: "var(--text-primary)",
+  fontFamily: adminTokens.fontBody,
+  fontSize: "var(--font-size-xs)",
+};
+
+const onAirWorkbenchLinkStyle: CSSProperties = {
+  minHeight: 26,
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "0 12px",
+  borderRadius: "var(--radius-pill)",
+  background: "var(--accent-strong)",
+  color: "var(--accent-on)",
+  fontFamily: adminTokens.fontBody,
+  fontSize: "var(--font-size-xs)",
+  fontWeight: 650,
+  textDecoration: "none",
 };

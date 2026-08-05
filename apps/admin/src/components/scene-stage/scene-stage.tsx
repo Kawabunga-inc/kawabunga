@@ -17,6 +17,11 @@ import type {
   SceneLibraryArtifact,
 } from "@/app/(authenticated)/scenes/[sceneId]/page";
 import { resolveAvatarGradient } from "@/lib/avatar-gradients";
+import type {
+  SceneOnAirCharacterState,
+  SceneOnAirPresentation,
+  SceneOnAirSoundCue,
+} from "@/lib/scene-on-air";
 import { T } from "@/components/scene-tabs/shared";
 import {
   clampToWorld,
@@ -67,6 +72,14 @@ export type StageGhost = {
   position: { x: number; y: number };
 };
 
+export type SceneStageOnAir = {
+  userLabel: string;
+  presentation: SceneOnAirPresentation;
+  arcLength: number;
+  lastEventAgeMs: number | null;
+  hasSoundNodes: boolean;
+};
+
 /* ── The overhead stage surface ─────────────────────────────────────
  * A single shared world (96×64 m, origin center, +x right, +y up)
  * rendered as DOM tokens over an SVG meter grid. Zones scale with
@@ -87,6 +100,7 @@ export function SceneStage({
   onMoveSpawn,
   onResizeCommit,
   onViewport,
+  onAir,
 }: {
   nodes: SceneNode[];
   characterById: Map<string, SceneLibraryCharacter>;
@@ -105,6 +119,7 @@ export function SceneStage({
   ) => void;
   /** Reports the live viewport so "save this view" can capture it. */
   onViewport?: (vp: Viewport) => void;
+  onAir?: SceneStageOnAir | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<ScreenSize>({ width: 0, height: 0 });
@@ -350,6 +365,12 @@ export function SceneStage({
               ? { x: dragPos.x, y: dragPos.y }
               : { x: node.position!.x, y: node.position!.y };
             const screen = worldToScreen(world, viewport, size);
+            const onAirSoundCue =
+              onAir?.presentation.recentSfxByNodeId[node.id] ??
+              attachedSounds
+                .map((sound) => onAir?.presentation.recentSfxByNodeId[sound.id])
+                .find((cue): cue is SceneOnAirSoundCue => cue != null) ??
+              null;
             return (
               <StageToken
                 key={node.id}
@@ -379,6 +400,8 @@ export function SceneStage({
                   null,
                 )}
                 resizeDims={resizePreview?.id === node.id ? resizePreview : null}
+                onAirCharacter={onAir?.presentation.characterByNodeId[node.id] ?? null}
+                onAirSoundCue={onAirSoundCue}
                 onPointerDown={(event) => {
                   event.stopPropagation();
                   if (event.button !== 0) return;
@@ -449,6 +472,19 @@ export function SceneStage({
               beginDrag(event, { mode: "spawn", moved: false });
             }}
           />
+          {onAir && <StageOnAirHud onAir={onAir} />}
+          {onAir && (
+            <style>{`
+              @keyframes scene-on-air-ring {
+                0%, 100% { opacity: .4; transform: scale(1); }
+                50% { opacity: .9; transform: scale(1.06); }
+              }
+              @keyframes scene-on-air-sfx {
+                0% { opacity: .95; transform: translate(-50%, -50%) scale(.8); }
+                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); }
+              }
+            `}</style>
+          )}
           <div
             style={hudChipStyle({
               left: "50%",
@@ -640,6 +676,8 @@ function StageToken({
   attachedSoundCount = 0,
   soundRangeM = null,
   resizeDims,
+  onAirCharacter,
+  onAirSoundCue,
   onPointerDown,
   onResizePointerDown,
 }: {
@@ -655,6 +693,8 @@ function StageToken({
   attachedSoundCount?: number;
   soundRangeM?: number | null;
   resizeDims: ({ radiusM: number | null; widthM: number | null; heightM: number | null }) | null;
+  onAirCharacter: SceneOnAirCharacterState | null;
+  onAirSoundCue: SceneOnAirSoundCue | null;
   onPointerDown: (event: ReactPointerEvent) => void;
   onResizePointerDown?: (event: ReactPointerEvent) => void;
 }) {
@@ -756,6 +796,7 @@ function StageToken({
               : undefined,
           }}
         >
+          {onAirSoundCue && <SoundCuePulse cue={onAirSoundCue} />}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={sprite}
@@ -844,6 +885,7 @@ function StageToken({
             : undefined,
         }}
       >
+        {onAirSoundCue && <SoundCuePulse cue={onAirSoundCue} />}
         <TokenLabel text={node.label} coords={selected ? coordText : null} offset={Math.max(15, h / 2)} />
         {attachedSoundCount > 0 && (
           <span
@@ -900,6 +942,12 @@ function StageToken({
       typeof node.data.earshotM === "number" ? node.data.earshotM : null;
     return (
       <div onPointerDown={onPointerDown} style={{ ...base, width: 0, height: 0 }}>
+        {onAirCharacter?.state === "speaking" && (
+          <>
+            <span aria-hidden style={speakingRingStyle(54, 0.62)} />
+            <span aria-hidden style={speakingRingStyle(68, 0.32)} />
+          </>
+        )}
         {selected && earshotM && (
           <div
             aria-hidden
@@ -941,11 +989,28 @@ function StageToken({
             fontFamily: T.fontHeading,
             fontWeight: 600,
             fontSize: "var(--font-size-base)",
+            ...(onAirCharacter
+              ? {
+                  opacity:
+                    onAirCharacter.state === "speaking"
+                      ? 1
+                      : onAirCharacter.state === "departed"
+                        ? 0.36
+                        : 0.7,
+                  filter:
+                    onAirCharacter.state === "departed"
+                      ? "grayscale(1)"
+                      : undefined,
+                }
+              : {}),
           }}
         >
           {character?.image ? null : (node.label || "•").charAt(0).toUpperCase()}
         </div>
         <TokenLabel text={node.label} coords={selected ? coordText : null} offset={24} />
+        {onAirCharacter && (
+          <CharacterOnAirHint state={onAirCharacter} />
+        )}
       </div>
     );
   }
@@ -954,6 +1019,7 @@ function StageToken({
   const rangeM = typeof node.data.rangeM === "number" ? node.data.rangeM : null;
   return (
     <div onPointerDown={onPointerDown} style={{ ...base, width: 0, height: 0 }}>
+      {onAirSoundCue && <SoundCuePulse cue={onAirSoundCue} />}
       {selected && rangeM && (
         <div
           aria-hidden
@@ -1002,6 +1068,277 @@ function StageToken({
     </div>
   );
 }
+
+function speakingRingStyle(size: number, opacity: number): CSSProperties {
+  return {
+    position: "absolute",
+    left: -size / 2,
+    top: -size / 2,
+    width: size,
+    height: size,
+    borderRadius: "50%",
+    border: `1.5px solid color-mix(in srgb, var(--accent-strong) ${Math.round(
+      opacity * 100,
+    )}%, transparent)`,
+    boxShadow:
+      size < 60
+        ? "0 0 18px color-mix(in srgb, var(--accent-strong) 25%, transparent)"
+        : undefined,
+    pointerEvents: "none",
+    animation: "scene-on-air-ring 1.6s ease-in-out infinite",
+    transformOrigin: "center",
+  };
+}
+
+function CharacterOnAirHint({ state }: { state: SceneOnAirCharacterState }) {
+  const label =
+    state.state === "speaking"
+      ? `speaking · turn ${state.turnNumber ?? "—"}`
+      : state.state === "departed"
+        ? "departed"
+        : state.lastSpokeTurn != null
+          ? `last spoke turn ${state.lastSpokeTurn}`
+          : null;
+  if (!label) return null;
+  return (
+    <span
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: 43,
+        transform: "translateX(-50%)",
+        display: "inline-flex",
+        padding: "2px 9px",
+        border: `1px solid ${
+          state.state === "speaking" ? "var(--accent-soft)" : "var(--ink-line)"
+        }`,
+        borderRadius: "var(--radius-pill)",
+        background:
+          state.state === "speaking" ? "var(--accent-wash)" : "var(--surface-2)",
+        color:
+          state.state === "speaking" ? "var(--accent-strong)" : "var(--text-tertiary)",
+        fontFamily: T.fontMono,
+        fontSize: "var(--font-size-2xs)",
+        fontWeight: 650,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        whiteSpace: "nowrap",
+        pointerEvents: "none",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function SoundCuePulse({ cue }: { cue: SceneOnAirSoundCue }) {
+  return (
+    <>
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          border: "2px solid var(--warning-amber)",
+          pointerEvents: "none",
+          animation: "scene-on-air-sfx 1.2s ease-out infinite",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: 22,
+          transform: "translateX(-50%)",
+          padding: "2px 8px",
+          borderRadius: "var(--radius-pill)",
+          border: "1px solid color-mix(in srgb, var(--warning-amber) 34%, transparent)",
+          background: "color-mix(in srgb, var(--warning-amber) 10%, transparent)",
+          color: "var(--warning-amber)",
+          fontFamily: T.fontMono,
+          fontSize: "var(--font-size-2xs)",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+        }}
+      >
+        fired {Math.max(0, Math.floor(cue.ageMs / 1_000))}s ago
+      </span>
+    </>
+  );
+}
+
+function StageOnAirHud({ onAir }: { onAir: SceneStageOnAir }) {
+  const { presentation } = onAir;
+  return (
+    <div
+      aria-label="Live scene monitor"
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 200,
+        pointerEvents: "none",
+      }}
+    >
+      <div style={topHudStyle}>
+        {onAir.hasSoundNodes && presentation.ambienceSlug && (
+          <div style={{ ...liveHudChipStyle, position: "static" }}>
+            <span aria-hidden style={playingDotStyle} />
+            ambience · {presentation.ambienceSlug}
+          </div>
+        )}
+
+        <div style={presenceClusterStyle}>
+          <span style={visitorMarkerStyle} aria-hidden />
+          <span style={presenceLabelStyle}>visitor · {onAir.userLabel}</span>
+          {presentation.narratorTurnNumber != null && (
+            <span style={narratorIndicatorStyle}>
+              narrator · speaking · turn {presentation.narratorTurnNumber}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {presentation.beat && (
+        <div style={captionStyle}>
+          <span style={captionNowStyle}>now</span>
+          <span style={captionBeatStyle}>{presentation.beat}</span>
+          <span style={{ flex: 1 }} />
+          {onAir.arcLength > 0 && (
+            <span style={captionMetaStyle}>
+              arc {Math.min(presentation.arcLanded, onAir.arcLength)}/{onAir.arcLength}
+            </span>
+          )}
+          {onAir.lastEventAgeMs != null && (
+            <span style={captionMetaStyle}>
+              last event {formatAge(onAir.lastEventAgeMs)}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatAge(ageMs: number): string {
+  const seconds = Math.max(0, Math.floor(ageMs / 1_000));
+  return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
+}
+
+const liveHudChipStyle: CSSProperties = {
+  position: "absolute",
+  minHeight: 28,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--space-8)",
+  padding: "0 12px",
+  border: "1px solid var(--accent-soft)",
+  borderRadius: "var(--radius-pill)",
+  background: "color-mix(in srgb, var(--surface-2) 88%, transparent)",
+  boxShadow: "0 8px 24px color-mix(in srgb, var(--background) 30%, transparent)",
+  color: "var(--text-secondary)",
+  fontFamily: T.fontMono,
+  fontSize: "var(--font-size-2xs)",
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+};
+
+const playingDotStyle: CSSProperties = {
+  width: 6,
+  height: 6,
+  borderRadius: "50%",
+  background: "var(--accent-strong)",
+  boxShadow: "0 0 10px var(--accent-strong)",
+};
+
+const topHudStyle: CSSProperties = {
+  position: "absolute",
+  left: 284,
+  right: 336,
+  top: 20,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  flexWrap: "wrap",
+  gap: "var(--space-8)",
+};
+
+const presenceClusterStyle: CSSProperties = {
+  minHeight: 30,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "var(--space-8)",
+};
+
+const visitorMarkerStyle: CSSProperties = {
+  width: 14,
+  height: 14,
+  transform: "rotate(45deg)",
+  border: "1.5px dashed var(--accent-strong)",
+  background: "var(--accent-wash)",
+};
+
+const presenceLabelStyle: CSSProperties = {
+  ...liveHudChipStyle,
+  position: "static",
+};
+
+const narratorIndicatorStyle: CSSProperties = {
+  ...liveHudChipStyle,
+  position: "static",
+  borderColor: "var(--accent-strong)",
+  background: "var(--accent-wash)",
+  color: "var(--accent-strong)",
+};
+
+const captionStyle: CSSProperties = {
+  position: "absolute",
+  left: 284,
+  right: 336,
+  bottom: 20,
+  minHeight: 44,
+  display: "flex",
+  alignItems: "center",
+  gap: "var(--space-12)",
+  padding: "0 18px",
+  border: "1px solid var(--ink-line)",
+  borderRadius: "var(--radius-lg)",
+  background: "color-mix(in srgb, var(--surface-2) 92%, transparent)",
+  boxShadow: "0 12px 32px color-mix(in srgb, var(--background) 38%, transparent)",
+};
+
+const captionNowStyle: CSSProperties = {
+  color: "var(--accent-strong)",
+  fontFamily: T.fontMono,
+  fontSize: "var(--font-size-2xs)",
+  fontWeight: 700,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase",
+};
+
+const captionBeatStyle: CSSProperties = {
+  overflow: "hidden",
+  color: "var(--text-primary)",
+  fontFamily: T.fontBody,
+  fontSize: "var(--font-size-sm)",
+  fontWeight: 550,
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const captionMetaStyle: CSSProperties = {
+  paddingLeft: "var(--space-12)",
+  borderLeft: "1px solid var(--ink-line)",
+  color: "var(--text-tertiary)",
+  fontFamily: T.fontMono,
+  fontSize: "var(--font-size-2xs)",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap",
+};
 
 function LockBadge() {
   return (
