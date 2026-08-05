@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DeepTheme } from "@/components/deep-theme";
 import { useLiveScene } from "@/hooks/use-live-scene";
 import { useSceneCaptions } from "@/hooks/use-scene-captions";
+import type { SceneEndedLifecycleMessage } from "@kawabunga/types";
+import { SceneSessionView } from "./scene-session-view";
 import { SceneStoryView } from "./scene-story-view";
 import type { SceneView } from "./scene-view-toggle";
 import { SceneWaveformView } from "./scene-waveform-view";
@@ -18,6 +20,9 @@ type Props = {
   startedAt: string;
   endedAt: string | null;
   ambience: string | null;
+  arcLength: number;
+  staff: boolean;
+  adminBaseUrl: string;
   sessionEnded: boolean;
 };
 
@@ -28,13 +33,28 @@ function elapsedLabel(startedAt: string, endedAt: string | null = null): string 
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, ambience, sessionEnded }: Props) {
+export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, ambience, arcLength, staff, adminBaseUrl, sessionEnded }: Props) {
   const captions = useSceneCaptions({ sceneId, sessionId });
+  const [lifecycleEnd, setLifecycleEnd] = useState<SceneEndedLifecycleMessage | null>(null);
+  const [lifecycleAt, setLifecycleAt] = useState<number | null>(null);
+  const [sessionSettled, setSessionSettled] = useState(false);
   const receiveTranscript = useCallback(
     (message: Parameters<typeof captions.receive>[0]) => captions.receive(message),
     [captions],
   );
-  const live = useLiveScene({ sceneId, sessionId, onTranscript: receiveTranscript, disabled: sessionEnded });
+  const receiveSceneEnded = useCallback((message: SceneEndedLifecycleMessage) => {
+    setLifecycleEnd(message);
+    setLifecycleAt(Date.now());
+    setSessionSettled(false);
+  }, []);
+  const settleSession = useCallback(() => setSessionSettled(true), []);
+  const live = useLiveScene({
+    sceneId,
+    sessionId,
+    onTranscript: receiveTranscript,
+    onSceneEnded: receiveSceneEnded,
+    disabled: sessionEnded,
+  });
   const [elapsed, setElapsed] = useState(() => elapsedLabel(startedAt, sessionEnded ? endedAt : null));
   const [view, setView] = useState<SceneView>("waveform");
   const [readEndedStory, setReadEndedStory] = useState(sessionEnded);
@@ -69,7 +89,8 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
     );
   }
 
-  if (live.stage === "connected" || live.stage === "reconnecting") {
+  const settlingSession = staff && view === "session" && lifecycleEnd != null && !sessionSettled;
+  if (live.stage === "connected" || live.stage === "reconnecting" || settlingSession) {
     const currentSpeakerSlug = captions.current?.final ? null : captions.current?.speaker?.slug ?? null;
     return (
       <main className={styles.player} data-theme="deep" data-player-state={live.stage}>
@@ -86,11 +107,12 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
             current={captions.current}
             previous={captions.previous}
             view={view}
+            staff={staff}
             onViewChange={setView}
             onLeave={() => void live.leave()}
             onToggleCaptions={() => captions.setVisible(!captions.state.visible)}
           />
-        ) : (
+        ) : view === "story" ? (
           <SceneStoryView
             title={title}
             elapsed={elapsed}
@@ -100,8 +122,26 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, amb
             micLevel={live.micLevel}
             currentSpeakerSlug={currentSpeakerSlug}
             view={view}
+            staff={staff}
             ended={false}
             landerHref={landerHref}
+            onViewChange={setView}
+            onLeave={() => void live.leave()}
+          />
+        ) : (
+          <SceneSessionView
+            sceneId={sceneId}
+            sessionId={sessionId}
+            title={title}
+            elapsed={elapsed}
+            arcLength={arcLength}
+            adminBaseUrl={adminBaseUrl}
+            micLevel={live.micLevel}
+            view={view}
+            live={live.stage === "connected" || live.stage === "reconnecting"}
+            lifecycleEnd={lifecycleEnd}
+            lifecycleAt={lifecycleAt}
+            onSettled={settleSession}
             onViewChange={setView}
             onLeave={() => void live.leave()}
           />

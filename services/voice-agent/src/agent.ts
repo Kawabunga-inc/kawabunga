@@ -54,6 +54,7 @@ import {
   streamNarration,
 } from "./narration";
 import { SceneDriver } from "./scene-driver";
+import { createSceneEndPublisher } from "./scene-lifecycle";
 import { buildSceneKeyterms, supportsKeyterms } from "./stt-keyterms";
 import { WorldAudioChannel } from "./world-audio";
 
@@ -438,6 +439,11 @@ export default defineAgent({
         { reliable: true, topic: "odyssey.transcript" },
       );
     };
+    const publishSceneEnded = createSceneEndPublisher({
+      sessionId,
+      publish: (payload, options) =>
+        ctx.room.localParticipant?.publishData(payload, options),
+    });
 
     // Voice one character's turn: run the brain for input.characterId, push its audio
     // onto our output track, stream its text as a transcript, and resolve to the full
@@ -676,6 +682,9 @@ export default defineAgent({
         clearTimeout(worldEventTimer);
         worldEventTimer = null;
       }
+      void publishSceneEnded("director").catch((error) =>
+        console.error(`[voice-agent] scene-ended publish failed: ${(error as Error).message}`),
+      );
       console.log("[voice-agent] scene ended by director — going quiet");
     };
 
@@ -773,6 +782,11 @@ export default defineAgent({
       });
       ctx.addShutdownCallback(() => worldAudio.close());
     }
+    ctx.addShutdownCallback(async () => {
+      await publishSceneEnded("host").catch((error) =>
+        console.error(`[voice-agent] scene-ended publish failed: ${(error as Error).message}`),
+      );
+    });
 
     // The authored OPENING NARRATION — the unseen narrator sets the scene the
     // moment the user arrives, before any character speaks. Recorded into the

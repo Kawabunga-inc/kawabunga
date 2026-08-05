@@ -8,6 +8,8 @@ import {
   type RemoteTrack,
   type RemoteTrackPublication,
 } from "livekit-client";
+import type { SceneEndedLifecycleMessage } from "@kawabunga/types";
+import { sceneEndedForSession } from "@/lib/scene-lifecycle";
 import { parseSceneTranscript, type SceneTranscriptMessage } from "@/lib/scene-captions";
 
 export type LiveSceneStage =
@@ -24,6 +26,7 @@ type LiveSceneOptions = {
   sceneId: string;
   sessionId: string;
   onTranscript(message: SceneTranscriptMessage): void;
+  onSceneEnded?(message: SceneEndedLifecycleMessage): void;
   disabled?: boolean;
 };
 
@@ -53,7 +56,7 @@ function meterLevel(meter: Meter | null): number {
   return Math.min(1, Math.sqrt(sum / meter.data.length) * 5.5);
 }
 
-export function useLiveScene({ sceneId, sessionId, onTranscript, disabled = false }: LiveSceneOptions) {
+export function useLiveScene({ sceneId, sessionId, onTranscript, onSceneEnded, disabled = false }: LiveSceneOptions) {
   const [stage, setStage] = useState<LiveSceneStage>(() => disabled ? "ended" : "preparing");
   const [error, setError] = useState<string | null>(null);
   const [agentLevel, setAgentLevel] = useState(0);
@@ -68,6 +71,8 @@ export function useLiveScene({ sceneId, sessionId, onTranscript, disabled = fals
   const sawAgentRef = useRef(false);
   const transcriptRef = useRef(onTranscript);
   transcriptRef.current = onTranscript;
+  const sceneEndedRef = useRef(onSceneEnded);
+  sceneEndedRef.current = onSceneEnded;
 
   const cleanupMedia = useCallback(async () => {
     cancelAnimationFrame(animationRef.current);
@@ -185,9 +190,19 @@ export function useLiveScene({ sceneId, sessionId, onTranscript, disabled = fals
           if (publication.trackName === "agent-voice") agentMeterRef.current = null;
         })
         .on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
-          if (topic !== "odyssey.transcript") return;
-          const message = parseSceneTranscript(payload);
-          if (message) transcriptRef.current(message);
+          if (topic === "odyssey.transcript") {
+            const message = parseSceneTranscript(payload);
+            if (message) transcriptRef.current(message);
+            return;
+          }
+          const message = sceneEndedForSession(payload, topic, sessionId);
+          if (message) {
+            sceneEndedRef.current?.(message);
+            setStage("ended");
+            leavingRef.current = true;
+            roomRef.current = null;
+            void room.disconnect().finally(() => cleanupMedia());
+          }
         })
         .on(RoomEvent.Reconnecting, () => setStage("reconnecting"))
         .on(RoomEvent.Reconnected, () => setStage("connected"))

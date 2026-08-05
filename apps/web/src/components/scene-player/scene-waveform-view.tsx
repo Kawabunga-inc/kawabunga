@@ -17,6 +17,7 @@ type Props = {
   current: SceneTranscriptMessage | null;
   previous: SceneTranscriptMessage | null;
   view: SceneView;
+  staff: boolean;
   onLeave(): void;
   onViewChange(view: SceneView): void;
   onToggleCaptions(): void;
@@ -50,6 +51,7 @@ export function SceneWaveformView({
   current,
   previous,
   view,
+  staff,
   onLeave,
   onViewChange,
   onToggleCaptions,
@@ -71,7 +73,7 @@ export function SceneWaveformView({
       <div className={styles.atmosphere} aria-hidden="true" />
       <header className={styles.topbar}>
         <p>{title}</p>
-        <SceneViewToggle value={view} onChange={onViewChange} />
+        <SceneViewToggle value={view} staff={staff} onChange={onViewChange} />
         <div className={styles.topbarActions}>
           <time suppressHydrationWarning>{elapsed}</time>
           <button type="button" onClick={onLeave}>Leave quietly</button>
