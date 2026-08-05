@@ -4137,18 +4137,7 @@ function pickActiveContext(
   if (matchingForTurn.length > 0) {
     return matchingForTurn[matchingForTurn.length - 1];
   }
-
-  const turnStartMs = new Date(activeTurn.startedAt).getTime();
-  let best: SceneSessionContextBuildRecord | null = null;
-  let bestMs = -Infinity;
-  for (const c of contextBuilds) {
-    const createdMs = new Date(c.createdAt).getTime();
-    if (createdMs <= turnStartMs && createdMs > bestMs) {
-      best = c;
-      bestMs = createdMs;
-    }
-  }
-  return best;
+  return null;
 }
 
 function computeDuration(session: SceneSessionDetailRecord["session"]) {
