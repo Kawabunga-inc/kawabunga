@@ -5,7 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DeepTheme } from "@/components/deep-theme";
 import { useLiveScene } from "@/hooks/use-live-scene";
 import { useSceneCaptions } from "@/hooks/use-scene-captions";
+import { SceneStoryView } from "./scene-story-view";
+import type { SceneView } from "./scene-view-toggle";
 import { SceneWaveformView } from "./scene-waveform-view";
+import { visitTimeOfDay } from "@/lib/scene-story";
 import styles from "./scene-player.module.css";
 
 type Props = {
@@ -13,47 +16,96 @@ type Props = {
   sessionId: string;
   title: string;
   startedAt: string;
+  endedAt: string | null;
   ambience: string | null;
+  sessionEnded: boolean;
 };
 
-function elapsedLabel(startedAt: string): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+function elapsedLabel(startedAt: string, endedAt: string | null = null): string {
+  const end = endedAt ? new Date(endedAt).getTime() : Date.now();
+  const seconds = Math.max(0, Math.floor((end - new Date(startedAt).getTime()) / 1000));
   const minutes = Math.floor(seconds / 60);
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function ScenePlayer({ sceneId, sessionId, title, startedAt, ambience }: Props) {
-  const captions = useSceneCaptions();
+export function ScenePlayer({ sceneId, sessionId, title, startedAt, endedAt, ambience, sessionEnded }: Props) {
+  const captions = useSceneCaptions({ sceneId, sessionId });
   const receiveTranscript = useCallback(
     (message: Parameters<typeof captions.receive>[0]) => captions.receive(message),
     [captions],
   );
-  const live = useLiveScene({ sceneId, sessionId, onTranscript: receiveTranscript });
-  const [elapsed, setElapsed] = useState(() => elapsedLabel(startedAt));
+  const live = useLiveScene({ sceneId, sessionId, onTranscript: receiveTranscript, disabled: sessionEnded });
+  const [elapsed, setElapsed] = useState(() => elapsedLabel(startedAt, sessionEnded ? endedAt : null));
+  const [view, setView] = useState<SceneView>("waveform");
+  const [readEndedStory, setReadEndedStory] = useState(sessionEnded);
   const landerHref = useMemo(() => `/scenes/${encodeURIComponent(sceneId)}`, [sceneId]);
+  const chapter = useMemo(() => visitTimeOfDay(startedAt), [startedAt]);
 
   useEffect(() => {
+    if (sessionEnded) return;
     const timer = window.setInterval(() => setElapsed(elapsedLabel(startedAt)), 1_000);
     return () => window.clearInterval(timer);
-  }, [startedAt]);
+  }, [endedAt, sessionEnded, startedAt]);
+
+  if (sessionEnded || readEndedStory) {
+    return (
+      <main className={styles.player} data-theme="deep" data-player-state="ended-story">
+        <DeepTheme />
+        <SceneStoryView
+          title={title}
+          elapsed={elapsed}
+          chapter={chapter}
+          messages={captions.transcript}
+          stage="ended"
+          micLevel={0}
+          currentSpeakerSlug={null}
+          view="story"
+          ended
+          landerHref={landerHref}
+          onViewChange={() => undefined}
+          onLeave={() => undefined}
+        />
+      </main>
+    );
+  }
 
   if (live.stage === "connected" || live.stage === "reconnecting") {
+    const currentSpeakerSlug = captions.current?.final ? null : captions.current?.speaker?.slug ?? null;
     return (
       <main className={styles.player} data-theme="deep" data-player-state={live.stage}>
         <DeepTheme />
-        <SceneWaveformView
-          title={title}
-          elapsed={elapsed}
-          ambience={ambience}
-          stage={live.stage}
-          agentLevel={live.agentLevel}
-          micLevel={live.micLevel}
-          captionsVisible={captions.state.visible}
-          current={captions.current}
-          previous={captions.previous}
-          onLeave={() => void live.leave()}
-          onToggleCaptions={() => captions.setVisible(!captions.state.visible)}
-        />
+        {view === "waveform" ? (
+          <SceneWaveformView
+            title={title}
+            elapsed={elapsed}
+            ambience={ambience}
+            stage={live.stage}
+            agentLevel={live.agentLevel}
+            micLevel={live.micLevel}
+            captionsVisible={captions.state.visible}
+            current={captions.current}
+            previous={captions.previous}
+            view={view}
+            onViewChange={setView}
+            onLeave={() => void live.leave()}
+            onToggleCaptions={() => captions.setVisible(!captions.state.visible)}
+          />
+        ) : (
+          <SceneStoryView
+            title={title}
+            elapsed={elapsed}
+            chapter={chapter}
+            messages={captions.transcript}
+            stage={live.stage}
+            micLevel={live.micLevel}
+            currentSpeakerSlug={currentSpeakerSlug}
+            view={view}
+            ended={false}
+            landerHref={landerHref}
+            onViewChange={setView}
+            onLeave={() => void live.leave()}
+          />
+        )}
       </main>
     );
   }
@@ -67,6 +119,9 @@ export function ScenePlayer({ sceneId, sessionId, title, startedAt, ambience }: 
           <p className={styles.kicker}>A quiet remains</p>
           <h1>The scene has ended.</h1>
           <p>Your visit is safe. Return when you would like to step inside again.</p>
+          <button type="button" className={styles.readVisitButton} onClick={() => setReadEndedStory(true)}>
+            Read your visit
+          </button>
           <Link href={landerHref}>Visit again</Link>
         </div>
       </main>

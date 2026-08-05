@@ -24,6 +24,7 @@ type LiveSceneOptions = {
   sceneId: string;
   sessionId: string;
   onTranscript(message: SceneTranscriptMessage): void;
+  disabled?: boolean;
 };
 
 type Meter = {
@@ -52,8 +53,8 @@ function meterLevel(meter: Meter | null): number {
   return Math.min(1, Math.sqrt(sum / meter.data.length) * 5.5);
 }
 
-export function useLiveScene({ sceneId, sessionId, onTranscript }: LiveSceneOptions) {
-  const [stage, setStage] = useState<LiveSceneStage>("preparing");
+export function useLiveScene({ sceneId, sessionId, onTranscript, disabled = false }: LiveSceneOptions) {
+  const [stage, setStage] = useState<LiveSceneStage>(() => disabled ? "ended" : "preparing");
   const [error, setError] = useState<string | null>(null);
   const [agentLevel, setAgentLevel] = useState(0);
   const [micLevel, setMicLevel] = useState(0);
@@ -85,9 +86,10 @@ export function useLiveScene({ sceneId, sessionId, onTranscript }: LiveSceneOpti
   }, []);
 
   useEffect(() => {
+    if (disabled) return;
     const timer = window.setTimeout(() => setStage("permission"), 650);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [disabled]);
 
   useEffect(() => {
     return () => {
@@ -134,6 +136,7 @@ export function useLiveScene({ sceneId, sessionId, onTranscript }: LiveSceneOpti
   }, []);
 
   const begin = useCallback(async () => {
+    if (disabled) return;
     if (stage === "connecting" || stage === "connected") return;
     leavingRef.current = false;
     sawAgentRef.current = false;
@@ -227,7 +230,7 @@ export function useLiveScene({ sceneId, sessionId, onTranscript }: LiveSceneOpti
       await cleanupMedia();
       leavingRef.current = false;
     }
-  }, [attachRemoteTrack, cleanupMedia, sceneId, sessionId, stage, startMeters]);
+  }, [attachRemoteTrack, cleanupMedia, disabled, sceneId, sessionId, stage, startMeters]);
 
   const leave = useCallback(async () => {
     leavingRef.current = true;

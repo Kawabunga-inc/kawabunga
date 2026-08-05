@@ -4,6 +4,7 @@ import {
   parseSceneTranscript,
   sceneCaptionReducer,
   selectAgentCaptionLines,
+  selectSceneTranscript,
 } from "./scene-captions";
 
 describe("sceneCaptionReducer", () => {
@@ -51,5 +52,68 @@ describe("sceneCaptionReducer", () => {
       role: "agent",
       speaker: { slug: "narrator", name: "Narrator" },
     });
+  });
+
+  it("keeps hydrated history as the prefix and appends the live tail", () => {
+    const history = [
+      { role: "user" as const, id: "history:u", text: "Who is there?", final: true },
+      { role: "agent" as const, id: "history:a", text: "Only me.", final: true },
+    ];
+    const hydrated = sceneCaptionReducer(initialSceneCaptionState, {
+      type: "hydrated",
+      messages: history,
+    });
+    const live = sceneCaptionReducer(hydrated, {
+      type: "received",
+      message: { role: "user", id: "live:u", text: "Come closer.", final: true },
+    });
+    expect(selectSceneTranscript(live).map((message) => message.text)).toEqual([
+      "Who is there?",
+      "Only me.",
+      "Come closer.",
+    ]);
+  });
+
+  it("absorbs one pre-hydration overlap message", () => {
+    const live = sceneCaptionReducer(initialSceneCaptionState, {
+      type: "received",
+      message: { role: "user", id: "live:u", text: "Who is there?", final: true },
+    });
+    const hydrated = sceneCaptionReducer(live, {
+      type: "hydrated",
+      messages: [
+        {
+          role: "user",
+          id: "history:u",
+          text: "Who is there?",
+          final: true,
+          speaker: { slug: "user", name: "You" },
+        },
+      ],
+    });
+    expect(selectSceneTranscript(hydrated)).toHaveLength(1);
+    expect(selectSceneTranscript(hydrated)[0]?.id).toBe("history:u");
+  });
+
+  it("keeps a repeated identical line received after hydration", () => {
+    const overlap = sceneCaptionReducer(initialSceneCaptionState, {
+      type: "received",
+      message: { role: "user", id: "live:overlap", text: "Yes.", final: true },
+    });
+    const hydrated = sceneCaptionReducer(overlap, {
+      type: "hydrated",
+      messages: [
+        { role: "user", id: "history:yes", text: "Yes.", final: true },
+      ],
+    });
+    const repeated = sceneCaptionReducer(hydrated, {
+      type: "received",
+      message: { role: "user", id: "live:repeat", text: "Yes.", final: true },
+    });
+
+    expect(selectSceneTranscript(repeated).map((message) => message.id)).toEqual([
+      "history:yes",
+      "live:repeat",
+    ]);
   });
 });
