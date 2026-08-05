@@ -208,6 +208,8 @@ export interface SceneSessionStore {
   endSession(id: string, status?: string, metadata?: JsonRecord): Promise<void>;
   getSession(id: string): Promise<SceneSessionRecord | null>;
   listSessions(limit?: number): Promise<SceneSessionRecord[]>;
+  /** Sessions owned by one visitor, newest activity first. */
+  listSessionsForUser(userId: string, limit?: number): Promise<SceneSessionRecord[]>;
   listSessionSummaries(limit?: number): Promise<SceneSessionSummaryRecord[]>;
   /** Sessions of one scene, newest-active first — the scene rollup's list. */
   listSessionsForScene(sceneId: string, limit?: number): Promise<SceneSessionRecord[]>;
@@ -428,6 +430,12 @@ function memoryStore(): SceneSessionStore {
     },
     async listSessions(limit = 50) {
       return Array.from(memory.sessions.values())
+        .sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))
+        .slice(0, limit);
+    },
+    async listSessionsForUser(userId, limit = 50) {
+      return Array.from(memory.sessions.values())
+        .filter((session) => session.userId === userId)
         .sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))
         .slice(0, limit);
     },
@@ -690,6 +698,23 @@ function neonStore(): SceneSessionStore {
           db
             .select()
             .from(sceneSessionsTable)
+            .orderBy(desc(sceneSessionsTable.lastActiveAt))
+            .limit(limit),
+        );
+        return rows.map(normalizeSession);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listSessionsForUser(userId, limit = 50) {
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionsTable)
+            .where(eq(sceneSessionsTable.userId, userId))
             .orderBy(desc(sceneSessionsTable.lastActiveAt))
             .limit(limit),
         );

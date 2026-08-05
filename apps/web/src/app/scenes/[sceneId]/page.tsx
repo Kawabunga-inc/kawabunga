@@ -6,6 +6,7 @@ import {
   getSceneSessionStore,
   getSceneStore,
 } from "@kawabunga/db";
+import { ConsumerSceneNav } from "@/components/consumer-scene-nav";
 import { DeepTheme } from "@/components/deep-theme";
 import { SceneEnterControls, VisitAgainButton } from "@/components/scene-enter-controls";
 import { auth } from "@/lib/auth";
@@ -53,9 +54,14 @@ export default async function SceneLanderPage({ params, searchParams }: PageProp
 
   const userId = viewer?.user?.id;
   const priorSessions = userId
-    ? await getSceneSessionStore().listSessionsForScene(sceneId, 250)
+    ? await getSceneSessionStore().listSessionsForUser(userId, 250)
     : [];
-  const priorSession = userId ? latestSessionForUser(priorSessions, userId) : null;
+  const priorSession = userId
+    ? latestSessionForUser(
+        priorSessions.filter((session) => session.sceneId === sceneId),
+        userId,
+      )
+    : null;
   const priorOutcome = latestArcBeatLabel(priorSession?.currentScene);
   const narratorEnabled = scene.definition.narrator !== "off";
   const autoEnter = query.enter === "1" && Boolean(userId);
@@ -68,24 +74,12 @@ export default async function SceneLanderPage({ params, searchParams }: PageProp
       <DeepTheme />
       <div className={styles.atmosphere} aria-hidden="true" />
       <div className={styles.frame}>
-        <header className={styles.header}>
-          <Link href="/" className={styles.wordmark} aria-label="Kawabunga home">
-            Kawabunga
-          </Link>
-          <nav className={styles.nav} aria-label="Scene navigation">
-            <span>Scenes</span>
-            <Link href="/dashboard">My visits</Link>
-            {userId ? (
-              <span className={styles.viewerAvatar} aria-label="Signed in">
-                {viewerInitial.toUpperCase()}
-              </span>
-            ) : (
-              <Link href={`/auth/signin?callbackUrl=${encodeURIComponent(`/scenes/${sceneId}`)}`}>
-                Sign in
-              </Link>
-            )}
-          </nav>
-        </header>
+        <ConsumerSceneNav
+          active={null}
+          viewerInitial={viewerInitial}
+          callbackPath={`/scenes/${sceneId}`}
+          hideScenesOnNarrow
+        />
 
         <div className={styles.halo} aria-hidden="true">
           <span className={styles.ringOuter} />
