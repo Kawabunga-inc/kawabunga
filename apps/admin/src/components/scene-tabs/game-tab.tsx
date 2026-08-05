@@ -5,16 +5,19 @@ import type { SceneGraphPayload } from "@/app/(authenticated)/scenes/[sceneId]/p
 import { AdminButton } from "@/components/admin-ui";
 import {
   Field,
+  fieldHintStyle,
   fieldLabelStyle,
   InspectorSection,
   InspectorTile,
   inputStyle,
   ListDetailLayout,
   NodeRow,
+  T,
   textareaStyle,
 } from "./shared";
 import { NodeInspector } from "./node-inspector";
 import {
+  matchSceneExperiencePreset,
   SCENE_EXPERIENCE_PRESETS,
   type SceneDrive,
   type SceneInitiative,
@@ -67,6 +70,11 @@ export function GameTab({
 }) {
   const [beatLabel, setBeatLabel] = useState("");
   const [beatSummary, setBeatSummary] = useState("");
+  const activePreset = matchSceneExperiencePreset({
+    initiative: scene.initiative,
+    narrator: scene.narrator,
+    drive: scene.drive,
+  });
 
   const beats = graphNodes
     .filter((n) => n.kind === "event")
@@ -87,28 +95,60 @@ export function GameTab({
             hint="Where the scene is going, and how hard the director presses."
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
-              <span style={fieldLabelStyle}>Experience presets</span>
-              <div style={{ display: "flex", gap: "var(--space-8)" }}>
+              <span style={fieldLabelStyle}>Scene mode</span>
+              <div
+                role="group"
+                aria-label="Scene mode"
+                style={{
+                  display: "flex",
+                  width: "fit-content",
+                  border: "1px solid var(--control-border)",
+                  borderRadius: "var(--radius-md)",
+                  overflow: "hidden",
+                }}
+              >
                 {(
                   [
-                    ["Story", SCENE_EXPERIENCE_PRESETS.story],
-                    ["Living space", SCENE_EXPERIENCE_PRESETS.livingSpace],
+                    ["story", "Story", SCENE_EXPERIENCE_PRESETS.story],
+                    ["livingSpace", "Living space", SCENE_EXPERIENCE_PRESETS.livingSpace],
                   ] as const
-                ).map(([label, preset]) => (
-                  <AdminButton
-                    key={label}
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      onSceneChange.setInitiative(preset.initiative);
-                      onSceneChange.setNarrator(preset.narrator);
-                      onSceneChange.setDrive(preset.drive);
-                    }}
-                  >
-                    {label}
-                  </AdminButton>
-                ))}
+                ).map(([key, label, preset], i) => {
+                  const active = activePreset === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        onSceneChange.setInitiative(preset.initiative);
+                        onSceneChange.setNarrator(preset.narrator);
+                        onSceneChange.setDrive(preset.drive);
+                      }}
+                      style={{
+                        height: 34,
+                        padding: "0 16px",
+                        border: "none",
+                        borderLeft: i > 0 ? "1px solid var(--control-border)" : "none",
+                        cursor: "pointer",
+                        background: active ? "var(--accent-soft)" : "var(--control-bg)",
+                        color: active ? "var(--accent-on)" : T.muted,
+                        fontFamily: T.fontBody,
+                        fontSize: "var(--font-size-sm)",
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
+              <p style={fieldHintStyle}>
+                {activePreset === "story"
+                  ? "Story — the world drives: narrator initiative, scenic narration, insistent drive."
+                  : activePreset === "livingSpace"
+                    ? "Living space — the visitor paces: user initiative, minimal narration, gentle drive."
+                    : "Custom — the dials below are set individually. Pick a mode to snap them to a preset; changing any dial returns to Custom."}
+              </p>
             </div>
             <Field label="Scene objective">
               <textarea
