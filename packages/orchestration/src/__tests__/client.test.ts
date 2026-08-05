@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   declaresUserAction,
+  isNarratorEventDeclaration,
   buildOpeningNarrationMessages,
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
@@ -714,6 +715,33 @@ describe("declaresUserAction", () => {
     expect(declaresUserAction("I think you are lying")).toBe(false);
     expect(declaresUserAction("I want to know what the strangers said")).toBe(false);
     expect(declaresUserAction("Sarah, did you laugh?")).toBe(false);
+  });
+});
+
+describe("isNarratorEventDeclaration", () => {
+  it("recognizes narrator-addressed statements as declarations", () => {
+    expect(
+      isNarratorEventDeclaration(
+        "Narrator, as I speak, Abraham sees a vision of a spirit within me.",
+      ),
+    ).toBe(true);
+    expect(isNarratorEventDeclaration("Narrator, Sarah falls to the ground.")).toBe(true);
+    expect(isNarratorEventDeclaration("narrator: a storm rolls in over the hills")).toBe(true);
+    // First-person declarations through the narrator are declarations too.
+    expect(isNarratorEventDeclaration("Narrator, I take Sarah hostage.")).toBe(true);
+  });
+
+  it("excludes questions, with or without the question mark", () => {
+    expect(isNarratorEventDeclaration("Narrator, what do I see around the camp?")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, what does Abraham look like")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, is anyone else nearby?")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, describe the tent")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, tell me what Sarah is doing")).toBe(false);
+  });
+
+  it("is false for messages that do not address the narrator", () => {
+    expect(isNarratorEventDeclaration("Abraham sees a vision of a spirit.")).toBe(false);
+    expect(isNarratorEventDeclaration("I punch Abraham in the face")).toBe(false);
   });
 });
 
