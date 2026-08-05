@@ -19,6 +19,7 @@ import {
   getScene,
   declaresUserAction,
   isNarratorAddressed,
+  initiativeMode,
   MOMENTUM_MARKER,
   NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
@@ -35,6 +36,8 @@ import {
   selectAuthoredOpening,
   updateSceneFacts,
   updateSceneMemory,
+  userDirectorEnabled,
+  userRoleFor,
   buildDecisionJournalEntries,
   buildReflectionJournalEntry,
   buildWorldEventArmedJournalEntry,
@@ -745,6 +748,12 @@ export class SceneDriver {
     this.#speculationStartedForTurn = false;
   }
 
+  /** Scene-authored proactive cadence. The host's explicit env override still
+   * wins; this is the default when no override is configured. */
+  pacing(): { idleMs: number } {
+    return { idleMs: initiativeMode(this.scene) === "narrator" ? 2_000 : 3_500 };
+  }
+
   #persistState(): void {
     if (!this.#onState) return;
     try {
@@ -871,6 +880,28 @@ export class SceneDriver {
           { action: "speak", speakerId: fallback },
         );
         recovered = "fallback-speaker";
+      }
+    }
+    // Director powers gate only narrator-addressed third-person/world fiat.
+    // The visitor's own first-person embodied actions remain real even when
+    // this toggle is off.
+    if (
+      !userDirectorEnabled(this.scene) &&
+      resolution.decision.action === "narrate" &&
+      resolution.decision.narrationKind === "event" &&
+      isNarratorAddressed(userText) &&
+      !declaresUserAction(userText)
+    ) {
+      const fallback = this.#fallbackSpeaker();
+      if (fallback) {
+        console.log(
+          `[voice-agent] scene: narrator-addressed event denied — ${fallback} responds in character`,
+        );
+        resolution = resolveSceneDecision(
+          { scene: this.scene, sceneState: this.#sceneState },
+          { action: "speak", speakerId: fallback },
+        );
+        recovered = "director-denied";
       }
     }
     this.#sceneState = resolution.sceneState;
@@ -1315,6 +1346,10 @@ export class SceneDriver {
       // visitor-attribution rule) — this was missing alongside the
       // bracket mapping above.
       narratorPresent: narratorMode(this.scene) !== "off",
+      visitorRole:
+        userRoleFor(this.scene) === "character"
+          ? this.scene.userCharacter?.name.trim() || undefined
+          : undefined,
     });
     // Same attribution rule as buildSpeakerTurnRequest — INCLUDING the
     // narrator-bracket convention. The brackets are load-bearing beyond
@@ -1559,7 +1594,8 @@ export class SceneDriver {
   ): Promise<{ spoke: boolean }> {
     let spoke = false;
     let beats = beatsUsed;
-    while (beats < CASCADE_MAX) {
+    const cascadeMax = CASCADE_MAX + (initiativeMode(this.scene) === "narrator" ? 2 : 0);
+    while (beats < cascadeMax) {
       if (superseded()) break;
       const decideResult = await this.#decide(MOMENTUM_MARKER, "momentum");
       const { decision } = decideResult;
@@ -1594,8 +1630,8 @@ export class SceneDriver {
       beats += 1;
       if (resolution.decision.momentum !== true) break;
     }
-    if (beats >= CASCADE_MAX) {
-      console.log(`[voice-agent] cascade capped at ${CASCADE_MAX} beats — holding for the user`);
+    if (beats >= cascadeMax) {
+      console.log(`[voice-agent] cascade capped at ${cascadeMax} beats — holding for the user`);
     }
     return { spoke };
   }

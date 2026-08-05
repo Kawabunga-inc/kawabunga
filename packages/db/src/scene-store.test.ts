@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { selectDefaultAmbienceTrackId } from "./scene-store";
+import { sceneDefinitionSchema } from "@kawabunga/types";
+import { resolveSceneExperienceFields, selectDefaultAmbienceTrackId } from "./scene-store";
 
 const baseNode = {
   kind: "ambience" as const,
@@ -105,5 +106,34 @@ describe("scene ambience resolution", () => {
         new Map(),
       ),
     ).toBe("legacy-bed");
+  });
+});
+
+describe("scene experience resolution", () => {
+  it("lifts configured definition dials into the runtime scene shape", () => {
+    const definition = sceneDefinitionSchema.parse({
+      initiative: "narrator",
+      userRole: "character",
+      userCharacter: {
+        name: "Miriam",
+        blurb: "A royal archivist.",
+        relationship: "Ada's former patron",
+      },
+      userDirector: false,
+    });
+    expect(resolveSceneExperienceFields(definition)).toEqual({
+      initiative: "narrator",
+      userRole: "character",
+      userCharacter: {
+        name: "Miriam",
+        blurb: "A royal archivist.",
+        relationship: "Ada's former patron",
+      },
+      userDirector: false,
+    });
+  });
+
+  it("omits legacy null defaults from the runtime shape", () => {
+    expect(resolveSceneExperienceFields(sceneDefinitionSchema.parse({}))).toEqual({});
   });
 });

@@ -275,6 +275,62 @@ describe("SceneDriver — opening", () => {
 });
 
 describe("SceneDriver — narration", () => {
+  it("denies narrator-addressed world fiat when user director powers are off", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham drops to his knees.",
+        narrationKind: "event",
+      },
+    ]);
+    const driver = SceneDriver.fromScene({ ...TENT, userDirector: false }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["Why are you commanding me to kneel?"]);
+
+    const outcome = await driver.drive("Narrator, Abraham falls to his knees.", speak);
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(narrated).toEqual([]);
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.speaker.slug).toBe("abraham");
+    expect(journal[0]!.payload).toMatchObject({
+      trigger: "user-turn",
+      recovered: "director-denied",
+      decision: { action: "speak", speakerId: "abraham" },
+    });
+  });
+
+  it("still renders the visitor's own action when director powers are off", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "You place the waterskin in Sarah's hands.",
+        narrationKind: "event",
+      },
+      speakDecision("sarah", "Accept the offered water"),
+    ]);
+    const driver = SceneDriver.fromScene({ ...TENT, userDirector: false }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    const { speak, inputs } = fakeSpeak(["Thank you."]);
+
+    await driver.drive("Narrator, I hand Sarah the waterskin.", speak);
+    expect(narrated).toEqual(["You place the waterskin in Sarah's hands."]);
+    expect(inputs[0]!.speaker.slug).toBe("sarah");
+  });
+
   it("voices a narration, then CHAINS one decision so a character reacts", async () => {
     const exec = fakeExecutor([
       {
@@ -696,6 +752,29 @@ describe("SceneDriver — solo scenes", () => {
 });
 
 describe("SceneDriver — proactive turns", () => {
+  it("uses narrator initiative pacing and names a played role in proactive cues", async () => {
+    const roleScene: Scene = {
+      ...TENT,
+      initiative: "narrator",
+      userRole: "character",
+      userCharacter: { name: "Miriam", blurb: "A royal archivist." },
+    };
+    const exec = fakeExecutor([speakDecision("abraham", "Challenge the decree")]);
+    const driver = SceneDriver.fromScene(roleScene, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(["That seal proves nothing, Miriam."]);
+
+    expect(driver.pacing()).toEqual({ idleMs: 2_000 });
+    await driver.driveProactive(speak);
+    expect(inputs[0]!.promptChunk).toContain(
+      "unmarked lines are Miriam, the role the visitor plays",
+    );
+    expect(inputs[0]!.promptChunk).toContain('"you"/"your" refers to Miriam');
+    expect(SceneDriver.fromScene(TENT).pacing()).toEqual({ idleMs: 3_500 });
+  });
+
   it("respects a wait-for-user decision (hold)", async () => {
     const exec = fakeExecutor([{ action: "wait-for-user" }]);
     const driver = SceneDriver.fromScene(TENT, {
@@ -1162,6 +1241,29 @@ describe("SceneDriver — the scene's first move", () => {
 });
 
 describe("SceneDriver — momentum cascades", () => {
+  it("adds two cascade beats when narrator initiative drives the scene", async () => {
+    const decisions = [
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "must not run"), momentum: true },
+    ];
+    const exec = fakeExecutor(decisions);
+    const driver = SceneDriver.fromScene({ ...TENT, initiative: "narrator" }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(() => "…");
+
+    await driver.drive("Chaos!", speak);
+    // Primary + narrator initiative's CASCADE_MAX(3)+2 continuations.
+    expect(inputs).toHaveLength(6);
+    expect(exec.calls).toBe(6);
+  });
+
   it("honors momentum on a proactive narration and keeps the cascade bounded", async () => {
     const exec = fakeExecutor([
       { action: "narrate", narration: "The tent pole cracks.", momentum: true },

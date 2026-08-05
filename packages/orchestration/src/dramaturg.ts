@@ -22,7 +22,9 @@
 import type { Scene, SceneState } from "@kawabunga/types";
 import {
   buildArcBlock,
+  initiativeMode,
   sanitizeChronicle,
+  userRoleFor,
   type SceneChronicle,
   type SceneTurnForPlanning,
 } from "./client";
@@ -79,6 +81,15 @@ export function buildDramaturgMessages(input: {
     "trajectory, not a leash. When the live story departs from them, follow what",
     "is actually happening: revise intents and threads to serve the live story,",
     "and drop or rewrite anything the visitor's improvisation has overtaken.",
+    ...(initiativeMode(scene) === "narrator"
+      ? [
+          "",
+          "FORWARD AUTHORSHIP IS REQUIRED. Every reflection MUST leave the director",
+          "something to fire next: at least one INTENT with a near trigger or one",
+          "TIMED event within ~60-120s. You are writing what happens next, not only",
+          "recording what has happened.",
+        ]
+      : []),
     "",
     "THE CHRONICLE — restate ALL FOUR sections on every reflection (they",
     "replace what you wrote last time; carry forward what still holds):",
@@ -178,6 +189,12 @@ export function buildDramaturgMessages(input: {
     "",
     "Cast and authored intentions:",
     cast,
+    ...(userRoleFor(scene) === "character" && scene.userCharacter
+      ? [
+          `- Visitor role: ${scene.userCharacter.name} — ${scene.userCharacter.blurb}${scene.userCharacter.relationship ? ` (${scene.userCharacter.relationship})` : ""}.`,
+          `  Attribute the user's words and deeds to ${scene.userCharacter.name} in STORY and FACT lines.`,
+        ]
+      : []),
     ...(sceneFacts?.length
       ? ["", "Established facts so far (do not repeat these):", ...sceneFacts.map((f) => `  - ${f}`)]
       : []),

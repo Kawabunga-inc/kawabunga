@@ -5,6 +5,7 @@ import type { SceneGraphPayload } from "@/app/(authenticated)/scenes/[sceneId]/p
 import { AdminButton } from "@/components/admin-ui";
 import {
   Field,
+  fieldLabelStyle,
   InspectorSection,
   InspectorTile,
   inputStyle,
@@ -13,6 +14,14 @@ import {
   textareaStyle,
 } from "./shared";
 import { NodeInspector } from "./node-inspector";
+import {
+  SCENE_EXPERIENCE_PRESETS,
+  type SceneDrive,
+  type SceneInitiative,
+  type SceneNarrator,
+  type SceneUserCharacter,
+  type SceneUserRole,
+} from "./types";
 
 export function GameTab({
   sceneId,
@@ -31,13 +40,23 @@ export function GameTab({
   graphNodes: SceneGraphPayload["nodes"];
   scene: {
     objective: string;
-    drive: "gentle" | "balanced" | "insistent";
+    drive: SceneDrive;
+    initiative: SceneInitiative;
+    narrator: SceneNarrator;
+    userDirector: boolean;
+    userRole: SceneUserRole;
+    userCharacter: SceneUserCharacter;
   };
   selectedNodeId: string | null;
   onSelect: (nodeId: string) => void;
   onSceneChange: {
     setObjective: (next: string) => void;
-    setDrive: (next: "gentle" | "balanced" | "insistent") => void;
+    setDrive: (next: SceneDrive) => void;
+    setInitiative: (next: SceneInitiative) => void;
+    setNarrator: (next: SceneNarrator) => void;
+    setUserDirector: (next: boolean) => void;
+    setUserRole: (next: SceneUserRole) => void;
+    setUserCharacter: (next: SceneUserCharacter) => void;
   };
   onAddEvent: (input: { label: string; summary?: string }) => void;
   onRemoveNode: (nodeId: string) => void;
@@ -67,6 +86,30 @@ export function GameTab({
             title="Direction"
             hint="Where the scene is going, and how hard the director presses."
           >
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+              <span style={fieldLabelStyle}>Experience presets</span>
+              <div style={{ display: "flex", gap: "var(--space-8)" }}>
+                {(
+                  [
+                    ["Story", SCENE_EXPERIENCE_PRESETS.story],
+                    ["Living space", SCENE_EXPERIENCE_PRESETS.livingSpace],
+                  ] as const
+                ).map(([label, preset]) => (
+                  <AdminButton
+                    key={label}
+                    type="button"
+                    variant="secondary"
+                    onClick={() => {
+                      onSceneChange.setInitiative(preset.initiative);
+                      onSceneChange.setNarrator(preset.narrator);
+                      onSceneChange.setDrive(preset.drive);
+                    }}
+                  >
+                    {label}
+                  </AdminButton>
+                ))}
+              </div>
+            </div>
             <Field label="Scene objective">
               <textarea
                 value={scene.objective}
@@ -81,7 +124,7 @@ export function GameTab({
                 value={scene.drive}
                 onChange={(event) =>
                   onSceneChange.setDrive(
-                    event.target.value as "gentle" | "balanced" | "insistent",
+                    event.target.value as SceneDrive,
                   )
                 }
                 style={{ ...inputStyle, cursor: "pointer" }}
@@ -91,6 +134,86 @@ export function GameTab({
                 <option value="insistent">insistent — press toward goals</option>
               </select>
             </Field>
+            <Field label="Initiative">
+              <select
+                value={scene.initiative}
+                onChange={(event) =>
+                  onSceneChange.setInitiative(event.target.value as SceneInitiative)
+                }
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="user">user — the visitor paces the story</option>
+                <option value="shared">shared — tension can advance the world</option>
+                <option value="narrator">narrator — the world drives the story</option>
+              </select>
+            </Field>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+              <span style={fieldLabelStyle}>Director mode</span>
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
+                <input
+                  type="checkbox"
+                  checked={scene.userDirector}
+                  onChange={(event) => onSceneChange.setUserDirector(event.target.checked)}
+                />
+                <span>Visitor can author world events by addressing the narrator</span>
+              </label>
+            </div>
+            <Field label="Visitor role">
+              <select
+                value={scene.userRole}
+                onChange={(event) =>
+                  onSceneChange.setUserRole(event.target.value as SceneUserRole)
+                }
+                style={{ ...inputStyle, cursor: "pointer" }}
+              >
+                <option value="visitor">visitor — they enter as themselves</option>
+                <option value="character">character — they play an authored role</option>
+              </select>
+            </Field>
+            {scene.userRole === "character" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-8)" }}>
+                <Field label="Role name">
+                  <input
+                    value={scene.userCharacter.name}
+                    onChange={(event) =>
+                      onSceneChange.setUserCharacter({
+                        ...scene.userCharacter,
+                        name: event.target.value,
+                      })
+                    }
+                    placeholder="The role the visitor plays"
+                    style={inputStyle}
+                  />
+                </Field>
+                <Field label="Role description">
+                  <textarea
+                    value={scene.userCharacter.blurb}
+                    onChange={(event) =>
+                      onSceneChange.setUserCharacter({
+                        ...scene.userCharacter,
+                        blurb: event.target.value,
+                      })
+                    }
+                    rows={2}
+                    placeholder="Who they are in this fiction"
+                    style={textareaStyle}
+                  />
+                </Field>
+                <Field label="Relationship to the cast">
+                  <input
+                    value={scene.userCharacter.relationship ?? ""}
+                    onChange={(event) =>
+                      onSceneChange.setUserCharacter({
+                        ...scene.userCharacter,
+                        relationship: event.target.value,
+                      })
+                    }
+                    placeholder="Guest, rival, sibling, messenger…"
+                    style={inputStyle}
+                  />
+                </Field>
+              </div>
+            )}
           </InspectorSection>
 
           <InspectorSection

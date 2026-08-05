@@ -762,6 +762,10 @@ export default defineAgent({
     // after the narration reads as a frozen stage. Same guards as armIdle;
     // proactiveTick itself re-checks who holds the floor.
     const FIRST_MOVE_MS = Number(process.env.VOICE_AGENT_FIRST_MOVE_MS ?? 1500);
+    const sceneIdleMs =
+      process.env.VOICE_AGENT_IDLE_MS !== undefined
+        ? IDLE_MS
+        : sceneDriver.pacing().idleMs;
     const armFirstMove = () => {
       clearIdle();
       if (!PROACTIVE_ENABLED || sceneEnded) return;
@@ -774,7 +778,7 @@ export default defineAgent({
       if (userIsSpeaking || speaking) return;
       armWorldEvent();
       if (proactiveCount >= MAX_PROACTIVE) return; // bounded → wait for the user
-      idleTimer = setTimeout(proactiveTick, IDLE_MS);
+      idleTimer = setTimeout(proactiveTick, sceneIdleMs);
     };
     // TIMED world events outlive the MAX_PROACTIVE brake: that brake stops
     // characters monologuing at the user, but a chronicler-scheduled event is

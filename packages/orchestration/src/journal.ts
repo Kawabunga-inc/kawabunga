@@ -55,7 +55,9 @@ export type SceneDecisionRecovery =
   /** Proactive wait-for-user with an unanswered event → witness responds. */
   | "silent-witness"
   /** Proactive wait-for-user with a due world event → narrated directly. */
-  | "world-event-narrated";
+  | "world-event-narrated"
+  /** User lacks director powers; narrator-addressed world fiat → character response. */
+  | "director-denied";
 
 export type SceneDecisionJournalExtras = {
   trigger: SceneDecisionTrigger;
