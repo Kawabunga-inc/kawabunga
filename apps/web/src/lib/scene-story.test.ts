@@ -41,10 +41,25 @@ describe("sceneTurnsToTranscript", () => {
       speaker: { slug: "narrator", name: "Narrator" },
     });
   });
+
+  it("hydrates only completed turns during a mid-stream refresh", () => {
+    const streaming = {
+      ...turn,
+      id: "turn-streaming",
+      status: "streaming",
+      userText: "Tell me more.",
+      assistantText: "I was walking",
+    } satisfies SceneSessionTurnRecord;
+
+    expect(sceneTurnsToTranscript([turn, streaming], [sarah]).map((message) => message.text)).toEqual([
+      "Are you awake?",
+      "I have been waiting.",
+    ]);
+  });
 });
 
 describe("visitTimeOfDay", () => {
-  it("uses a stable UTC chapter label", () => {
-    expect(visitTimeOfDay("2026-08-04T18:00:00.000Z")).toBe("evening");
+  it("uses the visitor-local hour for the chapter label", () => {
+    expect(visitTimeOfDay("2026-08-04T18:00:00.000")).toBe("evening");
   });
 });

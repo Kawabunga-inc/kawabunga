@@ -7,7 +7,8 @@ export function sceneTurnsToTranscript(
   characters: SceneCharacter[],
 ): SceneTranscriptMessage[] {
   const names = new Map(characters.map((character) => [character.characterSlug, character.displayName]));
-  return turns.flatMap((turn) => {
+  // Streaming and aborted rows are mutable/incomplete; LiveKit owns those lines.
+  return turns.filter((turn) => turn.status === "completed").flatMap((turn) => {
     const messages: SceneTranscriptMessage[] = [];
     const userText = turn.userText?.trim();
     const assistantText = turn.assistantText?.trim();
@@ -38,7 +39,7 @@ export function sceneTurnsToTranscript(
 }
 
 export function visitTimeOfDay(startedAt: string): "morning" | "afternoon" | "evening" | "night" {
-  const hour = new Date(startedAt).getUTCHours();
+  const hour = new Date(startedAt).getHours();
   if (hour < 5) return "night";
   if (hour < 12) return "morning";
   if (hour < 17) return "afternoon";

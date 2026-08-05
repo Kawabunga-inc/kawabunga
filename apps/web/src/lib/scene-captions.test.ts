@@ -74,7 +74,7 @@ describe("sceneCaptionReducer", () => {
     ]);
   });
 
-  it("does not duplicate a live line when hydration lands mid-visit", () => {
+  it("absorbs one pre-hydration overlap message", () => {
     const live = sceneCaptionReducer(initialSceneCaptionState, {
       type: "received",
       message: { role: "user", id: "live:u", text: "Who is there?", final: true },
@@ -93,5 +93,27 @@ describe("sceneCaptionReducer", () => {
     });
     expect(selectSceneTranscript(hydrated)).toHaveLength(1);
     expect(selectSceneTranscript(hydrated)[0]?.id).toBe("history:u");
+  });
+
+  it("keeps a repeated identical line received after hydration", () => {
+    const overlap = sceneCaptionReducer(initialSceneCaptionState, {
+      type: "received",
+      message: { role: "user", id: "live:overlap", text: "Yes.", final: true },
+    });
+    const hydrated = sceneCaptionReducer(overlap, {
+      type: "hydrated",
+      messages: [
+        { role: "user", id: "history:yes", text: "Yes.", final: true },
+      ],
+    });
+    const repeated = sceneCaptionReducer(hydrated, {
+      type: "received",
+      message: { role: "user", id: "live:repeat", text: "Yes.", final: true },
+    });
+
+    expect(selectSceneTranscript(repeated).map((message) => message.id)).toEqual([
+      "history:yes",
+      "live:repeat",
+    ]);
   });
 });
