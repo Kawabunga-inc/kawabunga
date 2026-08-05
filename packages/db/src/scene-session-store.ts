@@ -183,6 +183,12 @@ export type UpdateSceneSessionSceneInput = {
   currentScene: unknown;
 };
 
+export type InitializeSceneSessionSceneInput = {
+  sessionId: string;
+  initialScene: unknown;
+  currentScene: unknown;
+};
+
 export type AddSceneSessionAudioArtifactInput = {
   id?: string;
   sessionId: string;
@@ -228,6 +234,7 @@ export interface SceneSessionStore {
     limit?: number,
   ): Promise<SceneSessionEventRecord[]>;
   getSessionDetail(id: string): Promise<SceneSessionDetailRecord | null>;
+  initializeSceneState(input: InitializeSceneSessionSceneInput): Promise<void>;
   updateCurrentScene(input: UpdateSceneSessionSceneInput): Promise<void>;
   recordContextBuild(input: RecordContextBuildInput): Promise<void>;
   upsertTurn(input: UpsertSceneSessionTurnInput): Promise<void>;
@@ -523,6 +530,16 @@ function memoryStore(): SceneSessionStore {
       memory.sessions.set(input.sessionId, {
         ...current,
         currentScene: input.currentScene,
+        lastActiveAt: new Date().toISOString(),
+      });
+    },
+    async initializeSceneState(input) {
+      const current = memory.sessions.get(input.sessionId);
+      if (!current || (current.initialScene != null && current.currentScene != null)) return;
+      memory.sessions.set(input.sessionId, {
+        ...current,
+        initialScene: current.initialScene ?? input.initialScene,
+        currentScene: current.currentScene ?? input.currentScene,
         lastActiveAt: new Date().toISOString(),
       });
     },
@@ -919,6 +936,27 @@ function neonStore(): SceneSessionStore {
             lastActiveAt: new Date(),
           })
           .where(eq(sceneSessionsTable.id, input.sessionId));
+      } catch (error) {
+        if (!isMissingTableError(error)) throw error;
+      }
+    },
+
+    async initializeSceneState(input) {
+      try {
+        await db
+          .update(sceneSessionsTable)
+          .set({
+            initialScene: input.initialScene,
+            currentScene: input.currentScene,
+            lastActiveAt: new Date(),
+          })
+          .where(
+            and(
+              eq(sceneSessionsTable.id, input.sessionId),
+              sql`${sceneSessionsTable.initialScene} is null`,
+              sql`${sceneSessionsTable.currentScene} is null`,
+            ),
+          );
       } catch (error) {
         if (!isMissingTableError(error)) throw error;
       }
