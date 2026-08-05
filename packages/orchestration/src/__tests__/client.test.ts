@@ -167,6 +167,7 @@ describe("@kawabunga/orchestration client", () => {
       "sceneCue",
       "delivery",
       "narration",
+      "narrationKind",
       "exitSlug",
       "enterSlug",
       "ambience",
@@ -174,9 +175,18 @@ describe("@kawabunga/orchestration client", () => {
       "beatLabel",
       "momentum",
     ]);
+    expect([...request.responseSchema.required].sort()).toEqual(
+      Object.keys(request.responseSchema.properties).sort(),
+    );
+    expect(request.responseSchema.properties.narrationKind).toEqual({
+      type: ["string", "null"],
+      enum: ["answer", "event", null],
+    });
     expect(request.messages[0].content).toContain("Set `delivery` on EVERY `speak`");
     expect(request.messages[0].content).toContain("`expansive`");
     expect(request.messages[0].content).toContain("The visitor's explicit request is binding");
+    expect(request.messages[0].content).toContain("React to the NEWEST event");
+    expect(request.messages[0].content).toContain("On EVERY `narrate`, set `narrationKind`");
     expect(request.trace.sceneId).toBe("test-scene");
   });
 
@@ -228,9 +238,10 @@ describe("@kawabunga/orchestration client", () => {
 
     const narrate = resolveSceneDecision(
       { scene, sceneState: wait.sceneState },
-      { action: "narrate", narration: "The light shifts." },
+      { action: "narrate", narration: "The light shifts.", narrationKind: null },
     );
     expect(narrate.degraded).toBe(false);
+    expect(narrate.decision.narrationKind).toBeUndefined();
     expect(narrate.events[0].type).toBe("scene.decision.narrate");
 
     const end = resolveSceneDecision(

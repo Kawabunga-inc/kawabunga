@@ -354,6 +354,9 @@ export const orchestratorDecisionSchema = z.object({
   // Narrator's literal lines — these go straight to TTS, not through
   // a character LLM. Keep short (≤2 sentences).
   narration: z.string().optional(),
+  // Whether the narration merely answers a question about the world or
+  // renders something happening that needs an immediate character reaction.
+  narrationKind: z.enum(["answer", "event"]).nullable().optional(),
 
   // ── Presence (always optional) ─────────────────────────────────
   // A character who has LEFT the scene or can no longer take part — walked
@@ -406,6 +409,7 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     "sceneCue",
     "delivery",
     "narration",
+    "narrationKind",
     "exitSlug",
     "enterSlug",
     "ambience",
@@ -423,6 +427,10 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     sceneCue: { type: ["string", "null"] },
     delivery: { type: ["string", "null"], enum: ["brief", "natural", "expansive", null] },
     narration: { type: ["string", "null"] },
+    narrationKind: {
+      type: ["string", "null"],
+      enum: ["answer", "event", null],
+    },
     exitSlug: { type: ["string", "null"] },
     enterSlug: { type: ["string", "null"] },
     ambience: { type: ["string", "null"] },

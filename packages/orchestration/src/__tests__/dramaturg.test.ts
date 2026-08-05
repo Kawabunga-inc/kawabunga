@@ -49,6 +49,8 @@ describe("buildDramaturgMessages", () => {
 
     expect(request.system).toContain("CHRONICLER");
     expect(request.system).toContain("do NOT write dialogue");
+    expect(request.system).toContain("THE VISITOR IS A CO-AUTHOR");
+    expect(request.system).toContain("trajectory, not a leash");
     expect(request.user).toContain("Objective: Ada admits what the machine really measured.");
     expect(request.user).toContain("wants: protect the lab's secret");
     expect(request.user).toContain("will: deflect with a question (when the machine is mentioned)");

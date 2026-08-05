@@ -1085,6 +1085,11 @@ function buildOrchestratorSystemPrompt(
           "THE NARRATOR - `action: \"narrate\"` speaks as an unseen presence: the",
           "world itself, never a character. Narration is at most two sentences,",
           "present tense, concrete and sensory. The narrator's jobs:",
+          "- On EVERY `narrate`, set `narrationKind`: `answer` only when merely",
+          "  answering what the user sees, hears, or smells; `event` when rendering",
+          "  something HAPPENING — a first- or third-person declared action, an",
+          "  arrival, a blow, or a change coming over a character. An `event` gets",
+          "  an immediate character reaction; an `answer` holds for the user.",
           "- When the user addresses the narrator (\"narrator, ...\") or asks about",
           "  the space itself (what they see, hear, smell), answer with `narrate`.",
           "- When the user declares a first-person ACTION (\"I punch Abraham\", \"I",
@@ -1187,6 +1192,10 @@ function buildOrchestratorSystemPrompt(
     "  Pick the speaker whose move makes the scene move. The default assumes an",
     "  engaged user - a user who is taking their leave is not a scene to advance",
     "  (see end-scene below); never re-open business they are walking away from.",
+    "- React to the NEWEST event in the dialogue before any older thread or",
+    "  prepared intention. When the visitor's improvisation turns the story,",
+    "  beats serve that live story first. Never drag the scene backward toward",
+    "  the authored objective; the arc still must not be skipped ahead.",
     ...(present.length > 1
       ? [
           "- STAKES OVERRIDE ADDRESSING. When something in the scene puts a",

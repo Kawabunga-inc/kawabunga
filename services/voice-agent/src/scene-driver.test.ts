@@ -8,6 +8,7 @@ import type {
 import type {
   OrchestratorExecutorResolution,
   SceneDecisionRequest,
+  SceneJournalEntry,
   SceneSessionSnapshot,
 } from "@kawabunga/orchestration";
 import type {
@@ -276,7 +277,11 @@ describe("SceneDriver — opening", () => {
 describe("SceneDriver — narration", () => {
   it("voices a narration, then CHAINS one decision so a character reacts", async () => {
     const exec = fakeExecutor([
-      { action: "narrate", narration: "The lamp tips; oil flares on the stones." },
+      {
+        action: "narrate",
+        narration: "Abraham buckles beneath the presence within him.",
+        narrationKind: "event",
+      },
       speakDecision("sarah", "React to the sudden fire"),
     ]);
     const driver = SceneDriver.fromScene(TENT, {
@@ -284,22 +289,31 @@ describe("SceneDriver — narration", () => {
       resolveCharacter: fakeCharacters(),
     });
     const narrated: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onJournal((entry) => journal.push(entry));
     driver.onNarrate(async (text) => {
       narrated.push(text);
     });
     const { speak, inputs } = fakeSpeak(["The rugs! Stamp it out!"]);
 
-    const outcome = await driver.drive("I knock over the oil lamp.", speak);
+    const outcome = await driver.drive(
+      "Narrator, Abraham becomes overwhelmed by a presence within him.",
+      speak,
+    );
     expect(outcome).toEqual({ action: "speak", spoke: true });
-    expect(narrated).toEqual(["The lamp tips; oil flares on the stones."]);
+    expect(narrated).toEqual(["Abraham buckles beneath the presence within him."]);
     expect(exec.calls).toBe(2); // decision + one chained follow-up
     expect(inputs).toHaveLength(1);
     expect(inputs[0]!.characterId).toBe("id-sarah");
     // The speaker perceives the narration as a bracketed stage direction.
-    expect(inputs[0]!.message).toBe("[The lamp tips; oil flares on the stones.]");
+    expect(inputs[0]!.message).toBe("[Abraham buckles beneath the presence within him.]");
+    expect(journal[0]!.payload).toMatchObject({
+      trigger: "user-turn",
+      decision: { action: "narrate", narrationKind: "event" },
+    });
 
     await driver.drive("Is everyone alright?", speak);
-    expect(lastDialogue(exec.requests)).toContain("Narrator: The lamp tips");
+    expect(lastDialogue(exec.requests)).toContain("Narrator: Abraham buckles");
   });
 
   it("bounds the chain: a chained narrate is applied but never chains again", async () => {
@@ -338,6 +352,51 @@ describe("SceneDriver — narration", () => {
     expect(outcome).toEqual({ action: "narrate", spoke: true });
     expect(exec.calls).toBe(1); // the answer is complete — no chained decision
     expect(inputs).toHaveLength(0);
+  });
+
+  it("holds when the director classifies narration as an answer", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Oaks, firelight, and a watching old man.",
+        narrationKind: "answer",
+      },
+      speakDecision("abraham", "must not run"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(async () => undefined);
+    const { speak, inputs } = fakeSpeak(["unused"]);
+
+    const outcome = await driver.drive("What happens next?", speak);
+    expect(outcome).toEqual({ action: "narrate", spoke: true });
+    expect(exec.calls).toBe(1);
+    expect(inputs).toHaveLength(0);
+  });
+
+  it("honors momentum when a classified answer does not event-chain", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Beyond the ridge, a second column of smoke rises.",
+        narrationKind: "answer",
+        momentum: true,
+      },
+      speakDecision("abraham", "Recognize the urgent signal"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["That signal is meant for us."]);
+
+    const outcome = await driver.drive("Narrator, what do I see beyond the ridge?", speak);
+    expect(outcome).toEqual({ action: "narrate", spoke: true });
+    expect(inputs.map((input) => input.speaker.slug)).toEqual(["abraham"]);
+    expect(exec.requests[1]!.messages[1]!.content).toContain("MID-CASCADE");
   });
 
   it("never leaves dead air: a chained hold after an event becomes a reaction", async () => {
@@ -467,6 +526,42 @@ describe("SceneDriver — narration", () => {
 
 
 describe("SceneDriver — supersession", () => {
+  it("does not apply a narrated-event chain decision after supersession", async () => {
+    let releaseChain!: (decision: OrchestratorDecision) => void;
+    const pendingChain = new Promise<OrchestratorDecision>((resolve) => {
+      releaseChain = resolve;
+    });
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham falls to his knees.",
+        narrationKind: "event",
+      },
+      pendingChain,
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => undefined);
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["This must not be heard."]);
+
+    const inFlight = driver.drive("Narrator, Abraham falls to his knees.", speak);
+    await vi.waitFor(() => expect(exec.calls).toBe(2));
+    const snapshotsBeforeCancel = snapshots.length;
+    driver.cancelActiveWork();
+    releaseChain({ ...speakDecision("sarah", "React"), exitSlug: "abraham" });
+
+    await expect(inFlight).resolves.toMatchObject({ superseded: true });
+    expect(snapshots).toHaveLength(snapshotsBeforeCancel);
+    expect(inputs).toHaveLength(0);
+    expect(journal.filter((entry) => entry.payload.trigger === "chain")).toHaveLength(0);
+  });
+
   it("a newer drive supersedes an in-flight one before its decision applies", async () => {
     let releaseFirst!: (d: OrchestratorDecision) => void;
     const first = new Promise<OrchestratorDecision>((r) => {
@@ -935,6 +1030,7 @@ describe("SceneDriver — timed world events", () => {
         speakDecision("abraham"),
         speakDecision("sarah"),
         { action: "narrate", narration: "A log collapses; sparks climb the dark." },
+        speakDecision("abraham", "React to the collapsing fire"),
       ]);
       const driver = SceneDriver.fromScene(TENT, {
         resolveExecutor: exec.resolveExecutor,
@@ -947,7 +1043,7 @@ describe("SceneDriver — timed world events", () => {
       driver.onNarrate((text) => {
         narrated.push(text);
       });
-      const { speak } = fakeSpeak(["Welcome.", "I heard you."]);
+      const { speak, inputs } = fakeSpeak(["Welcome.", "I heard you.", "Stand back!"]);
 
       await driver.drive("Hello?", speak);
       await driver.drive("Sarah, did you laugh?", speak); // 2nd spoken turn → reflect
@@ -965,9 +1061,11 @@ describe("SceneDriver — timed world events", () => {
       const spoke = await driver.driveProactive(speak);
       expect(spoke).toBe(true);
       expect(narrated).toEqual(["A log collapses; sparks climb the dark."]);
-      const userPrompt = exec.requests[exec.requests.length - 1]!.messages[1]!.content;
+      expect(inputs[2]!.speaker.slug).toBe("abraham");
+      const userPrompt = exec.requests[2]!.messages[1]!.content;
       expect(userPrompt).toContain("A WORLD EVENT the chronicler scheduled has come due");
       expect(userPrompt).toContain("A log collapses in a burst of sparks.");
+      expect(exec.requests[3]!.messages[1]!.content).toContain("something just HAPPENED");
       // Spent: no pending events remain.
       expect(driver.nextWorldEventDueInMs()).toBeNull();
     } finally {
@@ -982,6 +1080,7 @@ describe("SceneDriver — timed world events", () => {
         speakDecision("abraham"),
         speakDecision("sarah"),
         { action: "wait-for-user" },
+        speakDecision("sarah", "React to the thunder"),
       ]);
       const driver = SceneDriver.fromScene(TENT, {
         resolveExecutor: exec.resolveExecutor,
@@ -992,7 +1091,7 @@ describe("SceneDriver — timed world events", () => {
       driver.onNarrate((text) => {
         narrated.push(text);
       });
-      const { speak } = fakeSpeak(["Welcome.", "I heard you."]);
+      const { speak, inputs } = fakeSpeak(["Welcome.", "I heard you.", "That was close."]);
       await driver.drive("Hello?", speak);
       await driver.drive("Sarah?", speak);
       await driver.settleReflection();
@@ -1002,6 +1101,8 @@ describe("SceneDriver — timed world events", () => {
       expect(spoke).toBe(true);
       // Director said wait → the event narrates its own direction verbatim.
       expect(narrated).toEqual(["Thunder rolls far off beyond the hills."]);
+      expect(inputs[2]!.speaker.slug).toBe("sarah");
+      expect(exec.requests[3]!.messages[1]!.content).toContain("something just HAPPENED");
       expect(driver.nextWorldEventDueInMs()).toBeNull();
     } finally {
       vi.useRealTimers();
@@ -1061,6 +1162,25 @@ describe("SceneDriver — the scene's first move", () => {
 });
 
 describe("SceneDriver — momentum cascades", () => {
+  it("honors momentum on a proactive narration and keeps the cascade bounded", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "The tent pole cracks.", momentum: true },
+      { ...speakDecision("abraham", "Catch the falling roof"), momentum: true },
+      { ...speakDecision("sarah", "Pull the visitor clear"), momentum: true },
+      { ...speakDecision("abraham", "must not run"), momentum: true },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Move!", "This way!"]);
+
+    expect(await driver.driveProactive(speak)).toBe(true);
+    expect(inputs.map((input) => input.speaker.slug)).toEqual(["abraham", "sarah"]);
+    expect(exec.calls).toBe(3);
+  });
+
   it("stops before the next momentum operation when the host cancels active work", async () => {
     const exec = fakeExecutor([
       { ...speakDecision("abraham", "Act now"), momentum: true },
