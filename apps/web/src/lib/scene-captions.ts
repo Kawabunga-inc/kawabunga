@@ -7,6 +7,7 @@ export type SceneTranscriptMessage = {
 };
 
 export type SceneCaptionState = {
+  history: SceneTranscriptMessage[];
   order: string[];
   messages: Record<string, SceneTranscriptMessage>;
   visible: boolean;
@@ -14,10 +15,12 @@ export type SceneCaptionState = {
 
 export type SceneCaptionAction =
   | { type: "received"; message: SceneTranscriptMessage }
+  | { type: "hydrated"; messages: SceneTranscriptMessage[] }
   | { type: "visibility"; visible: boolean }
   | { type: "reset" };
 
 export const initialSceneCaptionState: SceneCaptionState = {
+  history: [],
   order: [],
   messages: {},
   visible: true,
@@ -29,6 +32,7 @@ export function sceneCaptionReducer(
 ): SceneCaptionState {
   if (action.type === "reset") return initialSceneCaptionState;
   if (action.type === "visibility") return { ...state, visible: action.visible };
+  if (action.type === "hydrated") return { ...state, history: action.messages };
 
   const message = action.message;
   const exists = Boolean(state.messages[message.id]);
@@ -37,6 +41,24 @@ export function sceneCaptionReducer(
     order: exists ? state.order : [...state.order, message.id],
     messages: { ...state.messages, [message.id]: message },
   };
+}
+
+function transcriptIdentity(message: SceneTranscriptMessage): string {
+  return [
+    message.role,
+    message.role === "user" ? "user" : message.speaker?.slug ?? "",
+    message.text.replace(/\s+/g, " ").trim(),
+  ].join("\u0000");
+}
+
+/** Persisted prose is the stable prefix; LiveKit messages form the mutable tail. */
+export function selectSceneTranscript(state: SceneCaptionState): SceneTranscriptMessage[] {
+  const historyIdentities = new Set(state.history.map(transcriptIdentity));
+  const live = state.order
+    .map((id) => state.messages[id])
+    .filter((message): message is SceneTranscriptMessage => Boolean(message))
+    .filter((message) => !historyIdentities.has(transcriptIdentity(message)));
+  return [...state.history, ...live];
 }
 
 export function parseSceneTranscript(payload: Uint8Array): SceneTranscriptMessage | null {

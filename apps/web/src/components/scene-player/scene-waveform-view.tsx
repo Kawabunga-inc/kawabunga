@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import type { SceneTranscriptMessage } from "@/lib/scene-captions";
 import type { LiveSceneStage } from "@/hooks/use-live-scene";
+import { SceneViewToggle, type SceneView } from "./scene-view-toggle";
 import styles from "./scene-player.module.css";
 
 type Props = {
@@ -15,7 +16,9 @@ type Props = {
   captionsVisible: boolean;
   current: SceneTranscriptMessage | null;
   previous: SceneTranscriptMessage | null;
+  view: SceneView;
   onLeave(): void;
+  onViewChange(view: SceneView): void;
   onToggleCaptions(): void;
 };
 
@@ -46,7 +49,9 @@ export function SceneWaveformView({
   captionsVisible,
   current,
   previous,
+  view,
   onLeave,
+  onViewChange,
   onToggleCaptions,
 }: Props) {
   const narrator = current?.speaker?.slug === "narrator";
@@ -66,7 +71,8 @@ export function SceneWaveformView({
       <div className={styles.atmosphere} aria-hidden="true" />
       <header className={styles.topbar}>
         <p>{title}</p>
-        <div>
+        <SceneViewToggle value={view} onChange={onViewChange} />
+        <div className={styles.topbarActions}>
           <time suppressHydrationWarning>{elapsed}</time>
           <button type="button" onClick={onLeave}>Leave quietly</button>
         </div>
