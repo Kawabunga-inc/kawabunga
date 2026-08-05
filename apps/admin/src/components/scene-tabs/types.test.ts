@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  matchSceneExperiencePreset,
   SCENE_EXPERIENCE_PRESETS,
   serializeSceneExperienceDials,
 } from "./types";
@@ -34,6 +35,38 @@ describe("scene experience authoring", () => {
       },
       userDirector: false,
     });
+  });
+
+  it("derives the active mode from the dials, honestly", () => {
+    expect(
+      matchSceneExperiencePreset({
+        initiative: "narrator",
+        narrator: "scenic",
+        drive: "insistent",
+      }),
+    ).toBe("story");
+    expect(
+      matchSceneExperiencePreset({
+        initiative: "user",
+        narrator: "minimal",
+        drive: "gentle",
+      }),
+    ).toBe("livingSpace");
+    // Any hand-set dial breaks the match — the toggle must read Custom.
+    expect(
+      matchSceneExperiencePreset({
+        initiative: "shared",
+        narrator: "scenic",
+        drive: "insistent",
+      }),
+    ).toBe(null);
+    expect(
+      matchSceneExperiencePreset({
+        initiative: "narrator",
+        narrator: "scenic",
+        drive: "balanced",
+      }),
+    ).toBe(null);
   });
 
   it("omits legacy defaults from persisted definitions", () => {

@@ -34,6 +34,29 @@ export const SCENE_EXPERIENCE_PRESETS = {
   { initiative: SceneInitiative; narrator: SceneNarrator; drive: SceneDrive }
 >;
 
+/** Which preset the current dials match, or null when they're custom. The
+ * mode is DERIVED from the dials (never stored), so the toggle can show an
+ * active state that stays honest when any dial is changed by hand. */
+export function matchSceneExperiencePreset(dials: {
+  initiative: SceneInitiative;
+  narrator: SceneNarrator;
+  drive: SceneDrive;
+}): keyof typeof SCENE_EXPERIENCE_PRESETS | null {
+  for (const key of Object.keys(SCENE_EXPERIENCE_PRESETS) as Array<
+    keyof typeof SCENE_EXPERIENCE_PRESETS
+  >) {
+    const preset = SCENE_EXPERIENCE_PRESETS[key];
+    if (
+      preset.initiative === dials.initiative &&
+      preset.narrator === dials.narrator &&
+      preset.drive === dials.drive
+    ) {
+      return key;
+    }
+  }
+  return null;
+}
+
 export function serializeSceneExperienceDials(input: {
   initiative: SceneInitiative;
   userRole: SceneUserRole;
