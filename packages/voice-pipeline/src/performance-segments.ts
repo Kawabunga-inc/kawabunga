@@ -107,12 +107,27 @@ export function classifySegment(
     : "dialogue";
 }
 
+/** Models use asterisks for EMPHASIS as well as acting ("my blade bends
+ * toward *you*"). A single-word span that is not a known action verb is
+ * emphasis — fold it back into the sentence (asterisks stripped, so TTS
+ * neither reads the markup nor hands one word to the narrator mid-sentence).
+ * Observed live: Sonnet's "*you*" was routed to the narrator voice. */
+const SINGLE_ACTION_VERB = new RegExp(`^(?:${DESCRIPTIVE_VERB})$`, "i");
+
+function foldEmphasisSpans(text: string): string {
+  return text.replace(/\*([^*\n]+)\*/g, (span, inner: string) => {
+    const word = inner.trim();
+    if (/\s/.test(word)) return span; // multi-word → keep as acting markup
+    return SINGLE_ACTION_VERB.test(word) ? span : word;
+  });
+}
+
 /** Split one completed LLM sentence/chunk into voiceable performance spans. */
 export function splitPerformanceSegments(
   sentence: string,
   speakerName: string,
 ): PerformanceSegment[] {
-  const text = sentence.trim();
+  const text = foldEmphasisSpans(sentence.trim());
   if (!text) return [];
   if (isStageDirection(text)) return [{ kind: "meta", text }];
 

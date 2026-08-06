@@ -52,4 +52,24 @@ describe("performance segments", () => {
     expect(stripSurroundingDialogueQuotes("I said ‘enough.’")).toBe("I said ‘enough.’");
   });
 
+  it("folds single-word emphasis asterisks into dialogue, keeps action verbs as stage", () => {
+    // Observed live: Sonnet wrote "…bends toward *you*." — emphasis, not acting.
+    expect(
+      splitPerformanceSegments("or you'll find my blade bends toward *you*.", "Sarah"),
+    ).toEqual([{ kind: "dialogue", text: "or you'll find my blade bends toward you." }]);
+    // The emphasized word must stay inside ONE dialogue segment (prosody).
+    expect(splitPerformanceSegments("*you*", "Sarah")).toEqual([
+      { kind: "dialogue", text: "you" },
+    ]);
+    // A lone action verb is still acting.
+    expect(splitPerformanceSegments("*nods*", "Sarah")).toEqual([
+      { kind: "stage", text: "nods" },
+    ]);
+    // Multi-word spans keep the acting channel.
+    expect(splitPerformanceSegments("*She rises.* You dare?", "Sarah")).toEqual([
+      { kind: "stage", text: "She rises." },
+      { kind: "dialogue", text: "You dare?" },
+    ]);
+  });
+
 });
