@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "dotenv -e ../../.env -- next dev",
+    "dev": "dotenv -e ../../.env -- node ../../scripts/with-dev-port.mjs web -- next dev",
     "build": "dotenv -e ../../.env -- next build",
     "start": "next start",
     "lint": "eslint ."

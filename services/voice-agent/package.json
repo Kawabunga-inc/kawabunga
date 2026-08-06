@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "dotenv -e .env -e ../../.env -- tsx scripts/dev.ts dev",
+    "dev": "dotenv -e .env -e ../../.env -- node ../../scripts/with-dev-port.mjs voiceAgentHealth -- tsx scripts/dev.ts dev",
     "start": "tsx src/agent.ts start",
     "prewarm": "tsx scripts/prewarm.ts"
   },

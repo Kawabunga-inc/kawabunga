@@ -29,7 +29,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "auth:db:ensure": "dotenv -e .env -- tsx scripts/ensure-auth-schema.ts",
-    "auth:db:verify": "dotenv -e .env -- tsx scripts/ensure-auth-schema.ts --verify-only"
+    "auth:db:verify": "dotenv -e .env -- tsx scripts/ensure-auth-schema.ts --verify-only",
+    "dev:ports": "dotenv -e .env -- node scripts/dev-ports.mjs"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.2",

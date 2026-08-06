@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: [
+      "scripts/**/*.test.mjs",
       "packages/engine/src/**/*.test.ts",
       "packages/types/src/**/*.test.ts",
       "packages/live-scene/src/**/*.test.{ts,tsx}",

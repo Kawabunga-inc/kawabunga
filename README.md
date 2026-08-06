@@ -91,6 +91,23 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### Running alongside other projects
+
+Every dev server here derives its port from one knob, so this checkout can take
+a block that nothing else on the machine is using:
+
+```bash
+KAWABUNGA_PORT_BASE=4200 npm run dev   # web 4200 · admin 4201 · voice-host 4202 · agent health 4203
+npm run dev:ports                      # print the resolved map without starting anything
+```
+
+Put `KAWABUNGA_PORT_BASE` in `.env` to make it permanent. Unset, the historical
+ports apply (3000/3001/8080/8081). `NEXT_PUBLIC_SITE_URL` and a localhost
+`NEXT_PUBLIC_VOICE_HOST_URL` follow the map automatically; non-localhost values
+(a tunnel, staging) are left alone. Pin one service with `WEB_PORT`,
+`ADMIN_PORT`, `VOICE_HOST_PORT`, or `VOICE_AGENT_DEV_HEALTH_PORT`. Two checkouts
+of this repo run side by side by giving each its own base.
+
 ## Database
 
 Generate or push the Drizzle schema:

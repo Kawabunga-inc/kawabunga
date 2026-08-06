@@ -7,14 +7,28 @@
       "persistent": true
     },
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "dist/**"
+      ]
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "test": {
       "cache": false
     }
-  }
+  },
+  "globalPassThroughEnv": [
+    "KAWABUNGA_PORT_BASE",
+    "WEB_PORT",
+    "ADMIN_PORT",
+    "VOICE_HOST_PORT",
+    "VOICE_AGENT_DEV_HEALTH_PORT"
+  ]
 }
