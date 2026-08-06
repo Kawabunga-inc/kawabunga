@@ -33,6 +33,7 @@ const PROVIDER_LABELS: Record<VoiceProvider, string> = {
   elevenlabs: "ELEVEN",
   openai: "OPENAI",
   cartesia: "CARTESIA",
+  fish_audio: "FISH",
 };
 
 const GENDER_OPTIONS = ["masc", "fem", "neutral", "other"] as const;
@@ -1762,6 +1763,7 @@ const PROVIDER_TITLES: Record<VoiceProvider, string> = {
   elevenlabs: "ElevenLabs",
   openai: "OpenAI",
   cartesia: "Cartesia",
+  fish_audio: "Fish Audio",
 };
 
 const ELEVENLABS_MODELS = [
@@ -1837,10 +1839,23 @@ function ProviderConfigCard({
         />
       )}
       {voice.provider === "cartesia" && (
-        <CartesiaConfigBody
+        <IdAndModelConfigBody
           config={config}
           editing={editing}
           update={updateConfig}
+          idLabel="voice id"
+          idPlaceholder="a0e99841-438c-4a64-b679-ae501e7d6091"
+          modelPlaceholder="sonic-2"
+        />
+      )}
+      {voice.provider === "fish_audio" && (
+        <IdAndModelConfigBody
+          config={config}
+          editing={editing}
+          update={updateConfig}
+          idLabel="reference id"
+          idPlaceholder="90e65eaaf50e4470b8e6d43ee6afd7d5"
+          modelPlaceholder="s2.1-pro"
         />
       )}
       <ConfigInfoBanner />
@@ -2062,25 +2077,34 @@ function OpenAIConfigBody({
   );
 }
 
-function CartesiaConfigBody({
+/** Cartesia and Fish Audio are configured identically — a voice id and an
+ *  optional model — so they share a body and differ only in placeholders.
+ *  (Fish calls the id a `reference_id`; the field is labelled accordingly.) */
+function IdAndModelConfigBody({
   config,
   editing,
   update,
+  idLabel,
+  idPlaceholder,
+  modelPlaceholder,
 }: {
   config: Record<string, unknown>;
   editing: boolean;
   update: (patch: Record<string, unknown>) => void;
+  idLabel: string;
+  idPlaceholder: string;
+  modelPlaceholder: string;
 }) {
   const voiceId = stringFrom(config.voiceId);
   const modelId = stringFrom(config.modelId);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-18)" }}>
       <ConfigTextField
-        label="voice id"
+        label={idLabel}
         value={voiceId}
         editing={editing}
         onChange={(v) => update({ voiceId: v })}
-        placeholder="a0e99841-438c-4a64-b679-ae501e7d6091"
+        placeholder={idPlaceholder}
         mono
       />
       <ConfigTextField
@@ -2088,7 +2112,7 @@ function CartesiaConfigBody({
         value={modelId}
         editing={editing}
         onChange={(v) => update({ modelId: v })}
-        placeholder="sonic-english"
+        placeholder={modelPlaceholder}
         mono
         trailingHint="optional"
       />

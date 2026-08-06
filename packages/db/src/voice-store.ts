@@ -13,7 +13,12 @@ export type VoiceAttemptStatus = "processing" | "succeeded" | "failed";
 
 // Provider discriminator. Adding a new value requires (a) an adapter in
 // @kawabunga/engine/audio.ts and (b) a case in createStreamingTtsAdapterForVoice.
-export type VoiceProvider = "pocket_tts" | "elevenlabs" | "openai" | "cartesia";
+export type VoiceProvider =
+  | "pocket_tts"
+  | "elevenlabs"
+  | "openai"
+  | "cartesia"
+  | "fish_audio";
 
 // Provider-specific settings carried in voices.provider_config (jsonb). The
 // runtime shape is validated by adapters; the union below is the
@@ -22,7 +27,9 @@ export type VoiceProviderConfig =
   | { /* pocket_tts: no extra config; uses sourcePath + embeddingPath */ }
   | { voiceId: string; modelId?: string; stability?: number; similarityBoost?: number; style?: number } // elevenlabs
   | { voice: string } // openai (alloy | echo | fable | onyx | nova | shimmer)
-  | { voiceId: string; modelId?: string }; // cartesia
+  | { voiceId: string; modelId?: string } // cartesia
+  // fish_audio: voiceId is Fish's `reference_id`.
+  | { voiceId: string; modelId?: string; latency?: "normal" | "balanced" };
 
 /**
  * Per-binding override of a bound voice's runtime knobs. Stored on the

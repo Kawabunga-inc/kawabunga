@@ -10,6 +10,7 @@ import {
 const PRICING_AS_OF = "2026-08-05";
 const ELEVENLABS_PRICING_SOURCE = "https://elevenlabs.io/pricing/api";
 const LIVEKIT_PRICING_SOURCE = "https://livekit.com/pricing/inference";
+const FISH_AUDIO_PRICING_SOURCE = "https://fish.audio/pricing";
 const OPENAI_EMBEDDING_PRICING_SOURCE =
   "https://developers.openai.com/api/docs/models/text-embedding-3-small";
 
@@ -251,6 +252,9 @@ export function resolveTtsModelId(
   if (provider === "cartesia") {
     return process.env.CARTESIA_MODEL_ID?.trim() || "sonic-2";
   }
+  if (provider === "fish_audio") {
+    return process.env.FISH_AUDIO_MODEL_ID?.trim() || "s2.1-pro";
+  }
   return null;
 }
 
@@ -289,6 +293,20 @@ function ttsRatePerMillionCharacters(
     return configured == null
       ? null
       : rate("million_characters", configured, "environment override");
+  }
+  if (provider === "fish_audio") {
+    // Unlike Cartesia, Fish publishes a flat list price, so the ledger can
+    // default to it instead of reporting a gap. NOTE: Fish bills per UTF-8
+    // *byte* — this rate is exact for Latin text and understates non-Latin
+    // scripts by up to ~3x.
+    const configured = readPositiveNumber(
+      process.env.SESSION_COST_FISH_AUDIO_USD_PER_MILLION_CHARACTERS,
+    );
+    return rate(
+      "million_characters",
+      configured ?? 15,
+      configured == null ? FISH_AUDIO_PRICING_SOURCE : "environment override",
+    );
   }
   if (provider === "pocket_tts") {
     const configured = readPositiveNumber(

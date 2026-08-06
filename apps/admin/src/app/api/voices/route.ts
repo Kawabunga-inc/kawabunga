@@ -160,6 +160,14 @@ const cartesiaConfigSchema = z.object({
   modelId: z.string().optional(),
 });
 
+// Fish carries the same two fields (its `reference_id` is our voiceId),
+// plus an optional generation-latency mode the adapter passes through.
+const fishAudioConfigSchema = z.object({
+  voiceId: z.string().min(1, "providerConfig.voiceId is required"),
+  modelId: z.string().optional(),
+  latency: z.enum(["normal", "balanced"]).optional(),
+});
+
 // Optional string that also accepts `null` — useful for clear-a-field
 // flows (e.g. the ElevenLabs picker sends `language: null` when the
 // preset has no labels.language). `z.string().optional()` alone accepts
@@ -192,6 +200,11 @@ const createBody = z.discriminatedUnion("provider", [
     provider: z.literal("cartesia"),
     ...sharedHostedFields,
     providerConfig: cartesiaConfigSchema,
+  }),
+  z.object({
+    provider: z.literal("fish_audio"),
+    ...sharedHostedFields,
+    providerConfig: fishAudioConfigSchema,
   }),
 ]);
 

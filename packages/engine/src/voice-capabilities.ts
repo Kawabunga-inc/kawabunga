@@ -67,7 +67,10 @@ const CAPABILITIES: Record<string, Record<string, VoiceCapability>> = {
     "*": {
       label: "fish audio",
       creditsPerThousandChars: 15,
-      typicalFirstAudioMs: 220,
+      // Measured, not estimated: median ~290ms to first audio over six runs
+      // against s2.1-pro from a dev machine. Slower than Cartesia by ~250ms,
+      // at less than a third of the price.
+      typicalFirstAudioMs: 290,
       defaultModelId: "s2.1-pro",
       note: "Billed per UTF-8 byte — non-Latin scripts cost ~3× this.",
     },

@@ -59,7 +59,13 @@ export async function GET() {
     envKey: "CARTESIA_API_KEY",
   };
 
-  const providers = [pocket, elevenlabs, openai, cartesia];
+  const fishAudio: ProviderAvailability = {
+    provider: "fish_audio",
+    configured: Boolean(process.env.FISH_AUDIO_API_KEY),
+    envKey: "FISH_AUDIO_API_KEY",
+  };
+
+  const providers = [pocket, elevenlabs, openai, cartesia, fishAudio];
   const configuredCount = providers.filter((p) => p.configured).length;
 
   return NextResponse.json({ providers, configuredCount });

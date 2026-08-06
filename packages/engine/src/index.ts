@@ -15,6 +15,7 @@ export {
   PocketTtsStreamingAdapter,
   ElevenLabsStreamingAdapter,
   CartesiaStreamingAdapter,
+  FishAudioStreamingAdapter,
   createSpeechToTextAdapter,
   createTextToSpeechAdapter,
   createStreamingTtsAdapterForVoice,

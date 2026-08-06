@@ -49,7 +49,7 @@ describe("tiering", () => {
   it("buckets speed so sub-100ms earns all four bolts", () => {
     expect(speedTierFor(40)).toBe(4); // cartesia
     expect(speedTierFor(180)).toBe(3); // elevenlabs flash
-    expect(speedTierFor(220)).toBe(2); // fish
+    expect(speedTierFor(290)).toBe(2); // fish (measured)
     expect(speedTierFor(600)).toBe(1);
     expect(speedTierFor(null)).toBeNull();
   });

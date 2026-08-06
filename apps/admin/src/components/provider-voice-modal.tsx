@@ -5,25 +5,75 @@ import { useRouter } from "next/navigation";
 import { AdminButton } from "@/components/admin-ui";
 
 /**
- * Add a Cartesia voice by id.
+ * Add a hosted voice by id, for providers whose voices are referenced rather
+ * than uploaded.
  *
- * Cartesia has a working streaming adapter and a create endpoint that already
- * accepts `provider: "cartesia"` — the library just had no way in, so the
- * picker answered "coming soon" for a provider that works. This is that way
- * in: paste the voice id from the Cartesia dashboard and bind it.
+ * Both Cartesia and Fish Audio have working streaming adapters and a create
+ * endpoint that already accepts them — the library just had no way in, so the
+ * picker answered "coming soon" for providers that work. This is that way in:
+ * paste the voice id from the provider's dashboard and bind it.
  *
- * Deliberately manual rather than a catalog browser: we don't proxy Cartesia's
- * voice list yet, and a form that works today beats a browser that doesn't.
+ * Deliberately manual rather than a catalog browser: we don't proxy either
+ * provider's voice list yet, and a form that works today beats a browser that
+ * doesn't. The two forms differ only in wording, so they share one component —
+ * ElevenLabs keeps its own picker because we *do* proxy that catalog.
  */
 
 const FONT_MONO = "var(--font-mono), ui-monospace, monospace";
+
+/** Providers that are added by pasting an id. */
+export type IdEntryProvider = "cartesia" | "fish_audio";
+
+const PROVIDER_COPY: Record<
+  IdEntryProvider,
+  {
+    label: string;
+    idLabel: string;
+    idHint: string;
+    idPlaceholder: string;
+    modelHint: string;
+    modelPlaceholder: string;
+    namePlaceholder: string;
+    descriptionPlaceholder: string;
+  }
+> = {
+  cartesia: {
+    label: "Cartesia",
+    idLabel: "Cartesia voice ID",
+    idHint: "From the Cartesia dashboard — a UUID.",
+    idPlaceholder: "5ee9feff-1265-424a-9d7f-8e4d431a12c7",
+    modelHint: "Blank uses sonic-2.",
+    modelPlaceholder: "sonic-2",
+    namePlaceholder: "Ronald",
+    descriptionPlaceholder: "Gravelled elder statesman, near-instant attack.",
+  },
+  fish_audio: {
+    label: "Fish Audio",
+    // Fish calls this a reference_id; naming it as they do keeps the paste
+    // unambiguous for anyone looking at their dashboard.
+    idLabel: "Fish reference ID",
+    idHint: "From fish.audio — the model id in the voice's URL.",
+    idPlaceholder: "90e65eaaf50e4470b8e6d43ee6afd7d5",
+    modelHint: "Blank uses s2.1-pro.",
+    modelPlaceholder: "s2.1-pro",
+    namePlaceholder: "Herald",
+    descriptionPlaceholder: "Warm narrator, unhurried. The cheap tier.",
+  },
+};
 
 type State =
   | { kind: "idle" }
   | { kind: "saving" }
   | { kind: "error"; message: string };
 
-export function CartesiaVoiceModal({ onClose }: { onClose: () => void }) {
+export function ProviderVoiceModal({
+  provider,
+  onClose,
+}: {
+  provider: IdEntryProvider;
+  onClose: () => void;
+}) {
+  const copy = PROVIDER_COPY[provider];
   const router = useRouter();
   const [name, setName] = useState("");
   const [voiceId, setVoiceId] = useState("");
@@ -48,7 +98,7 @@ export function CartesiaVoiceModal({ onClose }: { onClose: () => void }) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          provider: "cartesia",
+          provider,
           name: name.trim(),
           description: description.trim() || null,
           // Tags drive the tone pills on the library card.
@@ -80,7 +130,7 @@ export function CartesiaVoiceModal({ onClose }: { onClose: () => void }) {
         message: error instanceof Error ? error.message : "Network error",
       });
     }
-  }, [name, voiceId, modelId, description, tags, onClose, router]);
+  }, [provider, name, voiceId, modelId, description, tags, onClose, router]);
 
   const canSubmit =
     name.trim().length > 0 && voiceId.trim().length > 0 && state.kind !== "saving";
@@ -134,7 +184,7 @@ export function CartesiaVoiceModal({ onClose }: { onClose: () => void }) {
                 color: "var(--accent-strong)",
               }}
             >
-              Cartesia
+              {copy.label}
             </span>
             <span
               style={{
@@ -178,27 +228,27 @@ export function CartesiaVoiceModal({ onClose }: { onClose: () => void }) {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ronald"
+              placeholder={copy.namePlaceholder}
               autoFocus
               style={inputStyle}
             />
           </Field>
           <Field
-            label="Cartesia voice ID"
-            hint="From the Cartesia dashboard — a UUID."
+            label={copy.idLabel}
+            hint={copy.idHint}
           >
             <input
               value={voiceId}
               onChange={(e) => setVoiceId(e.target.value)}
-              placeholder="5ee9feff-1265-424a-9d7f-8e4d431a12c7"
+              placeholder={copy.idPlaceholder}
               style={{ ...inputStyle, fontFamily: FONT_MONO }}
             />
           </Field>
-          <Field label="Model" hint="Blank uses sonic-2.">
+          <Field label="Model" hint={copy.modelHint}>
             <input
               value={modelId}
               onChange={(e) => setModelId(e.target.value)}
-              placeholder="sonic-2"
+              placeholder={copy.modelPlaceholder}
               style={{ ...inputStyle, fontFamily: FONT_MONO }}
             />
           </Field>
@@ -206,7 +256,7 @@ export function CartesiaVoiceModal({ onClose }: { onClose: () => void }) {
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Gravelled elder statesman, near-instant attack."
+              placeholder={copy.descriptionPlaceholder}
               style={inputStyle}
             />
           </Field>
