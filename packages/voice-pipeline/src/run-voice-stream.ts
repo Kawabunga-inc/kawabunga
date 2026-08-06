@@ -16,7 +16,9 @@ import {
   POCKET_TTS_SAMPLE_RATE,
   type ChatSystemBlock,
   type ProviderId,
+  type StreamingTextToSpeechAdapter,
   type StreamingTtsProvider,
+  type VoiceContext,
   type VoiceForRouting,
 } from "@kawabunga/engine";
 import { curate, type Scene as CuratorScene, type SemanticSeed } from "@kawabunga/wiki-curator";
@@ -42,6 +44,11 @@ import {
 } from "./voice-ack-audio-cache";
 import { isAckLaneEnabled, selectVoiceAck } from "./voice-ack-lane";
 import { isStageDirection } from "./stage-direction";
+import {
+  createPerformanceVoiceRouter,
+  splitPerformanceSegments,
+  type PerformanceSegmentKind,
+} from "./performance-segments";
 import {
   containsSafetyReferral,
   inCharacterDeflectionInstruction,
@@ -102,7 +109,12 @@ export class VoiceStreamHttpError extends Error {
  */
 
 type LlmProvider = ProviderId;
-type StreamingTtsRouting = ReturnType<typeof createStreamingTtsAdapterForVoice>;
+export type VoiceStreamTtsRouting = {
+  provider: StreamingTtsProvider;
+  adapter: StreamingTextToSpeechAdapter;
+  voiceContext: VoiceContext;
+};
+type StreamingTtsRouting = VoiceStreamTtsRouting;
 
 export type VoiceStreamBody = {
   sessionId?: string;
@@ -147,6 +159,9 @@ export type VoiceStreamBody = {
   // is free and keeps misconfiguration surfacing consistent); it's just never
   // streamed. Off by default — never affects production turns.
   textOnly?: boolean;
+  // Server-side-only secondary route for physical performance spans. Browser
+  // and admin JSON requests omit it and retain the original one-voice path.
+  narrationTts?: VoiceStreamTtsRouting;
 };
 
 /** Materials handed to a construction variant: the assembled baseline parts plus the
@@ -435,6 +450,13 @@ export async function* runVoiceStream(
     }
     const ttsVoiceContext = ttsRouting.voiceContext;
     const ttsProvider = ttsRouting.provider;
+    // `VoiceStreamBody` also crosses JSON routes. Only a real in-process
+    // server adapter (the voice agent) may activate secondary narration.
+    const narrationTts =
+      input.narrationTts &&
+      typeof input.narrationTts.adapter?.stream === "function"
+        ? input.narrationTts
+        : null;
     const ttsFallbackRouting = await resolveVoiceStreamTtsFallback({
       primaryProvider: ttsProvider,
       primaryVoiceSlug: ttsVoiceContext.slug,
@@ -521,6 +543,26 @@ export async function* runVoiceStream(
     let ttsCursor = 0;
     let ttsChunkCount = 0;
     let drainChain: Promise<void> = Promise.resolve();
+    const performanceSegments: Array<{ kind: PerformanceSegmentKind; chars: number }> = [];
+    let activeNarrationChunk: { chunkIdx: number; kind: "ack" | "main" } | null = null;
+    const performanceVoiceRouter = createPerformanceVoiceRouter({
+      narrationAvailable: Boolean(narrationTts),
+      onNarrationFailure: (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        serverTrace.mark("server.tts.narration_fallback", {
+          chunkIdx: activeNarrationChunk?.chunkIdx ?? null,
+          kind: activeNarrationChunk?.kind ?? "main",
+          fromProvider: narrationTts?.provider ?? null,
+          fromVoice: narrationTts?.voiceContext.slug ?? null,
+          toProvider: ttsProvider,
+          toVoice: ttsVoiceContext.slug,
+          reason: message,
+        });
+        console.warn(
+          `[voice-stream] narration TTS failed (${message}) — using the character voice for remaining performance segments`,
+        );
+      },
+    });
     let ackText: string | null = null;
     let cachedAckAudio: CachedVoiceAckAudio | null = null;
     let mainTokenGateOpen = true;
@@ -552,6 +594,7 @@ export async function* runVoiceStream(
           trace: serverTrace.toJSON(),
           metadata: {
             source: "character-sandbox",
+            ...(performanceSegments.length > 0 ? { segments: performanceSegments } : {}),
             ...(note ? { terminalReason: note } : {}),
           },
         });
@@ -1122,11 +1165,12 @@ export async function* runVoiceStream(
         chunkIdx: number,
         chunkText: string,
         kind: "ack" | "main",
+        voice: "character" | "narration" = "character",
       ): Promise<void> => {
         if (signal.aborted) return;
         const drainWithRouting = async (
           routing: StreamingTtsRouting,
-          attempt: "primary" | "fallback",
+          attempt: "primary" | "fallback" | "narration",
         ) => {
           let openedTraced = false;
           let attemptSamples = 0;
@@ -1211,45 +1255,107 @@ export async function* runVoiceStream(
           }
         };
 
-        try {
-          await drainWithRouting(ttsRouting!, "primary");
-        } catch (primaryErr) {
-          if (!ttsFallbackRouting || signal.aborted) throw primaryErr;
-          const message =
-            primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
-          serverTrace.mark("server.tts.fallback", {
-            chunkIdx,
-            kind,
-            fromProvider: ttsProvider,
-            toProvider: ttsFallbackRouting.provider,
-            toVoice: ttsFallbackRouting.voiceContext.slug,
-            reason: message,
-          });
-          if (input.sessionId) {
-            await getSceneSessionStore().appendEvent({
-              sessionId: input.sessionId,
-              turnId: input.turnId ?? null,
-              type: "tts.provider_fallback",
-              source: "system",
-              payload: {
-                chunkIdx,
-                fromProvider: ttsProvider,
-                fromVoice: ttsVoiceContext.slug,
-                toProvider: ttsFallbackRouting.provider,
-                toVoice: ttsFallbackRouting.voiceContext.slug,
-                reason: message,
-              },
-            }).catch((eventErr) => {
-              console.error("[voice-stream] fallback event failed", eventErr);
+        const drainWithCharacterVoice = async (): Promise<void> => {
+          try {
+            await drainWithRouting(ttsRouting!, "primary");
+          } catch (primaryErr) {
+            if (!ttsFallbackRouting || signal.aborted) throw primaryErr;
+            const message =
+              primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+            serverTrace.mark("server.tts.fallback", {
+              chunkIdx,
+              kind,
+              fromProvider: ttsProvider,
+              toProvider: ttsFallbackRouting.provider,
+              toVoice: ttsFallbackRouting.voiceContext.slug,
+              reason: message,
             });
+            if (input.sessionId) {
+              await getSceneSessionStore().appendEvent({
+                sessionId: input.sessionId,
+                turnId: input.turnId ?? null,
+                type: "tts.provider_fallback",
+                source: "system",
+                payload: {
+                  chunkIdx,
+                  fromProvider: ttsProvider,
+                  fromVoice: ttsVoiceContext.slug,
+                  toProvider: ttsFallbackRouting.provider,
+                  toVoice: ttsFallbackRouting.voiceContext.slug,
+                  reason: message,
+                },
+              }).catch((eventErr) => {
+                console.error("[voice-stream] fallback event failed", eventErr);
+              });
+            }
+            await drainWithRouting(ttsFallbackRouting, "fallback");
           }
-          await drainWithRouting(ttsFallbackRouting, "fallback");
+        };
+
+        if (voice === "character") {
+          await drainWithCharacterVoice();
+          return;
         }
+
+        activeNarrationChunk = { chunkIdx, kind };
+        await performanceVoiceRouter.drain(
+          "stage",
+          {
+            character: drainWithCharacterVoice,
+            narration: async () => {
+              if (!narrationTts) return drainWithCharacterVoice();
+              try {
+                await drainWithRouting(narrationTts, "narration");
+              } catch (error) {
+                if (signal.aborted) return;
+                throw error;
+              }
+            },
+          },
+        );
+        activeNarrationChunk = null;
       };
 
       const dispatchTtsChunk = (text: string): void => {
         const trimmed = text.trim();
         if (!trimmed) return;
+        // Preserve the original hot path exactly when no secondary voice is
+        // available (including browser/admin requests and text-only runs).
+        if (narrationTts && !input.textOnly) {
+          for (const segment of splitPerformanceSegments(trimmed, character.title)) {
+            performanceSegments.push({ kind: segment.kind, chars: segment.text.length });
+            if (segment.kind === "meta") {
+              ttsChunkCount += 1;
+              serverTrace.mark("server.tts.chunk.skipped_stage_direction", {
+                chars: segment.text.length,
+                text: segment.text.slice(0, 80),
+              });
+              continue;
+            }
+            const chunkIdx = ttsChunkCount++;
+            const segmentVoice = segment.kind === "stage" ? "narration" : "character";
+            if (chunkIdx === 0) {
+              const firstRouting = segmentVoice === "narration" ? narrationTts : ttsRouting;
+              serverTrace.mark("server.tts.fetch.requested", {
+                provider: firstRouting.provider,
+                voice: firstRouting.voiceContext.slug,
+                firstChunkChars: segment.text.length,
+              });
+            }
+            serverTrace.mark("server.tts.chunk.dispatched", {
+              chunkIdx,
+              kind: "main",
+              segmentKind: segment.kind,
+              chars: segment.text.length,
+            });
+            drainChain = drainChain.then(() =>
+              drainOneChunk(chunkIdx, segment.text, "main", segmentVoice));
+          }
+          return;
+        }
+        for (const segment of splitPerformanceSegments(trimmed, character.title)) {
+          performanceSegments.push({ kind: segment.kind, chars: segment.text.length });
+        }
         // Stage-direction guard: never voice a chunk that is purely a
         // parenthesized/bracketed aside (the proactive path's "(No reply
         // needed)" was reaching ElevenLabs and being spoken aloud). Counted
@@ -1667,6 +1773,7 @@ export async function* runVoiceStream(
       serverTrace.mark("server.tts.done", {
         audioSamples: totalSamples,
         chunks: ttsChunkCount,
+        segments: performanceSegments,
       });
       const deliveredAckText = ackFirstAudioAt !== null ? ackText : null;
       const assistantText = [deliveredAckText, replyText].filter(Boolean).join(" ").trim();
@@ -1707,6 +1814,7 @@ export async function* runVoiceStream(
             ackFirstAudioMs,
             brainFirstTokenMs,
             ackAudioCacheHit: Boolean(cachedAckAudio),
+            segments: performanceSegments,
             serverTrace: serverTrace.toJSON(),
           },
         });
@@ -1758,6 +1866,7 @@ export async function* runVoiceStream(
                 ackFirstAudioMs,
                 brainFirstTokenMs,
                 ackAudioCacheHit: Boolean(cachedAckAudio),
+                segments: performanceSegments,
               },
             });
             turnTerminalPersisted = true;
@@ -1815,6 +1924,7 @@ export async function* runVoiceStream(
         ackFirstAudioMs,
         brainFirstTokenMs,
         ackAudioCacheHit: Boolean(cachedAckAudio),
+        segments: performanceSegments,
         estimatedCostUsd: estimateSessionTurnCost(modelId, {
           inputTokens,
           outputTokens,

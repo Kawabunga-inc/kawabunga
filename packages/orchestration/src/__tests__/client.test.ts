@@ -447,6 +447,8 @@ describe("@kawabunga/orchestration client", () => {
     expect(system).toContain("baseline: guarded");
     expect(system).toContain("will: deflect with a question (when the machine is mentioned)");
     expect(system).toContain("Write `beat`s in service of what the speaker WANTS");
+    expect(system).toContain("Write every `beat` as a SECOND-PERSON direction");
+    expect(system).toContain("never third-person prose about them");
     expect(system).toContain("Press actively");
 
     const plain = buildSceneDecisionRequest({
