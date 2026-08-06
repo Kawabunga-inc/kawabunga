@@ -900,15 +900,23 @@ function KpiStrip({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))`,
+        // auto-fit with a real minimum: tiles reflow onto another row rather
+        // than shrinking past legibility. A session with journal health has a
+        // dozen KPIs, and fixed 1fr columns squeezed every value to an ellipsis.
+        gridTemplateColumns: "repeat(auto-fit, minmax(156px, 1fr))",
+        // Each cell paints its own right/bottom hairline into the 1px gap, so
+        // dividers land on both axes once rows wrap, edge lines are clipped by
+        // the container, and a partly-filled last row reads as panel rather
+        // than a band of divider colour.
+        gap: 1,
         border: `1px solid ${C.border}`,
         borderRadius: "var(--radius-xl)",
         background: C.panel,
         overflow: "hidden",
       }}
     >
-      {items.map((item, i) => (
-        <KpiCell key={item.label} {...item} divider={i < items.length - 1} />
+      {items.map((item) => (
+        <KpiCell key={item.label} {...item} />
       ))}
     </div>
   );
@@ -919,14 +927,12 @@ function KpiCell({
   value,
   sub,
   tone,
-  divider,
   title,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
   tone?: "default" | "mint" | "amber";
-  divider?: boolean;
   title?: string;
 }) {
   const valueColor = tone === "mint" ? C.mint : tone === "amber" ? C.amber : C.text;
@@ -935,7 +941,8 @@ function KpiCell({
       title={title}
       style={{
         padding: "14px 18px",
-        borderRight: divider ? `1px solid ${C.borderSoft}` : "none",
+        background: C.panel,
+        boxShadow: `1px 1px 0 0 ${C.borderSoft}`,
         display: "flex",
         flexDirection: "column",
         gap: "var(--space-4)",
@@ -957,7 +964,12 @@ function KpiCell({
         style={{
           display: "flex",
           alignItems: "baseline",
-          gap: "var(--space-10)",
+          // Let the sub drop BELOW the value instead of squeezing it: the sub
+          // is `nowrap`, so sharing one line it held its full width and the
+          // headline number — the thing being read — ellipsised to nothing.
+          flexWrap: "wrap",
+          columnGap: "var(--space-10)",
+          rowGap: 2,
           minWidth: 0,
         }}
       >
@@ -965,10 +977,13 @@ function KpiCell({
           style={{
             fontFamily: FONT_DISPLAY,
             fontWeight: 600,
-            fontSize: 26,
+            // Scales with the viewport so a narrow workbench shrinks the
+            // number rather than truncating it.
+            fontSize: "clamp(19px, 1.9vw, 26px)",
             lineHeight: 1.05,
             letterSpacing: "-0.01em",
             color: valueColor,
+            flexShrink: 0,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
