@@ -129,12 +129,18 @@ export function GameTab({
                         padding: "0 16px",
                         border: "none",
                         borderLeft: i > 0 ? "1px solid var(--control-border)" : "none",
+                        // Active reads as accent text over the soft wash with an
+                        // accent underline — the wiki-tab-bar idiom. --accent-on
+                        // is for SOLID accent fills and goes white in light
+                        // themes, which is illegible over the translucent wash.
+                        borderBottom: `2px solid ${active ? "var(--accent-strong)" : "transparent"}`,
                         cursor: "pointer",
                         background: active ? "var(--accent-soft)" : "var(--control-bg)",
-                        color: active ? "var(--accent-on)" : T.muted,
+                        color: active ? "var(--accent-strong)" : T.muted,
                         fontFamily: T.fontBody,
                         fontSize: "var(--font-size-sm)",
                         fontWeight: active ? 600 : 400,
+                        transition: "background 120ms ease, color 120ms ease, border-color 120ms ease",
                       }}
                     >
                       {label}
