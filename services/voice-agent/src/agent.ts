@@ -585,6 +585,7 @@ export default defineAgent({
             maxTokens: LIVE_VOICE_MAX_TOKENS,
             sessionId,
             turnId,
+            ...(narrationRouting ? { narrationTts: narrationRouting } : {}),
             // Worker-level experiment override (VOICE_AGENT_BRAIN_MODEL) —
             // request-level `model` outranks the character's saved brainModel.
             ...(modelOverride ? { model: modelOverride } : {}),

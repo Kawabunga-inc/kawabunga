@@ -11,3 +11,4 @@ export * from "./run-voice-stream";
 export * from "./eval";
 export * from "./refusal-guard";
 export * from "./session-cost";
+export * from "./performance-segments";
