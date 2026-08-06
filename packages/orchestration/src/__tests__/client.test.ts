@@ -123,6 +123,21 @@ describe("@kawabunga/orchestration client", () => {
     expect(readSceneStateFromSnapshot(snapshot, "other-scene")).toBeNull();
   });
 
+  it("round-trips character emotional states through scene snapshots", () => {
+    const state = {
+      ...createInitialSceneState(scene),
+      characterStates: {
+        ada: "shaken — the relay answered in her mother's voice",
+      },
+    };
+    const snapshot = buildSceneSessionSnapshot(state, "2026-01-01T00:00:00.000Z");
+
+    expect(readSceneStateFromSnapshot(snapshot, scene.id)?.characterStates).toEqual(
+      state.characterStates,
+    );
+    expect(createInitialSceneState(scene)).not.toHaveProperty("characterStates");
+  });
+
   it("folds recent turns into bounded scene memory", () => {
     const memory = updateSceneMemory({
       previousMemory: ["Ada: The machine hummed."],
@@ -172,6 +187,7 @@ describe("@kawabunga/orchestration client", () => {
       "delivery",
       "narration",
       "narrationKind",
+      "weight",
       "exitSlug",
       "enterSlug",
       "ambience",
@@ -185,6 +201,10 @@ describe("@kawabunga/orchestration client", () => {
     expect(request.responseSchema.properties.narrationKind).toEqual({
       type: ["string", "null"],
       enum: ["answer", "event", null],
+    });
+    expect(request.responseSchema.properties.weight).toEqual({
+      type: ["string", "null"],
+      enum: ["minor", "major", "irreversible", null],
     });
     expect(request.messages[0].content).toContain("Set `delivery` on EVERY `speak`");
     expect(request.messages[0].content).toContain("`expansive`");
@@ -204,6 +224,42 @@ describe("@kawabunga/orchestration client", () => {
     expect(
       buildDirectiveChunk({ beat: "Tell the whole story.", delivery: "expansive" }),
     ).toContain("Delivery: expansive. The director is deliberately giving you the floor");
+  });
+
+  it("feeds current character state to both the director and reactive speaker", () => {
+    const state = {
+      ...createInitialSceneState(sceneWithIntent),
+      characterStates: {
+        ada: "shattered — she watched the machine erase Turing's proof",
+      },
+    };
+    const director = buildSceneDecisionRequest({
+      scene: sceneWithIntent,
+      sceneState: state,
+      recentTurns: [],
+    }).messages[0]!.content;
+    expect(director).toContain(
+      "now: shattered — she watched the machine erase Turing's proof",
+    );
+    expect(director).toContain("CURRENT truth and outranks their");
+
+    const turn = buildSpeakerTurnRequest({
+      scene: sceneWithIntent,
+      sceneState: state,
+      decision: { action: "speak", speakerId: "ada", beat: "Face what the machine did." },
+      recentTurns: [{ speakerSlug: "user", text: "Ada?" }],
+    });
+    expect(turn?.promptChunk).toContain(
+      "Your state right now: shattered — she watched the machine erase Turing's proof. Perform from it.",
+    );
+
+    const legacy = buildSceneDecisionRequest({
+      scene: sceneWithIntent,
+      sceneState: createInitialSceneState(sceneWithIntent),
+      recentTurns: [],
+    }).messages[0]!.content;
+    expect(legacy).not.toContain("      now:");
+    expect(legacy).not.toContain("CURRENT truth and outranks");
   });
 
   it("resolves speak/wait/narrate/end decisions into next state", () => {

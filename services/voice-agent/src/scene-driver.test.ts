@@ -660,6 +660,182 @@ describe("SceneDriver — narration", () => {
   });
 });
 
+describe("SceneDriver — irreversible consequence protocol", () => {
+  it("seeds state, forces an expansive affected reaction, cascades, and reflects off-cadence", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham falls lifeless beside the fire.",
+        narrationKind: "event",
+        weight: "irreversible",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const reflections: ChatRequestOptions[] = [];
+    const dramaturg: ChatProvider = {
+      ...fakeChatProvider(""),
+      complete: async (options: ChatRequestOptions): Promise<ChatResponse> => {
+        reflections.push(options);
+        return {
+          text: [
+            "STORY: Abraham died beside the fire as Sarah watched.",
+            "THREAD: Sarah must decide what Abraham's death asks of her.",
+            "STATE: sarah: grieving — she watched Abraham die beside their fire",
+            "STATE: abraham: peaceful — his struggle is over",
+            "STATE: visitor: guilty — they caused the blow",
+            "NOTE: Let Sarah's grief reorder every remaining intention.",
+          ].join("\n"),
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          cacheState: "off",
+          model: "fake-dramaturg",
+          latencyMs: 1,
+        };
+      },
+    } as unknown as ChatProvider;
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      dramaturgProvider: dramaturg,
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Abraham—no. Not yet."]);
+
+    const outcome = await driver.drive("I strike Abraham down.", speak);
+    await driver.settleReflection();
+
+    expect(outcome.spoke).toBe(true);
+    expect(exec.calls).toBe(2); // event + mandatory cascade check (solo reaction needs no call)
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.speaker.slug).toBe("sarah");
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
+    expect(inputs[0]!.promptChunk).toContain(
+      "Your state right now: reeling — Abraham falls lifeless beside the fire.",
+    );
+    expect(
+      snapshots.some(
+        (snapshot) =>
+          snapshot.sceneState.characterStates?.sarah ===
+          "reeling — Abraham falls lifeless beside the fire.",
+      ),
+    ).toBe(true);
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates).toEqual({
+      sarah: "grieving — she watched Abraham die beside their fire",
+    });
+    expect(reflections).toHaveLength(1); // one spoken turn, below normal cadence
+    const reflectionUser = reflections[0]!.messages[0]!.content;
+    expect(reflectionUser).toContain(
+      "An irreversible event just occurred: Abraham falls lifeless beside the fire.",
+    );
+    const firstDecision = journal.find((entry) => entry.payload.trigger === "user-turn")!;
+    expect(firstDecision.payload.decision).toMatchObject({ weight: "irreversible" });
+    const reactionDecision = journal.find((entry) => entry.payload.trigger === "chain")!;
+    expect(reactionDecision.payload).toMatchObject({
+      recovered: "consequence-protocol",
+      decision: { action: "speak", speakerId: "sarah", delivery: "expansive" },
+    });
+    const reflectionEntry = journal.find((entry) => entry.type === "scene.reflection")!;
+    expect(reflectionEntry.payload.statesChanged).toEqual([
+      { slug: "sarah", state: "grieving — she watched Abraham die beside their fire" },
+    ]);
+  });
+
+  it("arms for an exit attached to a major event", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham collapses and cannot rise.",
+        narrationKind: "event",
+        weight: "major",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Abraham!"]);
+
+    await driver.drive("The blow lands.", speak);
+
+    expect(exec.calls).toBe(2); // event + mandatory cascade check
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
+    expect(snapshots[0]!.sceneState.characterStates?.sarah).toContain(
+      "reeling — Abraham collapses and cannot rise.",
+    );
+    expect(
+      journal.find((entry) => entry.payload.trigger === "chain")?.payload.recovered,
+    ).toBe("consequence-protocol");
+  });
+
+  it("uses the death/incapacitation exit heuristic when legacy output omits weight", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham dies before Sarah can reach him.",
+        narrationKind: "event",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["No—Abraham!"]);
+
+    await driver.drive("It is done.", speak);
+
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
+    expect(snapshots[0]!.sceneState.characterStates?.sarah).toContain(
+      "reeling — Abraham dies before Sarah can reach him.",
+    );
+  });
+
+  it("does not arm for a minor walk-out", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham steps out into the night.",
+        narrationKind: "event",
+        weight: "minor",
+        exitSlug: "abraham",
+      },
+      speakDecision("sarah", "Watch him leave.", "brief"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Let him go."]);
+
+    await driver.drive("He leaves.", speak);
+
+    expect(exec.calls).toBe(1); // the lone remaining character uses the chain fastpath
+    expect(inputs[0]!.promptChunk).not.toContain("Delivery: expansive");
+    expect(snapshots.every((snapshot) => !snapshot.sceneState.characterStates)).toBe(true);
+  });
+});
+
 describe("SceneDriver — pipelined narration reactions", () => {
   it("generates under playback and releases audio only after narration ends", async () => {
     const exec = fakeExecutor([
@@ -1346,6 +1522,122 @@ describe("SceneDriver — dramaturg", () => {
         : "";
     expect(reflectionUser).toContain("Your chronicle as of the last reflection");
     expect(reflectionUser).toContain("STORY: A traveler pressed Sarah about the laugh");
+  });
+
+  it("validates STATE slugs, journals changes, and carries state into proactive turns", async () => {
+    const exec = fakeExecutor([
+      speakDecision("abraham", "Welcome the traveler."),
+      speakDecision("sarah", "Answer without deflecting."),
+      speakDecision("sarah", "Follow the truth into the silence."),
+    ]);
+    const dramaturg = fakeChatProvider(
+      [
+        "STATE: sarah: shaken — Abraham named the laugh she denied",
+        "STATE: visitor: smug — the accusation landed",
+        "NOTE: Sarah is shaken; let her choose what honesty costs.",
+      ].join("\n"),
+    );
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      dramaturgProvider: dramaturg,
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["Welcome.", "I heard him.", "And I cannot unhear it."]);
+
+    await driver.drive("Hello.", speak);
+    await driver.drive("Sarah, he named your laugh.", speak);
+    await driver.settleReflection();
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates).toEqual({
+      sarah: "shaken — Abraham named the laugh she denied",
+    });
+    expect(
+      journal.find((entry) => entry.type === "scene.reflection")?.payload.statesChanged,
+    ).toEqual([
+      { slug: "sarah", state: "shaken — Abraham named the laugh she denied" },
+    ]);
+
+    await driver.driveProactive(speak);
+    expect(exec.requests[2]!.messages[0]!.content).toContain(
+      "now: shaken — Abraham named the laugh she denied",
+    );
+    expect(inputs[2]!.promptChunk).toContain(
+      "Your state right now: shaken — Abraham named the laugh she denied. Perform from it.",
+    );
+  });
+
+  it("queues consequence reflection behind an older review without letting stale STATE win", async () => {
+    const exec = fakeExecutor([
+      speakDecision("abraham", "Welcome the traveler."),
+      speakDecision("sarah", "Answer him."),
+      {
+        action: "narrate",
+        narration: "Abraham dies beside the fire.",
+        narrationKind: "event",
+        weight: "irreversible",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const firstReflection = deferred<ChatResponse>();
+    const reflectionRequests: ChatRequestOptions[] = [];
+    const response = (text: string): ChatResponse => ({
+      text,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      cacheState: "off",
+      model: "fake-dramaturg",
+      latencyMs: 1,
+    });
+    const dramaturg: ChatProvider = {
+      complete: async (options: ChatRequestOptions): Promise<ChatResponse> => {
+        reflectionRequests.push(options);
+        if (reflectionRequests.length === 1) return firstReflection.promise;
+        return response(
+          [
+            "THREAD: Sarah must carry what Abraham left unfinished.",
+            "STATE: sarah: grieving — Abraham died before her eyes",
+            "NOTE: Let Sarah's grief determine the scene.",
+          ].join("\n"),
+        );
+      },
+      stream: async function* () {
+        throw new Error("not used");
+      },
+    } as unknown as ChatProvider;
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      dramaturgProvider: dramaturg,
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onNarrate(() => undefined);
+    const { speak } = fakeSpeak(["Welcome.", "I hear you.", "Abraham!"]);
+
+    await driver.drive("Hello.", speak);
+    await driver.drive("Sarah?", speak); // ordinary cadence reflection starts and stalls
+    expect(reflectionRequests).toHaveLength(1);
+    await driver.drive("I strike Abraham down.", speak);
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates?.sarah).toContain(
+      "reeling — Abraham dies beside the fire.",
+    );
+
+    firstReflection.resolve(response("STATE: sarah: calm — the evening is ordinary"));
+    await vi.waitFor(() => expect(reflectionRequests).toHaveLength(2));
+    await driver.settleReflection();
+
+    expect(reflectionRequests[1]!.messages[0]!.content).toContain(
+      "An irreversible event just occurred: Abraham dies beside the fire.",
+    );
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates).toEqual({
+      sarah: "grieving — Abraham died before her eyes",
+    });
   });
 });
 

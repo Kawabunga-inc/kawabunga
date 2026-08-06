@@ -212,6 +212,7 @@ export function JournalRailRow({
       item.factsAdded.length ? `+${item.factsAdded.length} fact${item.factsAdded.length > 1 ? "s" : ""}` : null,
       item.landedAdded.length ? `+${item.landedAdded.length} beat${item.landedAdded.length > 1 ? "s" : ""}` : null,
       item.gone.length ? `${item.gone.length} gone` : null,
+      item.statesChanged.length ? `${item.statesChanged.length} state${item.statesChanged.length > 1 ? "s" : ""}` : null,
     ].filter(Boolean);
     return (
       <button type="button" onClick={onSelect} style={rowStyle}>
@@ -509,6 +510,13 @@ function ReflectionDetail({ item }: { item: JournalReflectionItem }) {
             <KV label="beats landed">{item.landedAdded.join(" · ")}</KV>
           ) : null}
           {item.gone.length ? <KV label="retired (gone)">{item.gone.join(", ")}</KV> : null}
+          {item.statesChanged.length ? (
+            <KV label="states changed">
+              {item.statesChanged
+                .map(({ slug, state }) => `${slug}: ${state ?? "settled to baseline"}`)
+                .join(" · ")}
+            </KV>
+          ) : null}
           {threadsAdded.length ? <KV label="threads opened">{threadsAdded.join(" · ")}</KV> : null}
           {threadsDropped.length ? (
             <KV label="threads resolved">{threadsDropped.join(" · ")}</KV>

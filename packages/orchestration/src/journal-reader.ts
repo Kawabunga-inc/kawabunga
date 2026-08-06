@@ -22,6 +22,17 @@ function strList(value: unknown): string[] {
     : [];
 }
 
+function stateChangeList(value: unknown): Array<{ slug: string; state: string | null }> {
+  return (Array.isArray(value) ? value : [])
+    .map((entry) => {
+      const record = asRecord(entry);
+      const slug = str(record?.slug);
+      if (!slug) return null;
+      return { slug, state: str(record?.state) };
+    })
+    .filter((entry): entry is { slug: string; state: string | null } => entry !== null);
+}
+
 export type JournalChronicle = {
   story: string;
   threads: string[];
@@ -125,6 +136,7 @@ export type JournalReflectionItem = {
   factsAdded: string[];
   landedAdded: string[];
   gone: string[];
+  statesChanged: Array<{ slug: string; state: string | null }>;
   chronicleBefore: JournalChronicle | null;
   chronicleAfter: JournalChronicle | null;
   spokenTurns: number | null;
@@ -206,6 +218,7 @@ export function parseJournalItems(events: SceneSessionEventRecord[]): SessionJou
         factsAdded: strList(payload.factsAdded),
         landedAdded: strList(payload.landedAdded),
         gone: strList(payload.gone),
+        statesChanged: stateChangeList(payload.statesChanged),
         chronicleBefore: asChronicle(payload.chronicleBefore),
         chronicleAfter: asChronicle(payload.chronicleAfter),
         spokenTurns: num(payload.spokenTurns),

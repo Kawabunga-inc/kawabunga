@@ -56,6 +56,8 @@ describe("buildDramaturgMessages", () => {
     expect(request.user).toContain("will: deflect with a question (when the machine is mentioned)");
     expect(request.user).toContain("Ada: Why do you ask?");
     expect(request.user).toContain("Your previous note: Ada is stonewalling; give Turing an opening.");
+    expect(request.system).toContain("STATE: <slug>: <one line>");
+    expect(request.system).toContain("Restate a state to keep it");
   });
 
   it("omits objective/previous-note lines when absent", () => {
@@ -144,6 +146,7 @@ describe("parseDramaturgReflection", () => {
       landed: [],
       facts: [],
       gone: [],
+      states: [],
       chronicle: null,
     });
     expect(parseDramaturgReflection("landed: Something Happened")).toEqual({
@@ -151,6 +154,7 @@ describe("parseDramaturgReflection", () => {
       landed: ["Something Happened"],
       facts: [],
       gone: [],
+      states: [],
       chronicle: null,
     });
   });
@@ -170,6 +174,38 @@ describe("parseDramaturgReflection", () => {
     ]);
     expect(landed).toEqual(["The laugh is named"]);
     expect(note).toBe("Press Abraham on whether he shares her doubt.");
+  });
+
+  it("parses STATE lines and keeps malformed state metadata out of the note", () => {
+    const parsed = parseDramaturgReflection(
+      [
+        "STATE: ada: shattered — she watched Turing fall",
+        "state: turing: resolving — Ada finally told the truth",
+        "STATE: malformed",
+        "NOTE: Let the loss breathe.",
+      ].join("\n"),
+    );
+
+    expect(parsed.states).toEqual([
+      { slug: "ada", state: "shattered — she watched Turing fall" },
+      { slug: "turing", state: "resolving — Ada finally told the truth" },
+    ]);
+    expect(parsed.note).toBe("Let the loss breathe.");
+  });
+
+  it("passes an irreversible pending consequence to the forced reflection", () => {
+    const request = buildDramaturgMessages({
+      scene,
+      sceneState: createInitialSceneState(scene),
+      recentTurns: [],
+      pendingConsequence: "Turing dies as the machine housing collapses.",
+    });
+
+    expect(request.user).toContain(
+      "An irreversible event just occurred: Turing dies as the machine housing collapses.",
+    );
+    expect(request.user).toContain("MUST set STATE for every affected character");
+    expect(request.user).toContain("open a\nTHREAD for what this loss demands");
   });
 });
 

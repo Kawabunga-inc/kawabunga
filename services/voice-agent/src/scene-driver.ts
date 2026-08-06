@@ -45,6 +45,7 @@ import {
   type OrchestratorExecutorResolution,
   type SceneChronicle,
   type SceneDecisionJournalExtras,
+  type SceneDecisionResolution,
   type SceneJournalSink,
   type SceneSessionSnapshot,
   type SceneTurnForPlanning,
@@ -238,6 +239,29 @@ type DecideResult = {
   model?: string;
 };
 
+type ConsequenceContext = {
+  summary: string;
+  subjectSlug: string | null;
+  affectedSlugs: string[];
+};
+
+const EXIT_INCAPACITATION_RE =
+  /\b(?:die[sd]?|dead|death|kill(?:ed|s)?|slain|collapse[sd]?|unconscious|incapacitat(?:e|ed|ion)|maim(?:ed|s)?|mortally|struck down|cut down|falls? lifeless|no longer breath(?:es|ing)|breath stops?)\b/i;
+
+function consequenceSummary(decision: OrchestratorDecision): string {
+  const raw = decision.narration?.trim() || decision.beat?.trim() ||
+    "an irreversible event changes the scene";
+  return raw.replace(/\s+/g, " ").slice(0, 180);
+}
+
+function activatesConsequenceProtocol(decision: OrchestratorDecision): boolean {
+  if (decision.weight === "irreversible") return true;
+  if (!decision.exitSlug?.trim()) return false;
+  if (decision.weight === "major") return true;
+  if (decision.weight === "minor") return false;
+  return EXIT_INCAPACITATION_RE.test(consequenceSummary(decision));
+}
+
 /**
  * The NARRATOR's runtime — drives a multi-character SCENE over a LiveKit room.
  * The Narrator is the unified orchestrator; this class hosts its three
@@ -311,6 +335,13 @@ export class SceneDriver {
   #spokenTurns = 0;
   #reflecting = false;
   #dramaturgDisabled: boolean;
+  // An irreversible event bypasses the ordinary reflection cadence after
+  // the next spoken reaction. A monotonically increasing version prevents a
+  // reflection that started before the event from overwriting its provisional
+  // states when it lands late.
+  #pendingConsequence: string | null = null;
+  #consequenceVersion = 0;
+  #consequenceReflectionDue = false;
   // The in-flight reflection (null when idle) — held so headless callers can
   // await it between turns (see settleReflection).
   #reflection: Promise<void> | null = null;
@@ -557,13 +588,16 @@ export class SceneDriver {
    * SceneState; the fast director reads it on its next decision. Failures
    * warn only — the scene loop must never feel this.
    */
-  #maybeReflect(): void {
+  #maybeReflect(countSpokenTurn = true): void {
     if (this.#dramaturgDisabled) return;
     // Count every completed spoken turn — even ones landing while a reflection
     // is in flight — so the DRAMATURG_EVERY cadence doesn't stretch under load.
-    this.#spokenTurns += 1;
+    if (countSpokenTurn) {
+      this.#spokenTurns += 1;
+      if (this.#pendingConsequence) this.#consequenceReflectionDue = true;
+    }
     if (this.#reflecting) return;
-    if (this.#spokenTurns % DRAMATURG_EVERY !== 0) return;
+    if (!this.#consequenceReflectionDue && this.#spokenTurns % DRAMATURG_EVERY !== 0) return;
 
     let provider: ChatProvider;
     try {
@@ -583,6 +617,10 @@ export class SceneDriver {
     // only reflections write the chronicle, and reflections are single-flight.
     const chronicleBefore = this.#chronicle;
     const spokenTurnsAtFire = this.#spokenTurns;
+    const consequenceVersionAtFire = this.#consequenceVersion;
+    const pendingConsequence = this.#pendingConsequence;
+    if (pendingConsequence) this.#pendingConsequence = null;
+    this.#consequenceReflectionDue = false;
     const request = buildDramaturgMessages({
       scene: this.scene,
       sceneState: this.#sceneState,
@@ -590,6 +628,7 @@ export class SceneDriver {
       previousNote: this.#sceneState.directorNote,
       sceneFacts: this.#sceneFacts,
       chronicle: this.#chronicle,
+      ...(pendingConsequence ? { pendingConsequence } : {}),
     });
     const costOperationId = `chronicle:${crypto.randomUUID()}`;
     this.#reflection = provider
@@ -611,7 +650,8 @@ export class SceneDriver {
             usage: response,
           }),
         );
-        const { note, landed, facts, gone, chronicle } = parseDramaturgReflection(response.text);
+        const { note, landed, facts, gone, states, chronicle } =
+          parseDramaturgReflection(response.text);
         // Validate landed labels against the authored arc (tolerant match →
         // canonical label), then expand: the arc is ordered, so a later beat
         // landing implies every earlier beat landed too (the dramaturg often
@@ -650,6 +690,38 @@ export class SceneDriver {
         const presenceChanged =
           stillPresent.length > 0 &&
           stillPresent.length !== this.#sceneState.presentCharacterSlugs.length;
+        // STATE is a restated channel: lines present in this reply replace the
+        // prior map, and omitted lines deliberately drop settled characters.
+        // If a newer consequence armed while this call was in flight, its
+        // provisional state wins and this older reflection's STATE is stale.
+        const statesAreCurrent = consequenceVersionAtFire === this.#consequenceVersion;
+        const stateEligibleSlugs = new Set(
+          (presenceChanged ? stillPresent : this.#sceneState.presentCharacterSlugs).map(
+            (slug) => slug.toLowerCase(),
+          ),
+        );
+        const canonicalSlug = new Map(
+          this.scene.characters.map((character) => [
+            character.characterSlug.toLowerCase(),
+            character.characterSlug,
+          ]),
+        );
+        const reflectedStates: Record<string, string> = {};
+        if (statesAreCurrent) {
+          for (const entry of states) {
+            const slug = canonicalSlug.get(entry.slug.toLowerCase());
+            if (slug && stateEligibleSlugs.has(slug.toLowerCase())) {
+              reflectedStates[slug] = entry.state;
+            }
+          }
+        }
+        const previousStates = this.#sceneState.characterStates ?? {};
+        const nextStates = statesAreCurrent ? reflectedStates : previousStates;
+        const statesChanged = statesAreCurrent
+          ? [...new Set([...Object.keys(previousStates), ...Object.keys(nextStates)])]
+              .filter((slug) => previousStates[slug] !== nextStates[slug])
+              .map((slug) => ({ slug, state: nextStates[slug] ?? null }))
+          : [];
         const mergedChronicle = mergeChronicle(this.#chronicle, chronicle);
         const chronicleChanged =
           JSON.stringify(mergedChronicle) !== JSON.stringify(this.#chronicle);
@@ -670,6 +742,7 @@ export class SceneDriver {
                 factsAdded,
                 landedAdded: newlyLanded,
                 gone: departed,
+                statesChanged,
                 chronicleBefore,
                 chronicleAfter: chronicleChanged ? mergedChronicle : chronicleBefore,
                 spokenTurns: spokenTurnsAtFire,
@@ -684,6 +757,7 @@ export class SceneDriver {
           newlyLanded.length === 0 &&
           !factsChanged &&
           !presenceChanged &&
+          statesChanged.length === 0 &&
           !chronicleChanged
         ) {
           journalReflection();
@@ -719,7 +793,7 @@ export class SceneDriver {
             console.log(`[dramaturg] no longer in the scene: ${slug}`);
           }
         }
-        this.#sceneState = {
+        const nextSceneState: SceneState = {
           ...this.#sceneState,
           ...(note ? { directorNote: note } : {}),
           ...(mergedLanded.length ? { arcLanded: mergedLanded } : {}),
@@ -734,6 +808,11 @@ export class SceneDriver {
               }
             : {}),
         };
+        if (statesAreCurrent) {
+          if (Object.keys(nextStates).length) nextSceneState.characterStates = nextStates;
+          else delete nextSceneState.characterStates;
+        }
+        this.#sceneState = nextSceneState;
         this.#persistState();
         journalReflection();
         if (note) {
@@ -765,6 +844,7 @@ export class SceneDriver {
                 factsAdded: [],
                 landedAdded: [],
                 gone: [],
+                statesChanged: [],
                 chronicleBefore,
                 chronicleAfter: chronicleBefore,
                 spokenTurns: spokenTurnsAtFire,
@@ -779,6 +859,12 @@ export class SceneDriver {
       .finally(() => {
         this.#reflecting = false;
         this.#reflection = null;
+        // A consequence reaction may have landed while an older reflection
+        // was in flight. Start the queued off-cadence review now; no further
+        // spoken turn should be required to metabolize the loss.
+        if (this.#consequenceReflectionDue) {
+          queueMicrotask(() => this.#maybeReflect(false));
+        }
       });
   }
 
@@ -789,7 +875,10 @@ export class SceneDriver {
    * it — real turns are slow enough that reflections land naturally.
    */
   async settleReflection(): Promise<void> {
-    if (this.#reflection) await this.#reflection;
+    // A consequence can queue a forced reflection behind an older in-flight
+    // cadence reflection. Drain both so simulators/tests observe the same
+    // settled state a live session reaches naturally.
+    while (this.#reflection) await this.#reflection;
   }
 
   /** Invalidate every active drive/cascade and cancel speculative director
@@ -960,6 +1049,9 @@ export class SceneDriver {
         recovered = "director-denied";
       }
     }
+    const armed = this.#armConsequenceProtocol(resolution);
+    resolution = armed.resolution;
+    const consequence = armed.consequence;
     this.#sceneState = resolution.sceneState;
     this.#persistState();
     this.#journalDecision(resolution, {
@@ -987,21 +1079,31 @@ export class SceneDriver {
       const playback = this.#beginNarration(resolution.decision.narration.trim(), userText);
       // Only a host that explicitly promises real-time playback has useful
       // work to hide. Text-only hosts retain the legacy await-then-chain order.
-      if (shouldChain && this.#narrationHasRealtimePlayback) {
-        const chained = await this.#chainNarratedEvent(speak, superseded, playback);
+      if ((shouldChain || consequence) && this.#narrationHasRealtimePlayback) {
+        const chained = await this.#chainNarratedEvent(
+          speak,
+          superseded,
+          playback,
+          consequence ?? undefined,
+        );
         const { voiced } = await playback.done;
         return { ...chained, spoke: voiced || chained.spoke };
       }
       const { voiced } = await playback.done;
       if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
-      if (!shouldChain) {
+      if (!shouldChain && !consequence) {
         if (resolution.decision.momentum === true) {
           const cascade = await this.#momentumCascade(1, speak, superseded);
           return { action: "narrate", spoke: voiced || cascade.spoke };
         }
         return { action: "narrate", spoke: voiced };
       }
-      const chained = await this.#chainNarratedEvent(speak, superseded);
+      const chained = await this.#chainNarratedEvent(
+        speak,
+        superseded,
+        undefined,
+        consequence ?? undefined,
+      );
       return { ...chained, spoke: voiced || chained.spoke };
     }
 
@@ -1010,8 +1112,17 @@ export class SceneDriver {
       return { action: resolution.decision.action, spoke: false };
     }
 
-    const spoke = await this.#speakTurn(resolution, speak, superseded);
+    const spoke = await this.#speakTurn(
+      resolution,
+      speak,
+      superseded,
+      consequence ? { deferReflection: true } : undefined,
+    );
     if (spoke === "superseded") return { action: "speak", spoke: false, superseded: true };
+    if (consequence) {
+      const chained = await this.#chainNarratedEvent(speak, superseded, undefined, consequence);
+      return { ...chained, spoke: spoke || chained.spoke };
+    }
     if (resolution.decision.momentum === true) {
       const cascade = await this.#momentumCascade(0, speak, superseded);
       return { action: "speak", spoke: spoke || cascade.spoke };
@@ -1031,12 +1142,13 @@ export class SceneDriver {
       sceneState?: SceneState;
       audioGate?: SceneSpeakInput["audioGate"];
       reactionModel?: string | null;
+      deferReflection?: boolean;
     },
   ): Promise<boolean | "superseded"> {
     const generated = await this.#generateSpeakTurn(resolution, speak, options);
     if (!generated) return false;
     if (superseded()) return "superseded";
-    this.#recordGeneratedTurn(generated);
+    this.#recordGeneratedTurn(generated, options?.deferReflection !== true);
     return Boolean(generated.replyText);
   }
 
@@ -1116,7 +1228,7 @@ export class SceneDriver {
     replyText: string;
     speakerSlug: string;
     displayName: string;
-  }): void {
+  }, reflect = true): void {
     if (!generated.replyText) return;
     this.#recentTurns.push({
       speakerSlug: generated.speakerSlug,
@@ -1124,7 +1236,7 @@ export class SceneDriver {
       text: generated.replyText,
     });
     this.#trim();
-    this.#maybeReflect();
+    if (reflect) this.#maybeReflect();
   }
 
   /** Give one narrated event an immediate director-chosen reaction. Shared by
@@ -1137,6 +1249,7 @@ export class SceneDriver {
       done: Promise<{ voiced: boolean; endedAt: number }>;
       worldEventDirective?: string;
     },
+    consequence?: ConsequenceContext,
   ): Promise<SceneDriveOutcome> {
     const chain = await this.#decide(NARRATED_EVENT_MARKER, "chain");
     if (superseded()) return { action: "narrate", spoke: false, superseded: true };
@@ -1150,14 +1263,18 @@ export class SceneDriver {
       console.warn(
         `[voice-agent] pipelined chain failed (${chain.failed}) — retrying sequentially`,
       );
-      return this.#chainNarratedEvent(speak, superseded);
+      return this.#chainNarratedEvent(speak, superseded, undefined, consequence);
     }
 
     // A hold after an event is dead air. Guarantee a present reactor when one
     // exists, matching the user-turn recovery behavior.
     let chainDecision = chain.decision;
     let chainRecovered: SceneDecisionJournalExtras["recovered"];
-    if (chainDecision.action === "wait-for-user") {
+    if (consequence) {
+      const forced = this.#forceConsequenceDecision(chainDecision, consequence);
+      chainDecision = forced.decision;
+      chainRecovered = forced.recovered;
+    } else if (chainDecision.action === "wait-for-user") {
       const reactor = this.#fallbackSpeaker();
       if (reactor) {
         console.log(
@@ -1190,7 +1307,7 @@ export class SceneDriver {
       if (spoke === "superseded") {
         return { action: "speak", spoke: false, superseded: true };
       }
-      if (chainResolution.decision.momentum === true) {
+      if (consequence || chainResolution.decision.momentum === true) {
         const cascade = await this.#momentumCascade(1, speak, superseded);
         return { action: "speak", spoke: spoke || cascade.spoke };
       }
@@ -1220,7 +1337,7 @@ export class SceneDriver {
     ) {
       const voiced = await this.#narrate(chainResolution.decision.narration.trim());
       if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
-      if (chainResolution.decision.momentum === true) {
+      if (consequence || chainResolution.decision.momentum === true) {
         const cascade = await this.#momentumCascade(1, speak, superseded);
         return { action: "narrate", spoke: voiced || cascade.spoke };
       }
@@ -1231,7 +1348,7 @@ export class SceneDriver {
       if (spoke === "superseded") {
         return { action: "speak", spoke: false, superseded: true };
       }
-      if (chainResolution.decision.momentum === true) {
+      if (consequence || chainResolution.decision.momentum === true) {
         const cascade = await this.#momentumCascade(1, speak, superseded);
         return { action: "speak", spoke: spoke || cascade.spoke };
       }
@@ -1257,6 +1374,7 @@ export class SceneDriver {
     };
     trigger: "chain" | "scene-open";
     worldEventDirective?: string;
+    deferReflection?: boolean;
   }): Promise<boolean | "superseded"> {
     let openGate!: () => void;
     const waitUntilOpen = new Promise<void>((resolve) => {
@@ -1299,7 +1417,8 @@ export class SceneDriver {
 
     // Commit decision state before audio can leave the buffer. This is the
     // acceptance point: before it, barge-in discards every speculative effect.
-    this.#sceneState = args.resolution.sceneState;
+    const committedResolution = this.#preserveConcurrentCharacterStates(args.resolution);
+    this.#sceneState = committedResolution.sceneState;
     this.#persistState();
     this.#emitSfx(args.resolution.decision.sfx);
     openGate();
@@ -1313,7 +1432,7 @@ export class SceneDriver {
     if (!audioStartedAt) markAudioStart();
     await audioStarted;
 
-    this.#journalDecision(args.resolution, {
+    this.#journalDecision(committedResolution, {
       trigger: args.trigger,
       ...(args.trigger === "chain" ? { cascadeDepth: 1 } : {}),
       ...(args.recovered ? { recovered: args.recovered } : {}),
@@ -1327,7 +1446,7 @@ export class SceneDriver {
     });
 
     if (args.superseded()) return "superseded";
-    if (generated) this.#recordGeneratedTurn(generated);
+    if (generated) this.#recordGeneratedTurn(generated, args.deferReflection !== true);
     return Boolean(generated?.replyText);
   }
 
@@ -1543,6 +1662,9 @@ export class SceneDriver {
         recovered = "silent-witness";
       }
     }
+    const armed = this.#armConsequenceProtocol(resolution);
+    resolution = armed.resolution;
+    const consequence = armed.consequence;
 
     if (
       !hasUserTurn &&
@@ -1558,8 +1680,13 @@ export class SceneDriver {
         superseded,
         playback: opts.openingPlayback,
         trigger: "scene-open",
+        deferReflection: Boolean(consequence),
       });
       if (spoke === "superseded") return false;
+      if (consequence) {
+        const chained = await this.#chainNarratedEvent(speak, superseded, undefined, consequence);
+        return spoke || chained.spoke;
+      }
       if (resolution.decision.momentum === true) {
         const cascade = await this.#momentumCascade(1, speak, superseded);
         return spoke || cascade.spoke;
@@ -1586,15 +1713,25 @@ export class SceneDriver {
         ...this.#beginNarration(resolution.decision.narration.trim()),
         ...(worldEvent ? { worldEventDirective: worldEvent.direction } : {}),
       };
-      if (worldEvent) {
+      if (worldEvent || consequence) {
         const chained = this.#narrationHasRealtimePlayback
-          ? await this.#chainNarratedEvent(speak, superseded, playback)
+          ? await this.#chainNarratedEvent(
+              speak,
+              superseded,
+              playback,
+              consequence ?? undefined,
+            )
           : await (async () => {
               await playback.done;
               if (superseded()) {
                 return { action: "narrate", spoke: false, superseded: true } as SceneDriveOutcome;
               }
-              return this.#chainNarratedEvent(speak, superseded);
+              return this.#chainNarratedEvent(
+                speak,
+                superseded,
+                undefined,
+                consequence ?? undefined,
+              );
             })();
         const { voiced } = await playback.done;
         return voiced || chained.spoke;
@@ -1628,7 +1765,8 @@ export class SceneDriver {
     const hasCue = Boolean(
       resolution.decision.beat ||
       resolution.decision.sceneCue ||
-      resolution.decision.delivery,
+      resolution.decision.delivery ||
+      this.#sceneState.characterStates?.[resolution.speakerSlug],
     );
     // Shared with the reactive path (buildSpeakerTurnRequest) so the
     // speaker's authored agenda — and the multi-party attribution
@@ -1637,6 +1775,7 @@ export class SceneDriver {
       beat,
       sceneCue: resolution.decision.sceneCue,
       delivery: resolution.decision.delivery,
+      characterState: this.#sceneState.characterStates?.[resolution.speakerSlug],
       speaker: speakerCharacter,
       othersPresent: this.scene.characters
         .filter(
@@ -1692,7 +1831,11 @@ export class SceneDriver {
         text: replyText,
       });
       this.#trim();
-      this.#maybeReflect();
+      if (!consequence) this.#maybeReflect();
+    }
+    if (consequence && !superseded()) {
+      const chained = await this.#chainNarratedEvent(speak, superseded, undefined, consequence);
+      return Boolean(replyText) || chained.spoke;
     }
     if (resolution.decision.momentum === true && !superseded()) {
       const cascade = await this.#momentumCascade(1, speak, superseded);
@@ -1752,6 +1895,114 @@ export class SceneDriver {
     const present = this.#presentRoster();
     if (present.length === 0) return null;
     return present.find((slug) => slug === this.#sceneState.lastSpeakerSlug) ?? present[0]!;
+  }
+
+  /** Apply the immediate, deterministic half of the consequence protocol.
+   * The chronicler will replace these provisional states after the forced
+   * reflection following the first spoken reaction. */
+  #armConsequenceProtocol(
+    resolution: SceneDecisionResolution,
+  ): { resolution: SceneDecisionResolution; consequence: ConsequenceContext | null } {
+    if (!activatesConsequenceProtocol(resolution.decision)) {
+      return { resolution, consequence: null };
+    }
+
+    const summary = consequenceSummary(resolution.decision);
+    const subjectSlug = resolution.decision.exitSlug?.trim() || null;
+    const affectedSlugs = resolution.sceneState.presentCharacterSlugs.filter(
+      (slug) => slug !== subjectSlug,
+    );
+    const prefix = "reeling — ";
+    const provisional = `${prefix}${summary.slice(0, 200 - prefix.length)}`;
+    const characterStates = { ...(resolution.sceneState.characterStates ?? {}) };
+    if (subjectSlug) delete characterStates[subjectSlug];
+    for (const slug of affectedSlugs) characterStates[slug] = provisional;
+    const nextState: SceneState = {
+      ...resolution.sceneState,
+      ...(Object.keys(characterStates).length ? { characterStates } : {}),
+    };
+    const nextResolution: SceneDecisionResolution = {
+      ...resolution,
+      sceneState: nextState,
+      events: resolution.events.map((event) => ({
+        ...event,
+        payload: { ...event.payload, nextSceneState: nextState },
+      })),
+    };
+
+    this.#pendingConsequence = summary;
+    this.#consequenceVersion += 1;
+    return {
+      resolution: nextResolution,
+      consequence: { summary, subjectSlug, affectedSlugs },
+    };
+  }
+
+  /** Force the post-event turn onto the most-affected eligible character.
+   * A valid director-selected affected speaker is the best available stakes
+   * judgment; otherwise roster order is the deterministic fallback. */
+  #forceConsequenceDecision(
+    decision: OrchestratorDecision,
+    consequence: ConsequenceContext,
+  ): { decision: OrchestratorDecision; recovered?: "consequence-protocol" } {
+    const preferred =
+      decision.action === "speak" &&
+      decision.speakerId &&
+      consequence.affectedSlugs.includes(decision.speakerId)
+        ? decision.speakerId
+        : null;
+    const speakerId = preferred ?? consequence.affectedSlugs[0] ?? this.#fallbackSpeaker();
+    if (!speakerId) return { decision };
+
+    const beat = decision.action === "speak" && decision.beat?.trim()
+      ? decision.beat
+      : `React fully to what just happened: ${consequence.summary}`;
+    const forced: OrchestratorDecision = {
+      ...decision,
+      action: "speak",
+      speakerId,
+      beat,
+      delivery: "expansive",
+    };
+    const changed =
+      decision.action !== "speak" ||
+      decision.speakerId !== speakerId ||
+      decision.delivery !== "expansive";
+    return changed
+      ? { decision: forced, recovered: "consequence-protocol" }
+      : { decision: forced };
+  }
+
+  /** A pipelined decision may have been resolved before a reflection lands.
+   * Preserve a newer chronicler state when the decision itself did not touch
+   * characterStates, instead of committing the stale full-state snapshot. */
+  #preserveConcurrentCharacterStates(
+    resolution: SceneDecisionResolution,
+  ): SceneDecisionResolution {
+    const previous = resolution.events[0]?.payload.previousSceneState;
+    if (!previous) return resolution;
+    const decisionChangedStates =
+      JSON.stringify(previous.characterStates) !==
+      JSON.stringify(resolution.sceneState.characterStates);
+    const currentChangedSinceResolution =
+      JSON.stringify(previous.characterStates) !==
+      JSON.stringify(this.#sceneState.characterStates);
+    if (decisionChangedStates || !currentChangedSinceResolution) return resolution;
+
+    const nextState = { ...resolution.sceneState };
+    if (this.#sceneState.characterStates) {
+      nextState.characterStates = this.#sceneState.characterStates;
+    } else {
+      delete nextState.characterStates;
+    }
+    return {
+      ...resolution,
+      sceneState: nextState,
+      events: resolution.events.map((event) => ({
+        ...event,
+        payload: { ...event.payload, nextSceneState: nextState },
+      })),
+    };
   }
 
   /** Accept a speculation only when its text is a prefix of the final turn AND
@@ -1898,21 +2149,33 @@ export class SceneDriver {
   ): Promise<{ spoke: boolean }> {
     let spoke = false;
     let beats = beatsUsed;
+    let forcedConsequence: ConsequenceContext | null = null;
     const cascadeMax = CASCADE_MAX + (initiativeMode(this.scene) === "narrator" ? 2 : 0);
     while (beats < cascadeMax) {
       if (superseded()) break;
       const decideResult = await this.#decide(MOMENTUM_MARKER, "momentum");
-      const { decision } = decideResult;
+      let { decision } = decideResult;
+      let recovered: SceneDecisionJournalExtras["recovered"];
+      if (forcedConsequence) {
+        const forced = this.#forceConsequenceDecision(decision, forcedConsequence);
+        decision = forced.decision;
+        recovered = forced.recovered;
+        forcedConsequence = null;
+      }
       if (superseded()) break;
-      const resolution = resolveSceneDecision(
+      let resolution = resolveSceneDecision(
         { scene: this.scene, sceneState: this.#sceneState },
         decision,
       );
+      const armed = this.#armConsequenceProtocol(resolution);
+      resolution = armed.resolution;
+      forcedConsequence = armed.consequence;
       this.#sceneState = resolution.sceneState;
       this.#persistState();
       this.#journalDecision(resolution, {
         trigger: "momentum",
         cascadeDepth: beats + 1,
+        ...(recovered ? { recovered } : {}),
         decide: decideResult,
       });
       this.#emitSfx(resolution.decision.sfx);
@@ -1923,7 +2186,12 @@ export class SceneDriver {
         spoke = spoke || voiced;
       } else if (resolution.decision.action === "speak" && resolution.speakerSlug) {
         console.log(`[voice-agent] cascade beat ${beats + 1}: ${resolution.speakerSlug}`);
-        const result = await this.#speakTurn(resolution, speak, superseded);
+        const result = await this.#speakTurn(
+          resolution,
+          speak,
+          superseded,
+          forcedConsequence ? { deferReflection: true } : undefined,
+        );
         if (result === "superseded") break;
         spoke = spoke || result;
       } else {
@@ -1932,7 +2200,7 @@ export class SceneDriver {
         break;
       }
       beats += 1;
-      if (resolution.decision.momentum !== true) break;
+      if (resolution.decision.momentum !== true && !forcedConsequence) break;
     }
     if (beats >= cascadeMax) {
       console.log(`[voice-agent] cascade capped at ${cascadeMax} beats — holding for the user`);

@@ -46,6 +46,8 @@ export function buildDramaturgMessages(input: {
   /** The current chronicle — shown so each reflection REVISES the story
    *  rather than restarting it. */
   chronicle?: SceneChronicle | null;
+  /** An irreversible event the runtime needs this reflection to metabolize. */
+  pendingConsequence?: string;
 }): DramaturgRequest {
   const { scene, sceneState, recentTurns, previousNote, sceneFacts } = input;
   const chronicle = sanitizeChronicle(input.chronicle ?? null);
@@ -153,6 +155,15 @@ export function buildDramaturgMessages(input: {
     "view and misses; you read the whole scene. Only for characters who truly",
     "cannot continue — never for someone merely silent, sulking, or offstage",
     "for a moment.",
+    "",
+    "You also maintain each present character's CURRENT emotional state. Emit",
+    "`STATE: <slug>: <one line>` (0-N lines), one per present character whose",
+    "state has meaningfully changed from their authored baseline or must be",
+    "carried forward. Use present tense and include the concrete cause",
+    "(`shattered — she watched Abraham fall`). Restate a state to keep it;",
+    "revise it as it evolves (shock → grief → resolve); omit it only when the",
+    "character has genuinely settled back to baseline. Never emit STATE for the",
+    "visitor. Use the exact cast slug and keep the state to one short line.",
     ...(scene.arc?.length
       ? [
           "",
@@ -219,6 +230,15 @@ export function buildDramaturgMessages(input: {
     ...(previousNote
       ? ["", `Your previous note: ${previousNote}`, "Revise or replace it in light of the dialogue above."]
       : []),
+    ...(input.pendingConsequence
+      ? [
+          "",
+          `An irreversible event just occurred: ${input.pendingConsequence}`,
+          "Your reflection MUST set STATE for every affected character, open a",
+          "THREAD for what this loss demands, and revise or drop every INTENT the",
+          "event invalidated.",
+        ]
+      : []),
     "",
     scene.arc?.length
       ? "Your reply (STORY/THREAD/WORLD/INTENT lines, LANDED lines if any, then NOTE):"
@@ -241,6 +261,7 @@ export function parseDramaturgReflection(raw: string): {
   landed: string[];
   facts: string[];
   gone: string[];
+  states: Array<{ slug: string; state: string }>;
   /** Chronicle sections found in the reflection, or null when the model
    *  emitted none (legacy format / truncated reply) — the caller keeps the
    *  previous chronicle in that case. Sections are wholesale restatements. */
@@ -249,6 +270,7 @@ export function parseDramaturgReflection(raw: string): {
   const landed: string[] = [];
   const facts: string[] = [];
   const gone: string[] = [];
+  const states: Array<{ slug: string; state: string }> = [];
   const noteLines: string[] = [];
   let story = "";
   const threads: string[] = [];
@@ -317,6 +339,15 @@ export function parseDramaturgReflection(raw: string): {
       gone.push(goneMatch[1]!.trim());
       continue;
     }
+    const stateMatch = line.match(/^\s*state\s*:\s*([^:]+?)\s*:\s*(.+?)\s*$/i);
+    if (stateMatch) {
+      const slug = stateMatch[1]!.trim();
+      const state = stateMatch[2]!.replace(/\s+/g, " ").trim().slice(0, 200);
+      if (slug && state) states.push({ slug, state });
+      continue;
+    }
+    // Malformed STATE output is metadata, never part of the director note.
+    if (/^\s*state\s*:/i.test(line)) continue;
     noteLines.push(line);
   }
   return {
@@ -324,6 +355,7 @@ export function parseDramaturgReflection(raw: string): {
     landed,
     facts,
     gone,
+    states,
     chronicle: sanitizeChronicle({ story, threads, world, intents, timed, drafts }),
   };
 }
