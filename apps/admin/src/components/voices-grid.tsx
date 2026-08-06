@@ -11,6 +11,7 @@ import {
 import { useHeaderContent } from "@/components/header-context";
 import { SortMenu } from "@/components/sort-menu";
 import { VoiceUploadDialog } from "@/components/voice-upload-dialog";
+import { CartesiaVoiceModal } from "@/components/cartesia-voice-modal";
 import { ProviderPickerModal } from "@/components/provider-picker-modal";
 import {
   PlayButton,
@@ -192,6 +193,7 @@ export function VoicesGrid({ voices }: Props) {
   const [sort, setSort] = useState<SortKey>("recent");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [providerPickerOpen, setProviderPickerOpen] = useState(false);
+  const [cartesiaOpen, setCartesiaOpen] = useState(false);
   const [elevenLabsPickerOpen, setElevenLabsPickerOpen] = useState(false);
 
   /* "+ new voice" — open the picker immediately so the overlay paints in
@@ -211,9 +213,11 @@ export function VoicesGrid({ voices }: Props) {
       setUploadOpen(true);
     } else if (provider === "elevenlabs") {
       setElevenLabsPickerOpen(true);
+    } else if (provider === "cartesia") {
+      setCartesiaOpen(true);
     } else {
-      // OpenAI and Cartesia forms aren't built yet — surface a polite
-      // notice rather than silently no-op'ing.
+      // OpenAI has no streaming adapter yet — say so rather than opening a
+      // form that would create an unusable voice.
       window.alert(
         `${provider} voices aren't supported yet — coming soon.`,
       );
@@ -226,6 +230,7 @@ export function VoicesGrid({ voices }: Props) {
     setProviderPickerOpen(false);
     if (provider === "pocket_tts") setUploadOpen(true);
     else if (provider === "elevenlabs") setElevenLabsPickerOpen(true);
+    else if (provider === "cartesia") setCartesiaOpen(true);
   }, []);
 
   /* Track the voice queued for deletion. Modal opens when non-null; we
@@ -543,6 +548,9 @@ export function VoicesGrid({ voices }: Props) {
           }}
           existingSlugs={existingSlugs}
         />
+        {cartesiaOpen && (
+          <CartesiaVoiceModal onClose={() => setCartesiaOpen(false)} />
+        )}
       </div>
     );
   }
@@ -686,6 +694,9 @@ export function VoicesGrid({ voices }: Props) {
         }}
         existingSlugs={existingSlugs}
       />
+      {cartesiaOpen && (
+        <CartesiaVoiceModal onClose={() => setCartesiaOpen(false)} />
+      )}
 
       <ConfirmModal
         open={pendingDelete !== null}
