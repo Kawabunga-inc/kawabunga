@@ -712,6 +712,65 @@ export const SCENE_PROBES: SceneProbe[] = [
     threshold: 0.6,
   },
   {
+    id: "edge-compound-declaration-whole",
+    family: "narrator-edge",
+    description:
+      "A COMPOUND declaration keeps every part — dropping the consequential half (the jump into the fire) is nullification by omission. Observed live: only the push was rendered, weighted minor.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("narrator", "The flames ripple, their red tongues melting into liquid gold.", "Narrator"),
+      t("abraham", "Stay back from it, Sarah — gilded or not, fire is fire.", "Abraham"),
+      t(
+        "narrator",
+        "Sarah drifts toward the golden flames, entranced, and Abraham seizes her arm to hold her back.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: "Narrator. Sarah pushes Abraham's hand out of the way. And jumps into the flame.",
+    expect: {
+      action: ["narrate"],
+      narrationMentionsAny: [
+        "jump", "leap", "plunge", "steps into", "throws hersel", "hurls hersel",
+        "flings hersel", "casts hersel", "into the flame", "into the fire",
+        "into the golden", "into the blaze",
+      ],
+    },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-garbled-subject-resolved",
+    family: "narrator-edge",
+    description:
+      "Speech-to-text garbles names — a garbled subject (\"Sir, pushes…\") must resolve to a DEFINITE person (a named character or the traveler) with the WHOLE action rendered. Observed live: the director hedged with \"a firm hand\" and dropped the jump entirely.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("narrator", "The flames ripple, their red tongues melting into liquid gold.", "Narrator"),
+      t("abraham", "Stay back from it, Sarah — gilded or not, fire is fire.", "Abraham"),
+      t(
+        "narrator",
+        "Sarah drifts toward the golden flames, entranced, and Abraham seizes her arm to hold her back.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: "Narrator. Sir, pushes Abraham's hand out of the way. And jumps into the flame.",
+    expect: {
+      action: ["narrate"],
+      narrationMentionsAny: [
+        "jump", "leap", "plunge", "steps into", "throws hersel", "hurls hersel",
+        "throws himsel", "hurls himsel", "thrust yourself", "into the flame",
+        "into the fire", "into the golden", "into the blaze",
+      ],
+      narrationNotMatching: [
+        "a figure", "a firm hand", "a firm grip", "an unseen hand", "someone", "a hand ",
+      ],
+    },
+    threshold: 0.6,
+  },
+  {
     id: "edge-exit-on-request",
     family: "narrator-edge",
     description:
