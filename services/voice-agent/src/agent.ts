@@ -28,7 +28,7 @@
  */
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
-import { modelMetaFor, warmLocalEmbedder } from "@kawabunga/engine";
+import { getChatProviderForModel, modelMetaFor, warmLocalEmbedder } from "@kawabunga/engine";
 import {
   type JobContext,
   WorkerOptions,
@@ -39,6 +39,7 @@ import {
   voice,
 } from "@livekit/agents";
 import {
+  AudioFrame,
   AudioSource,
   LocalAudioTrack,
   RoomEvent,
@@ -122,6 +123,7 @@ const STT_MODEL = process.env.VOICE_AGENT_STT ?? "deepgram/nova-3";
 const BRAIN_MODEL_OVERRIDE = resolveBrainModelOverride(
   process.env.VOICE_AGENT_BRAIN_MODEL,
 );
+const warnedUnavailableReactionModels = new Set<string>();
 
 function resolveBrainModelOverride(raw: string | undefined): string | null {
   const id = raw?.trim();
@@ -537,17 +539,42 @@ export default defineAgent({
         // Director-side feature statuses (arc, speaker selection) — ride the
         // spread into runVoiceStream's `sceneFeatures` observability block.
         sceneFeatures?: Record<string, string>;
+        model?: string;
+        audioGate?: {
+          waitUntilOpen: Promise<void>;
+          onReady: () => void;
+          onAudioStart: () => void;
+        };
       },
       signal: AbortSignal,
       replyId: string,
     ): Promise<string> => {
-      const { speaker, ...streamInput } = input;
+      const { speaker, audioGate, model: reactionModel, ...streamInput } = input;
+      let modelOverride = reactionModel ?? BRAIN_MODEL_OVERRIDE;
+      if (reactionModel) {
+        try {
+          getChatProviderForModel(reactionModel);
+        } catch (err) {
+          if (!warnedUnavailableReactionModels.has(reactionModel)) {
+            warnedUnavailableReactionModels.add(reactionModel);
+            console.warn(
+              `[voice-agent] reaction model "${reactionModel}" unavailable (${(err as Error).message}) — using the default brain model`,
+            );
+          }
+          modelOverride = BRAIN_MODEL_OVERRIDE;
+          streamInput.sceneFeatures = {
+            ...streamInput.sceneFeatures,
+            reactionModel: `unavailable — ${reactionModel}; using default brain model`,
+          };
+        }
+      }
       // runVoiceStream only persists the turn (context build + record the workbench
       // renders) when given BOTH sessionId AND turnId — pass one per turn so live
       // voice turns are debuggable in /sessions, not just the SSE sandbox.
       const turnId = crypto.randomUUID();
       let replyText = "";
       const capturedAudio: Int16Array[] = [];
+      const bufferedFrames: AudioFrame[] = [];
       let capturedSampleRate = 0;
       let capturedSamples = 0;
       try {
@@ -560,7 +587,7 @@ export default defineAgent({
             turnId,
             // Worker-level experiment override (VOICE_AGENT_BRAIN_MODEL) —
             // request-level `model` outranks the character's saved brainModel.
-            ...(BRAIN_MODEL_OVERRIDE ? { model: BRAIN_MODEL_OVERRIDE } : {}),
+            ...(modelOverride ? { model: modelOverride } : {}),
           },
           { signal },
         )) {
@@ -571,7 +598,8 @@ export default defineAgent({
             capturedSampleRate ||= frame.sampleRate;
             capturedSamples += frame.samplesPerChannel;
             capturedAudio.push(frame.data.slice());
-            await audioSource.captureFrame(frame);
+            if (audioGate) bufferedFrames.push(frame);
+            else await audioSource.captureFrame(frame);
           } else if (ev.event === "token") {
             const delta = (ev.data as { delta: string }).delta;
             if (delta) {
@@ -581,7 +609,7 @@ export default defineAgent({
           } else if (ev.event === "first-audio") {
             console.log(`[voice-agent] first audio ${(ev.data as { latencyMs: number }).latencyMs}ms`);
             // The speaker just became audible — release any with-speaker sfx.
-            worldAudio?.flushSpeakerCues();
+            if (!audioGate) worldAudio?.flushSpeakerCues();
           } else if (ev.event === "error") {
             console.error("[voice-agent] pipeline error", ev.data);
           }
@@ -591,6 +619,44 @@ export default defineAgent({
         }
       } catch (err) {
         if (!signal.aborted) console.error("[voice-agent] turn failed", err);
+      }
+      if (audioGate) {
+        audioGate.onReady();
+        await audioGate.waitUntilOpen;
+        if (!signal.aborted && bufferedFrames.length > 0) {
+          audioGate.onAudioStart();
+          worldAudio?.flushSpeakerCues();
+          for (const frame of bufferedFrames) {
+            if (signal.aborted) break;
+            await audioSource.captureFrame(frame);
+          }
+        }
+        // The pipeline persists completion when synthesis finishes, before
+        // this host-level gate opens. Rejected hidden work is rewritten using
+        // the established aborted terminal status.
+        if (signal.aborted) {
+          try {
+            await sessionStore.upsertTurn({
+              id: turnId,
+              sessionId,
+              inputMode: "voice",
+              speakerSlug: speaker?.slug ?? null,
+              userText: streamInput.message,
+              ...(replyText ? { assistantText: replyText } : {}),
+              status: "aborted",
+              startedAt: new Date().toISOString(),
+              completedAt: new Date().toISOString(),
+              metadata: {
+                source: "voice-agent",
+                terminalReason: "superseded before deferred audio commit",
+              },
+            });
+          } catch (err) {
+            console.warn(
+              `[voice-agent] deferred turn abort persist failed: ${(err as Error).message}`,
+            );
+          }
+        }
       }
       if (capturedAudio.length > 0 && capturedSampleRate > 0) {
         const artifactId = crypto.randomUUID();
@@ -735,7 +801,7 @@ export default defineAgent({
             }),
           });
         }
-      });
+      }, { realtimePlayback: true });
     }
 
     // B4: accumulate the user's finalized STT segments so we can orchestrate off the
@@ -1004,12 +1070,17 @@ export default defineAgent({
         speaker: { slug: "narrator", name: "Narrator" },
       });
       sceneDriver.recordNarration(openingNarration);
-      void streamNarration({
+      const openingStartedAt = Date.now();
+      let openingVoiced = false;
+      const openingPlaybackDone = streamNarration({
         routing: narrationRouting,
         text: openingNarration,
         audioSource,
         signal: openingSignal,
-        onFirstAudio: () => worldAudio?.flushSpeakerCues(),
+        onFirstAudio: () => {
+          openingVoiced = true;
+          worldAudio?.flushSpeakerCues();
+        },
       })
         .catch((err) => {
           openingStatus = openingSignal.aborted ? "cancelled" : "failed";
@@ -1017,6 +1088,7 @@ export default defineAgent({
             console.warn(`[voice-agent] opening narration failed: ${(err as Error).message}`);
           }
         })
+        .then(() => ({ voiced: openingVoiced, endedAt: Date.now() }))
         .finally(() => {
           persistJournalEntry({
             turnId: openingTurnId,
@@ -1031,10 +1103,34 @@ export default defineAgent({
               note: "Opening narration speech synthesis.",
             }),
           });
+        });
+      // Start the scene-open director + brain immediately. Character PCM is
+      // buffered by speak() and released only after openingPlaybackDone.
+      if (PROACTIVE_ENABLED && !sceneEnded) {
+        proactiveCount += 1;
+        console.log(`[voice-agent] opening proactive tick #${proactiveCount}`);
+        void sceneDriver
+          .driveProactive(
+            (input, replyId) => speak(input, openingSignal, replyId),
+            {
+              signal: openingSignal,
+              openingPlayback: { startedAt: openingStartedAt, done: openingPlaybackDone },
+            },
+          )
+          .then((spoke) => {
+            if (spoke) armIdle();
+            else armWorldEvent();
+          })
+          .finally(() => {
+            speaking = false;
+            worldAudio?.setDucked(false);
+          });
+      } else {
+        void openingPlaybackDone.finally(() => {
           speaking = false;
           worldAudio?.setDucked(false);
-          armFirstMove(); // the scene's first move follows the opening promptly
         });
+      }
     } else {
       // No opening narration (openingMode off / no routing): the scene still
       // owes the visitor a first move — a character noticing the arrival.

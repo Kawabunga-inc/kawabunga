@@ -87,6 +87,23 @@ const DRAMATURG_ENABLED = process.env.VOICE_AGENT_DRAMATURG !== "0";
 const DEFAULT_DRAMATURG_MODEL = "gpt-oss-120b";
 const DRAMATURG_MODEL = resolveDramaturgModel(process.env.VOICE_AGENT_DRAMATURG_MODEL);
 
+/** A stronger brain can spend the narration playback window writing dramatic
+ * reactions without adding perceived latency. Unlike the dramaturg, an unset
+ * or invalid override means "use the character's normal brain". */
+export function resolveReactionModel(raw: string | undefined): string | null {
+  const id = raw?.trim();
+  if (!id) return null;
+  const meta = modelMetaFor(id);
+  if (!meta) {
+    console.warn(
+      `[voice-agent] VOICE_AGENT_REACTION_MODEL="${id}" is not in the model registry — override IGNORED (hidden turns keep the default brain model)`,
+    );
+    return null;
+  }
+  console.log(`[voice-agent] reaction model override: ${id} (${meta.provider})`);
+  return id;
+}
+
 /**
  * Validate the dramaturg model override against the model registry — the same
  * treatment as VOICE_AGENT_BRAIN_MODEL / ORCHESTRATOR_MODEL. This matters
@@ -164,6 +181,16 @@ export interface SceneSpeakInput {
    *  selection) — the pipeline can't see the scene definition, so the driver
    *  states them; they surface in the turn's `sceneFeatures` trace block. */
   sceneFeatures?: Record<string, string>;
+  /** Request-level brain override for a latency-hidden turn. */
+  model?: string;
+  /** Hidden turns generate and synthesize into memory, then wait here before
+   * publishing their first audio frame. The sink calls `onReady` once all
+   * audio is buffered and `onAudioStart` immediately before flushing it. */
+  audioGate?: {
+    waitUntilOpen: Promise<void>;
+    onReady: () => void;
+    onAudioStart: () => void;
+  };
 }
 export type SceneSpeakFn = (input: SceneSpeakInput, replyId: string) => Promise<string>;
 
@@ -188,6 +215,8 @@ export type SceneDriverDeps = {
   /** When set, the dramaturg uses this provider (and is force-enabled);
    *  default resolves DRAMATURG_MODEL via getChatProviderForModel. */
   dramaturgProvider?: ChatProvider;
+  /** Validated request-level model for latency-hidden character turns. */
+  reactionModel?: string | null;
 };
 
 const defaultDeps: SceneDriverDeps = {
@@ -195,6 +224,7 @@ const defaultDeps: SceneDriverDeps = {
   resolveCharacter: async (slugOrId) =>
     (await getCharacterStore().getBySlug(slugOrId).catch(() => null)) ??
     (await getCharacterStore().getById(slugOrId).catch(() => null)),
+  reactionModel: resolveReactionModel(process.env.VOICE_AGENT_REACTION_MODEL),
 };
 
 /** What #decide resolves to: the decision, plus the failure it papered over
@@ -265,6 +295,9 @@ export class SceneDriver {
   #onNarrate:
     | ((text: string, meta: { userText?: string }) => Promise<void> | void)
     | null = null;
+  // Explicit capability rather than timing inference: text-only callbacks can
+  // resolve asynchronously too, but provide no playback window to hide work in.
+  #narrationHasRealtimePlayback = false;
   #warnedUnvoicedNarration = false;
   // Turn epoch — bumped at the start of every drive()/driveProactive(). An
   // in-flight turn that observes a newer epoch after an await is SUPERSEDED
@@ -420,8 +453,10 @@ export class SceneDriver {
    *  a sink the line is silent (logged once). */
   onNarrate(
     cb: (text: string, meta: { userText?: string }) => Promise<void> | void,
+    options?: { realtimePlayback?: boolean },
   ): void {
     this.#onNarrate = cb;
+    this.#narrationHasRealtimePlayback = options?.realtimePlayback === true;
   }
 
   /** Voice + record a narrate decision. `userText` is the utterance that
@@ -446,6 +481,23 @@ export class SceneDriver {
       console.warn(`[voice-agent] narration failed: ${(err as Error).message}`);
       return false;
     }
+  }
+
+  /** Start narration without awaiting its real-time sink. The completion
+   * timestamp is shared with a hidden reaction so listener-visible gap can be
+   * measured without inferring playback duration from text. */
+  #beginNarration(text: string, userText?: string): {
+    startedAt: number;
+    done: Promise<{ voiced: boolean; endedAt: number }>;
+  } {
+    const startedAt = Date.now();
+    return {
+      startedAt,
+      done: this.#narrate(text, userText).then((voiced) => ({
+        voiced,
+        endedAt: Date.now(),
+      })),
+    };
   }
 
   /** Resolve a roster slug to its character record, cached for the driver's
@@ -920,8 +972,6 @@ export class SceneDriver {
     this.#emitSfx(resolution.decision.sfx);
 
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
-      const voiced = await this.#narrate(resolution.decision.narration.trim(), userText);
-      if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
       // Prefer the director's semantic classification, but a narrator-
       // addressed DECLARATION chains regardless of the tag — the classifier
       // was observed tagging "Narrator, Abraham sees a vision…" as "answer"
@@ -934,6 +984,16 @@ export class SceneDriver {
         isNarratorEventDeclaration(userText) ||
         (narrationKind == null &&
           !(isNarratorAddressed(userText) && !declaresUserAction(userText)));
+      const playback = this.#beginNarration(resolution.decision.narration.trim(), userText);
+      // Only a host that explicitly promises real-time playback has useful
+      // work to hide. Text-only hosts retain the legacy await-then-chain order.
+      if (shouldChain && this.#narrationHasRealtimePlayback) {
+        const chained = await this.#chainNarratedEvent(speak, superseded, playback);
+        const { voiced } = await playback.done;
+        return { ...chained, spoke: voiced || chained.spoke };
+      }
+      const { voiced } = await playback.done;
+      if (superseded()) return { action: "narrate", spoke: voiced, superseded: true };
       if (!shouldChain) {
         if (resolution.decision.momentum === true) {
           const cascade = await this.#momentumCascade(1, speak, superseded);
@@ -967,23 +1027,51 @@ export class SceneDriver {
     resolution: ReturnType<typeof resolveSceneDecision>,
     speak: SceneSpeakFn,
     superseded: () => boolean,
+    options?: {
+      sceneState?: SceneState;
+      audioGate?: SceneSpeakInput["audioGate"];
+      reactionModel?: string | null;
+    },
   ): Promise<boolean | "superseded"> {
-    if (!resolution.speakerSlug) return false;
+    const generated = await this.#generateSpeakTurn(resolution, speak, options);
+    if (!generated) return false;
+    if (superseded()) return "superseded";
+    this.#recordGeneratedTurn(generated);
+    return Boolean(generated.replyText);
+  }
+
+  /** Build and generate one character turn without mutating transcript/state.
+   * Pipelined reactions use this separation to keep speculative work private
+   * until narration has ended and the epoch has been rechecked. */
+  async #generateSpeakTurn(
+    resolution: ReturnType<typeof resolveSceneDecision>,
+    speak: SceneSpeakFn,
+    options?: {
+      sceneState?: SceneState;
+      audioGate?: SceneSpeakInput["audioGate"];
+      reactionModel?: string | null;
+    },
+  ): Promise<{
+    replyText: string;
+    speakerSlug: string;
+    displayName: string;
+  } | null> {
+    if (!resolution.speakerSlug) return null;
     const character = await this.#resolveCharacter(resolution.speakerSlug);
     if (!character) {
       console.warn(
         `[voice-agent] scene: speaker "${resolution.speakerSlug}" did not resolve — skipping turn`,
       );
-      return false;
+      return null;
     }
 
     const turn = buildSpeakerTurnRequest({
       scene: this.scene,
-      sceneState: this.#sceneState,
+      sceneState: options?.sceneState ?? this.#sceneState,
       decision: resolution.decision,
       recentTurns: this.#recentTurns,
     });
-    if (!turn) return false;
+    if (!turn) return null;
 
     const speakerCharacter = this.scene.characters.find(
       (c) => c.characterSlug === resolution.speakerSlug,
@@ -1010,25 +1098,33 @@ export class SceneDriver {
         promptChunk: sandboxNoCue ? undefined : turn.promptChunk,
         speaker: { slug: resolution.speakerSlug, name: displayName },
         currentMoment: speakerCharacter?.knowledgeHorizon,
-        sceneFeatures: this.#featureStatus(),
+        sceneFeatures: {
+          ...this.#featureStatus(),
+          ...(options?.reactionModel
+            ? { reactionModel: `active — ${options.reactionModel}` }
+            : {}),
+        },
+        ...(options?.reactionModel ? { model: options.reactionModel } : {}),
+        ...(options?.audioGate ? { audioGate: options.audioGate } : {}),
       },
       `s${Date.now()}`,
     );
-    // Superseded mid-speak (barge-in): the new turn's user text is already in
-    // the transcript, so appending this (cut-off) reply would land AFTER it —
-    // out of order. Drop it, matching the browser player's behavior.
-    if (superseded()) return "superseded";
-    // An aborted/failed speak resolves to "" — never record an empty turn.
-    if (replyText) {
-      this.#recentTurns.push({
-        speakerSlug: resolution.speakerSlug,
-        speakerName: displayName,
-        text: replyText,
-      });
-      this.#trim();
-      this.#maybeReflect();
-    }
-    return Boolean(replyText);
+    return { replyText, speakerSlug: resolution.speakerSlug, displayName };
+  }
+
+  #recordGeneratedTurn(generated: {
+    replyText: string;
+    speakerSlug: string;
+    displayName: string;
+  }): void {
+    if (!generated.replyText) return;
+    this.#recentTurns.push({
+      speakerSlug: generated.speakerSlug,
+      speakerName: generated.displayName,
+      text: generated.replyText,
+    });
+    this.#trim();
+    this.#maybeReflect();
   }
 
   /** Give one narrated event an immediate director-chosen reaction. Shared by
@@ -1036,9 +1132,26 @@ export class SceneDriver {
   async #chainNarratedEvent(
     speak: SceneSpeakFn,
     superseded: () => boolean,
+    playback?: {
+      startedAt: number;
+      done: Promise<{ voiced: boolean; endedAt: number }>;
+      worldEventDirective?: string;
+    },
   ): Promise<SceneDriveOutcome> {
     const chain = await this.#decide(NARRATED_EVENT_MARKER, "chain");
     if (superseded()) return { action: "narrate", spoke: false, superseded: true };
+
+    // A speculative director failure is never allowed to turn the playback
+    // window into dead air. Let narration finish, then retry the exact legacy
+    // sequential chain once. No failed speculative decision is journaled.
+    if (playback && chain.failed) {
+      await playback.done;
+      if (superseded()) return { action: "narrate", spoke: false, superseded: true };
+      console.warn(
+        `[voice-agent] pipelined chain failed (${chain.failed}) — retrying sequentially`,
+      );
+      return this.#chainNarratedEvent(speak, superseded);
+    }
 
     // A hold after an event is dead air. Guarantee a present reactor when one
     // exists, matching the user-turn recovery behavior.
@@ -1058,6 +1171,39 @@ export class SceneDriver {
       { scene: this.scene, sceneState: this.#sceneState },
       chainDecision,
     );
+
+    if (
+      playback &&
+      chainResolution.decision.action === "speak" &&
+      chainResolution.speakerSlug
+    ) {
+      const spoke = await this.#pipelinedSpeakTurn({
+        resolution: chainResolution,
+        decide: chain,
+        recovered: chainRecovered,
+        speak,
+        superseded,
+        playback,
+        trigger: "chain",
+        worldEventDirective: playback.worldEventDirective,
+      });
+      if (spoke === "superseded") {
+        return { action: "speak", spoke: false, superseded: true };
+      }
+      if (chainResolution.decision.momentum === true) {
+        const cascade = await this.#momentumCascade(1, speak, superseded);
+        return { action: "speak", spoke: spoke || cascade.spoke };
+      }
+      return { action: "speak", spoke };
+    }
+
+    // The chain decision can itself narrate/end/hold. It cannot be generated
+    // under the first narration, so preserve ordering by applying it only
+    // after that playback completes.
+    if (playback) {
+      await playback.done;
+      if (superseded()) return { action: "narrate", spoke: false, superseded: true };
+    }
     this.#sceneState = chainResolution.sceneState;
     this.#persistState();
     this.#journalDecision(chainResolution, {
@@ -1093,6 +1239,96 @@ export class SceneDriver {
     }
     console.log(`[voice-agent] scene: narrate chain → ${chainResolution.decision.action}`);
     return { action: chainResolution.decision.action, spoke: false };
+  }
+
+  /** Generate + synthesize a resolved character turn while narration plays,
+   * then atomically accept it and open its audio gate. The production sink
+   * buffers PCM; simple/text-only fakes may ignore the gate and resolve, which
+   * keeps tests and non-audio hosts sequential. */
+  async #pipelinedSpeakTurn(args: {
+    resolution: ReturnType<typeof resolveSceneDecision>;
+    decide: DecideResult;
+    recovered?: SceneDecisionJournalExtras["recovered"];
+    speak: SceneSpeakFn;
+    superseded: () => boolean;
+    playback: {
+      startedAt: number;
+      done: Promise<{ voiced: boolean; endedAt: number }>;
+    };
+    trigger: "chain" | "scene-open";
+    worldEventDirective?: string;
+  }): Promise<boolean | "superseded"> {
+    let openGate!: () => void;
+    const waitUntilOpen = new Promise<void>((resolve) => {
+      openGate = resolve;
+    });
+    let markReady!: () => void;
+    let readyAt = 0;
+    const ready = new Promise<void>((resolve) => {
+      markReady = () => {
+        if (readyAt) return;
+        readyAt = Date.now();
+        resolve();
+      };
+    });
+    let markAudioStart!: () => void;
+    let audioStartedAt = 0;
+    const audioStarted = new Promise<void>((resolve) => {
+      markAudioStart = () => {
+        if (audioStartedAt) return;
+        audioStartedAt = Date.now();
+        resolve();
+      };
+    });
+    const reactionModel = this.#deps.reactionModel ?? null;
+    const generatedPromise = this.#generateSpeakTurn(args.resolution, args.speak, {
+      sceneState: args.resolution.sceneState,
+      reactionModel,
+      audioGate: { waitUntilOpen, onReady: markReady, onAudioStart: markAudioStart },
+    });
+    // Text fakes and legacy sinks do not know about the gate. Treat their
+    // completion as readiness so the driver never deadlocks.
+    void generatedPromise.then(markReady, markReady);
+
+    const [playbackResult] = await Promise.all([args.playback.done, ready]);
+    if (args.superseded()) {
+      openGate();
+      await generatedPromise.catch(() => null);
+      return "superseded";
+    }
+
+    // Commit decision state before audio can leave the buffer. This is the
+    // acceptance point: before it, barge-in discards every speculative effect.
+    this.#sceneState = args.resolution.sceneState;
+    this.#persistState();
+    this.#emitSfx(args.resolution.decision.sfx);
+    openGate();
+
+    const generated = await generatedPromise.catch((err) => {
+      console.warn(`[voice-agent] pipelined reaction failed: ${(err as Error).message}`);
+      return null;
+    });
+    // A no-audio/legacy sink never fires onAudioStart; its completion is the
+    // closest observable publication point.
+    if (!audioStartedAt) markAudioStart();
+    await audioStarted;
+
+    this.#journalDecision(args.resolution, {
+      trigger: args.trigger,
+      ...(args.trigger === "chain" ? { cascadeDepth: 1 } : {}),
+      ...(args.recovered ? { recovered: args.recovered } : {}),
+      ...(args.worldEventDirective
+        ? { worldEventDirective: args.worldEventDirective }
+        : {}),
+      narrationAudioMs: Math.max(0, playbackResult.endedAt - args.playback.startedAt),
+      reactionReadyMs: Math.max(0, readyAt - args.playback.startedAt),
+      gapMs: Math.max(0, audioStartedAt - playbackResult.endedAt),
+      decide: args.decide,
+    });
+
+    if (args.superseded()) return "superseded";
+    if (generated) this.#recordGeneratedTurn(generated);
+    return Boolean(generated?.replyText);
   }
 
   /**
@@ -1206,7 +1442,15 @@ export class SceneDriver {
    */
   async driveProactive(
     speak: SceneSpeakFn,
-    opts?: { signal?: AbortSignal },
+    opts?: {
+      signal?: AbortSignal;
+      /** Opening narration already being played by the host. Only used for
+       * the pre-user SCENE_OPEN turn; ordinary proactive turns stay eager. */
+      openingPlayback?: {
+        startedAt: number;
+        done: Promise<{ voiced: boolean; endedAt: number }>;
+      };
+    },
   ): Promise<boolean> {
     const epoch = ++this.#epoch;
     const superseded = () => epoch !== this.#epoch || opts?.signal?.aborted === true;
@@ -1269,9 +1513,20 @@ export class SceneDriver {
         recovered: "world-event-narrated",
         decide: decideResult,
       });
-      const voiced = await this.#narrate(worldEvent.direction);
-      if (superseded()) return voiced;
-      const chained = await this.#chainNarratedEvent(speak, superseded);
+      const playback = {
+        ...this.#beginNarration(worldEvent.direction),
+        worldEventDirective: worldEvent.direction,
+      };
+      const chained = this.#narrationHasRealtimePlayback
+        ? await this.#chainNarratedEvent(speak, superseded, playback)
+        : await (async () => {
+            await playback.done;
+            if (superseded()) {
+              return { action: "narrate", spoke: false, superseded: true } as SceneDriveOutcome;
+            }
+            return this.#chainNarratedEvent(speak, superseded);
+          })();
+      const { voiced } = await playback.done;
       return voiced || chained.spoke;
     }
     let recovered: SceneDecisionJournalExtras["recovered"];
@@ -1288,6 +1543,33 @@ export class SceneDriver {
         recovered = "silent-witness";
       }
     }
+
+    if (
+      !hasUserTurn &&
+      opts?.openingPlayback &&
+      resolution.decision.action === "speak" &&
+      resolution.speakerSlug
+    ) {
+      const spoke = await this.#pipelinedSpeakTurn({
+        resolution,
+        decide: decideResult,
+        recovered,
+        speak,
+        superseded,
+        playback: opts.openingPlayback,
+        trigger: "scene-open",
+      });
+      if (spoke === "superseded") return false;
+      if (resolution.decision.momentum === true) {
+        const cascade = await this.#momentumCascade(1, speak, superseded);
+        return spoke || cascade.spoke;
+      }
+      return spoke;
+    }
+    if (!hasUserTurn && opts?.openingPlayback) {
+      await opts.openingPlayback.done;
+      if (superseded()) return false;
+    }
     this.#sceneState = resolution.sceneState;
     this.#persistState();
     this.#journalDecision(resolution, {
@@ -1300,12 +1582,25 @@ export class SceneDriver {
 
     if (resolution.decision.action === "narrate" && resolution.decision.narration?.trim()) {
       console.log("[voice-agent] proactive: narrator bridges");
-      const voiced = await this.#narrate(resolution.decision.narration.trim());
-      if (superseded()) return voiced;
+      const playback = {
+        ...this.#beginNarration(resolution.decision.narration.trim()),
+        ...(worldEvent ? { worldEventDirective: worldEvent.direction } : {}),
+      };
       if (worldEvent) {
-        const chained = await this.#chainNarratedEvent(speak, superseded);
+        const chained = this.#narrationHasRealtimePlayback
+          ? await this.#chainNarratedEvent(speak, superseded, playback)
+          : await (async () => {
+              await playback.done;
+              if (superseded()) {
+                return { action: "narrate", spoke: false, superseded: true } as SceneDriveOutcome;
+              }
+              return this.#chainNarratedEvent(speak, superseded);
+            })();
+        const { voiced } = await playback.done;
         return voiced || chained.spoke;
       }
+      const { voiced } = await playback.done;
+      if (superseded()) return voiced;
       if (resolution.decision.momentum === true) {
         const cascade = await this.#momentumCascade(1, speak, superseded);
         return voiced || cascade.spoke;
