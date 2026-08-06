@@ -773,6 +773,7 @@ export function buildSpeakerTurnRequest(input: {
     beat,
     sceneCue: input.decision.sceneCue,
     delivery: input.decision.delivery,
+    characterState: input.sceneState.characterStates?.[speakerSlug],
     speaker: character,
     othersPresent: input.scene.characters
       .filter(
@@ -851,6 +852,8 @@ export function buildDirectiveChunk(input: {
   beat: string;
   sceneCue?: string;
   delivery?: OrchestratorDelivery;
+  /** The chronicler's current emotional truth for this speaker. */
+  characterState?: string;
   speaker?: Pick<SceneCharacter, "motivations" | "behaviorTriggers" | "speakingStyle">;
   /** Display names of the OTHER present characters — when set, declares the
    *  multi-party transcript convention (name-prefixed lines) so the speaker
@@ -885,6 +888,9 @@ export function buildDirectiveChunk(input: {
       "story, explanation, confession, or revelation. Let it breathe, then stop when",
       "the dramatic move has landed.",
     );
+  }
+  if (input.characterState) {
+    lines.push(`Your state right now: ${input.characterState}. Perform from it.`);
   }
   if (input.othersPresent?.length) {
     if (input.visitorRole) {
@@ -1099,6 +1105,8 @@ function buildOrchestratorSystemPrompt(
         c.emotionalBaseline ? `baseline: ${c.emotionalBaseline}` : null,
       ].filter(Boolean);
       if (facts.length) lines.push(`      ${facts.join("   ")}`);
+      const currentState = state.characterStates?.[c.characterSlug];
+      if (currentState) lines.push(`      now: ${currentState}`);
       for (const t of c.behaviorTriggers ?? []) {
         lines.push(`      will: ${t.behavior} (when ${t.condition})`);
       }
@@ -1106,6 +1114,7 @@ function buildOrchestratorSystemPrompt(
     })
     .join("\n");
   const anyIntent = present.some((c) => c.motivations || c.behaviorTriggers?.length);
+  const hasCharacterStates = present.some((c) => state.characterStates?.[c.characterSlug]);
 
   return [
     "You are the DIRECTOR of a voice-driven scene. You decide what happens next -",
@@ -1159,6 +1168,11 @@ function buildOrchestratorSystemPrompt(
           "  happening, not an answer. If the user's message is not a question,",
           "  it is almost never an `answer`. An `event` gets an immediate",
           "  character reaction; an `answer` holds for the user.",
+          "- On every `narrate` with `narrationKind: \"event\"`, set `weight`:",
+          "  `minor` for atmosphere or ordinary action; `major` for a blow, threat,",
+          "  or revelation that changes the scene; `irreversible` for a death,",
+          "  maiming, or betrayal that cannot be undone. When choosing between",
+          "  major and irreversible, ask whether the world can go back.",
           ...(!userDirectorEnabled(scene)
             ? [
                 "- The visitor does NOT hold director powers. If they address you to",
@@ -1272,6 +1286,14 @@ function buildOrchestratorSystemPrompt(
       : []),
     "",
     "Decision rules:",
+    ...(hasCharacterStates
+      ? [
+          "- A character's `now:` state is their CURRENT truth and outranks their",
+          "  baseline. Choose speakers and write beats from it - a shattered",
+          "  character does not make small talk, and a beat that ignores a fresh",
+          "  loss is a broken scene.",
+        ]
+      : []),
     "- Default to advancing the scene with `action: \"speak\"` and an active `beat`.",
     "  Pick the speaker whose move makes the scene move. The default assumes an",
     "  engaged user - a user who is taking their leave is not a scene to advance",
@@ -1375,6 +1397,10 @@ function buildOrchestratorSystemPrompt(
         ]),
     "  cascade ends when you emit a decision without momentum (or the user",
     "  speaks; they always take the floor instantly).",
+    "- On any `speak` whose beat enacts violence or loss, set `weight`: `minor`",
+    "  for ordinary action, `major` for a scene-changing blow/threat/revelation,",
+    "  and `irreversible` for death, maiming, or irrevocable betrayal. Leave it",
+    "  null for ordinary speech.",
     ...(narratorMode(scene) === "off"
       ? ["- Do not use `action: \"narrate\"` - this scene runs without a narrator."]
       : [

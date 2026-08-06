@@ -319,6 +319,10 @@ export const sceneStateSchema = z.object({
   // progress. The fast per-turn director reads it as its own memory.
   // Latest wins; carried forward by decision application until replaced.
   directorNote: z.string().min(1).max(400).optional(),
+  // The chronicler's current emotional truth for each character. Unlike the
+  // authored baseline, this evolves as the live story changes and persists
+  // after the triggering dialogue scrolls out of the recent-turn window.
+  characterStates: z.record(z.string(), z.string().max(200)).optional(),
   // Labels of arc beats the dramaturg has judged LANDED (subset of
   // Scene.arc labels, in arc order). Spread-carried like directorNote.
   arcLanded: z.array(z.string()).optional(),
@@ -384,6 +388,10 @@ export const orchestratorDecisionSchema = z.object({
   // Whether the narration merely answers a question about the world or
   // renders something happening that needs an immediate character reaction.
   narrationKind: z.enum(["answer", "event"]).nullable().optional(),
+  // Dramatic magnitude. The runtime only arms consequence handling when the
+  // director explicitly marks a major/irreversible event (or an exit clearly
+  // describes death/incapacitation), so legacy output degrades unchanged.
+  weight: z.enum(["minor", "major", "irreversible"]).nullable().optional(),
 
   // ── Presence (always optional) ─────────────────────────────────
   // A character who has LEFT the scene or can no longer take part — walked
@@ -437,6 +445,7 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     "delivery",
     "narration",
     "narrationKind",
+    "weight",
     "exitSlug",
     "enterSlug",
     "ambience",
@@ -457,6 +466,10 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     narrationKind: {
       type: ["string", "null"],
       enum: ["answer", "event", null],
+    },
+    weight: {
+      type: ["string", "null"],
+      enum: ["minor", "major", "irreversible", null],
     },
     exitSlug: { type: ["string", "null"] },
     enterSlug: { type: ["string", "null"] },

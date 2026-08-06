@@ -129,6 +129,9 @@ describe("journal round-trip (orchestration builders → workbench parser)", () 
       factsAdded: ["Sarah denied laughing."],
       landedAdded: ["The welcome"],
       gone: [],
+      statesChanged: [
+        { slug: "sarah", state: "shattered — she watched Abraham fall" },
+      ],
       chronicleBefore: null,
       chronicleAfter: {
         story: "The traveler arrived at dusk.",
@@ -148,6 +151,9 @@ describe("journal round-trip (orchestration builders → workbench parser)", () 
     expect(item.note).toBe("Press Sarah.");
     expect(item.factsAdded).toEqual(["Sarah denied laughing."]);
     expect(item.landedAdded).toEqual(["The welcome"]);
+    expect(item.statesChanged).toEqual([
+      { slug: "sarah", state: "shattered — she watched Abraham fall" },
+    ]);
     expect(item.chronicleBefore).toBeNull();
     expect(item.chronicleAfter?.story).toBe("The traveler arrived at dusk.");
     expect(item.chronicleAfter?.intents).toEqual([

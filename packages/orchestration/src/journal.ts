@@ -57,7 +57,9 @@ export type SceneDecisionRecovery =
   /** Proactive wait-for-user with a due world event → narrated directly. */
   | "world-event-narrated"
   /** User lacks director powers; narrator-addressed world fiat → character response. */
-  | "director-denied";
+  | "director-denied"
+  /** Runtime forced the speaker/delivery after an irreversible event. */
+  | "consequence-protocol";
 
 export type SceneDecisionJournalExtras = {
   trigger: SceneDecisionTrigger;
@@ -136,6 +138,9 @@ export type SceneReflectionJournalPayload = {
   landedAdded: string[];
   /** Roster slugs the chronicler retired via GONE (validated). */
   gone: string[];
+  /** Per-character emotional states changed by this reflection. Null means a
+   *  previously carried state was deliberately dropped. */
+  statesChanged: Array<{ slug: string; state: string | null }>;
   chronicleBefore: SceneChronicle | null;
   chronicleAfter: SceneChronicle | null;
   /** Completed spoken turns at fire time (the cadence counter). */

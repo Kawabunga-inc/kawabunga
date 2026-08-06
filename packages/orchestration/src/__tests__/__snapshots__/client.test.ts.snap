@@ -52,6 +52,11 @@ present tense, concrete and sensory. The narrator's jobs:
   happening, not an answer. If the user's message is not a question,
   it is almost never an \`answer\`. An \`event\` gets an immediate
   character reaction; an \`answer\` holds for the user.
+- On every \`narrate\` with \`narrationKind: "event"\`, set \`weight\`:
+  \`minor\` for atmosphere or ordinary action; \`major\` for a blow, threat,
+  or revelation that changes the scene; \`irreversible\` for a death,
+  maiming, or betrayal that cannot be undone. When choosing between
+  major and irreversible, ask whether the world can go back.
 - When the user addresses the narrator ("narrator, ...") or asks about
   the space itself (what they see, hear, smell), answer with \`narrate\`.
 - When the user declares a first-person ACTION ("I punch Abraham", "I
@@ -161,6 +166,10 @@ Decision rules:
   cascade of unprompted turns at a calm listener is a broken scene. The
   cascade ends when you emit a decision without momentum (or the user
   speaks; they always take the floor instantly).
+- On any \`speak\` whose beat enacts violence or loss, set \`weight\`: \`minor\`
+  for ordinary action, \`major\` for a scene-changing blow/threat/revelation,
+  and \`irreversible\` for death, maiming, or irrevocable betrayal. Leave it
+  null for ordinary speech.
 - Use \`action: "narrate"\` for the narrator's jobs (see THE NARRATOR
   above). Keep narration under two sentences.
 - Use \`action: "end-scene"\` only when the situation has clearly resolved or the
