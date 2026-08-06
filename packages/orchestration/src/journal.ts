@@ -82,6 +82,12 @@ export type SceneDecisionJournalExtras = {
   cascadeDepth?: number;
   /** The due TIMED direction rendered by a `world-event` trigger. */
   worldEventDirective?: string;
+  /** Real-time narration duration that hid reaction work. Pipelined paths only. */
+  narrationAudioMs?: number;
+  /** Chain decision + character generation/TTS buffering wall time. */
+  reactionReadyMs?: number;
+  /** Listener-visible delay from narration end to the first reaction frame. */
+  gapMs?: number;
 };
 
 export type SceneJournalEntry = {

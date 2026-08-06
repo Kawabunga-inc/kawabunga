@@ -101,6 +101,9 @@ export type JournalDecisionItem = {
   recovered: string | null;
   cascadeDepth: number | null;
   worldEventDirective: string | null;
+  narrationAudioMs: number | null;
+  reactionReadyMs: number | null;
+  gapMs: number | null;
   speculation: { outcome: string; basedOnText: string | null; waitedMs: number | null } | null;
   beat: string | null;
   sceneCue: string | null;
@@ -175,6 +178,9 @@ export function parseJournalItems(events: SceneSessionEventRecord[]): SessionJou
         recovered: str(payload.recovered),
         cascadeDepth: num(payload.cascadeDepth),
         worldEventDirective: str(payload.worldEventDirective),
+        narrationAudioMs: num(payload.narrationAudioMs),
+        reactionReadyMs: num(payload.reactionReadyMs),
+        gapMs: num(payload.gapMs),
         speculation: speculation
           ? {
               outcome: str(speculation.outcome) ?? "none",
