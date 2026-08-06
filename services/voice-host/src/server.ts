@@ -15,7 +15,9 @@ import { jwtVerify } from "jose";
 // in-process (~60ms) instead of a cold OpenAI embed, and the context/ack caches
 // survive across turns. See the warm-host migration plan.
 
-const PORT = Number(process.env.PORT ?? 8080);
+// VOICE_HOST_PORT first: PORT is generic and every dev server in the
+// monorepo reads it, so the namespaced var is what the port map sets.
+const PORT = Number(process.env.VOICE_HOST_PORT ?? process.env.PORT ?? 8080);
 const startedAtMs = Date.now();
 let embedderReady = false;
 
