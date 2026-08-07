@@ -275,35 +275,16 @@
   color-scheme: dark;
 }
 
+/* Dark IS the Ocean contract — the palette registered in Paper and drawn in
+ * the "voice card — explorations" artboard, which is built entirely from
+ * var(--color-*) references. So this block declares no colour of its own:
+ * :root already holds every value, and redeclaring them here is what let the
+ * two drift (dark shipped a #05070A ground against Paper's #13181D).
+ *
+ * Only mode-specific chrome lives here — elevation, glass, and the scrims
+ * that have no light-mode equivalent. For the near-black cinematic ground,
+ * use data-theme="deep". */
 :root[data-theme="dark"] {
-  --background: #05070A;
-  --sidebar: #080C11;
-  --surface-1: #0B1016;
-  --surface-2: #0F151D;
-  --surface-hover: #111923;
-  --surface-active: #15202B;
-  --canvas-surface: #080C11;
-
-  --foreground: rgba(255, 255, 255, 0.94);
-  --text-primary: var(--foreground);
-  --text-secondary: rgba(255, 255, 255, 0.72);
-  --text-tertiary: rgba(255, 255, 255, 0.46);
-  --text-quaternary: rgba(255, 255, 255, 0.22);
-  --text-placeholder: rgba(255, 255, 255, 0.30);
-
-  --border-subtle: rgba(255, 255, 255, 0.065);
-  --border-medium: rgba(255, 255, 255, 0.09);
-  --border-active: color-mix(in srgb, var(--accent-strong) 18%, transparent);
-
-  --accent: #6FBF88;
-  --accent-strong: #8FD1CB;
-  --accent-secondary: #7FE6C3;
-  --emissive-mint: #DFFFF5;
-  --signal-blue: #6E8BFF;
-  --event-violet: #8B5CF6;
-  --warning-amber: #FFB84D;
-  --critical-crimson: #FF5A5A;
-
   --control-bg: rgba(255, 255, 255, 0.04);
   --control-border: var(--border-medium);
   --modal-backdrop: rgba(0, 0, 0, 0.62);
@@ -316,12 +297,12 @@
     0 24px 90px rgba(0, 0, 0, 0.58);
   --ring-shadow-selected: 0 0 0 3px color-mix(in srgb, var(--accent-strong) 22%, transparent);
 
-  --header-bg: rgba(5, 7, 10, 0.72);
-  --header-border: rgba(255, 255, 255, 0.055);
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --header-bg: color-mix(in srgb, var(--background) 72%, transparent);
+  --header-border: var(--border-medium);
+  --sidebar-border: var(--border-medium);
   --sidebar-hover: var(--surface-hover);
   --sidebar-active-border: var(--accent-strong);
-  --sidebar-glass: rgba(8, 12, 17, 0.82);
+  --sidebar-glass: color-mix(in srgb, var(--sidebar) 82%, transparent);
   --sidebar-inset: rgba(255, 255, 255, 0.04);
 
   color-scheme: dark;

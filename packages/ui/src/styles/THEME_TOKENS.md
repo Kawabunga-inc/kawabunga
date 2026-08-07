@@ -5,6 +5,21 @@ only palette that ships. Use the canonical tokens below — the compatibility
 alias tier has been removed, so there is no longer a gradual-migration path to
 fall back on.
 
+## Design source
+
+The palette originates in the **Kawabunga Brand & Design System** Paper file,
+page *voices*:
+
+- **Dark** — the "voice card — explorations" artboard, which is drawn entirely
+  from `var(--color-*)` references. It renders the `:root` contract directly,
+  so `:root` and dark mode are by definition the same palette.
+- **Light** — the "voice card — light mode" artboard: `#F5F6F4` ground,
+  `#FFFFFF` cards on a `0 10px 30px rgba(0,0,0,.06)` shadow, `#5E8E84` accent
+  (the mint drops to a deeper teal so it survives on white), and a
+  `.88 / .68 / .42 / .18` black text ramp.
+
+When a value changes in Paper, change it here — not in a component.
+
 Nothing downstream of `ocean.css` may redeclare a semantic token. A component
 that needs a different value changes it here, or composes one with `color-mix`
 from an existing token. `npm run theme:check` enforces the removed aliases.
@@ -135,10 +150,16 @@ per mode and you can read its value off the file.
 
 `data-theme` selects the mode:
 
-- `dark` — the admin default, and what `apps/admin` renders.
-- `light` — follows the user's `odyssey-theme` preference.
-- `deep` — near-black cinematic mode. `apps/web` scene and visit pages mount
-  `<DeepTheme />` to opt in.
+- `dark` — the admin default, and what `apps/admin` renders. It declares **no
+  colour of its own**: `:root` already holds the Paper dark contract, so the
+  block carries only chrome (glass, elevation, scrims). Redeclaring a palette
+  token here is what let dark drift to a `#05070A` ground against Paper's
+  `#13181D`; put the value in `:root` instead.
+- `light` — follows the user's `odyssey-theme` preference. Matches the Paper
+  light artboard value for value.
+- `deep` — near-black cinematic mode, and the *only* place the `#05070A`
+  ground now lives. `apps/web` scene and visit pages mount `<DeepTheme />` to
+  opt in. This is a deliberate third ground, not a darker dark.
 - `system` — resolves to dark or light from `prefers-color-scheme`.
 
 `apps/admin` pins `data-theme-variant="ocean"` in `app/layout.tsx` (the inline
