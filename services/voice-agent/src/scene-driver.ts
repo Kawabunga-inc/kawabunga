@@ -177,6 +177,11 @@ export interface SceneSpeakInput {
   promptChunk?: string;
   /** Who's speaking — surfaced to the client so it can label the turn. */
   speaker: { slug: string; name: string };
+  /** The director's chosen weight for this line. Already shapes the WORDS via
+   *  promptChunk; forwarded here so it can shape the PERFORMANCE too (speed at
+   *  the TTS boundary), instead of a weighty beat and a clipped aside being
+   *  spoken at identical tempo. */
+  delivery?: "brief" | "natural" | "expansive" | null;
   /** The speaker's scene-authored knowledge horizon — forwarded to
    *  runVoiceStream so the curator filters pages after this moment. */
   currentMoment?: { era: string; index: number };
@@ -1235,6 +1240,7 @@ export class SceneDriver {
         history: turn.history,
         promptChunk: sandboxNoCue ? undefined : turn.promptChunk,
         speaker: { slug: resolution.speakerSlug, name: displayName },
+        delivery: resolution.decision.delivery ?? null,
         currentMoment: speakerCharacter?.knowledgeHorizon,
         sceneFeatures: {
           ...this.#featureStatus(),
@@ -1846,6 +1852,7 @@ export class SceneDriver {
         history,
         promptChunk: hasCue ? directive : undefined,
         speaker: { slug: resolution.speakerSlug, name: displayName },
+        delivery: resolution.decision.delivery ?? null,
         currentMoment: speakerCharacter?.knowledgeHorizon,
         sceneFeatures: this.#featureStatus(),
       },

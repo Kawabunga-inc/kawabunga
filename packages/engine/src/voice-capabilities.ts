@@ -228,7 +228,10 @@ const TEXT_CAPABILITIES: Record<string, Record<string, TtsTextCapability>> = {
     // v3: audio tags and inline IPA, and SSML breaks are gone.
     v3: { ...NO_MARKUP, audioTags: true, ipaSlashes: true, speed: true },
   },
-  cartesia: { "*": { ...NO_MARKUP, speed: true } },
+  // Cartesia may well accept a speed control; it is not wired here and
+  // I have no vendor doc for it, so the flag stays false rather than
+  // promising a knob no code turns.
+  cartesia: { "*": NO_MARKUP },
   fish_audio: { "*": NO_MARKUP },
   pocket_tts: { "*": NO_MARKUP },
   openai: { "*": NO_MARKUP },
@@ -272,4 +275,40 @@ export function sanitizeForTts(text: string, capability: TtsTextCapability): str
   // Non-greedy, single-line: a bracket left unclosed by a truncated generation
   // must not swallow the remainder of the line.
   return text.replace(/\[[^\]\n]*\]/g, " ").replace(/\s{2,}/g, " ").trim();
+}
+
+/* ── Delivery → speed ───────────────────────────────────────────
+ *
+ * The director already decides how much floor a line gets — `brief`,
+ * `natural`, `expansive` — and that decision reaches the character's PROMPT
+ * and stops there. It shapes the words and not the performance, so an
+ * expansive consequence beat and a clipped aside are spoken at exactly the
+ * same tempo.
+ *
+ * ElevenLabs and Cartesia both accept a speed multiplier; ElevenLabs
+ * documents 0.7–1.2 and warns that extremes degrade quality. These values sit
+ * far inside that range on purpose: the aim is that a weighty line breathes,
+ * not that it is noticeably slowed. Anything stronger reads as a effect rather
+ * than as delivery.
+ */
+const DELIVERY_SPEED: Record<string, number> = {
+  brief: 1.05,
+  natural: 1,
+  expansive: 0.95,
+};
+
+/**
+ * Speed multiplier for a delivery, or null when the model has no speed control
+ * (in which case the caller must send nothing rather than a default — an
+ * unsupported field is a request the provider may reject outright).
+ */
+export function deliverySpeed(
+  delivery: string | null | undefined,
+  capability: TtsTextCapability,
+): number | null {
+  if (!capability.speed) return null;
+  const speed = delivery ? DELIVERY_SPEED[delivery] : undefined;
+  // `natural` maps to 1 — the provider default — so we send nothing at all and
+  // keep the common turn's payload byte-identical to what ships today.
+  return speed === undefined || speed === 1 ? null : speed;
 }

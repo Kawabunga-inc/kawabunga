@@ -8,6 +8,7 @@ import {
   voiceCapability,
   sanitizeForTts,
   ttsTextCapability,
+  deliverySpeed,
 } from "../voice-capabilities";
 
 describe("voiceCapability", () => {
@@ -160,5 +161,46 @@ describe("sanitizeForTts", () => {
   it("leaves ordinary prose untouched", () => {
     const line = "Evening comes slow to Mamre. The camp quiets.";
     expect(sanitizeForTts(line, v25)).toBe(line);
+  });
+});
+
+describe("deliverySpeed", () => {
+  const elevenlabs = ttsTextCapability("elevenlabs", "eleven_flash_v2_5");
+  const noSpeed = ttsTextCapability("fish_audio");
+
+  it("makes a weighty line breathe and a clipped one land", () => {
+    expect(deliverySpeed("expansive", elevenlabs)).toBe(0.95);
+    expect(deliverySpeed("brief", elevenlabs)).toBe(1.05);
+  });
+
+  it("sends nothing for the ordinary case", () => {
+    // `natural` IS the provider default, so the common turn's payload stays
+    // byte-identical to what ships today rather than gaining a redundant field.
+    expect(deliverySpeed("natural", elevenlabs)).toBeNull();
+    expect(deliverySpeed(null, elevenlabs)).toBeNull();
+    expect(deliverySpeed(undefined, elevenlabs)).toBeNull();
+  });
+
+  it("sends nothing to a provider with no speed control", () => {
+    // An unsupported field is a request the provider may reject outright, so
+    // silence beats a default.
+    expect(deliverySpeed("expansive", noSpeed)).toBeNull();
+    expect(deliverySpeed("brief", noSpeed)).toBeNull();
+  });
+
+  it("ignores a delivery it does not recognise", () => {
+    expect(deliverySpeed("whispered", elevenlabs)).toBeNull();
+  });
+
+  it("stays well inside the documented 0.7-1.2 range", () => {
+    // ElevenLabs warns that extremes degrade quality. The aim is that a line
+    // breathes, not that it is audibly slowed.
+    for (const d of ["brief", "natural", "expansive"]) {
+      const speed = deliverySpeed(d, elevenlabs);
+      if (speed !== null) {
+        expect(speed).toBeGreaterThan(0.9);
+        expect(speed).toBeLessThan(1.1);
+      }
+    }
   });
 });

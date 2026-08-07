@@ -569,6 +569,9 @@ export default defineAgent({
         // Director-side feature statuses (arc, speaker selection) — ride the
         // spread into runVoiceStream's `sceneFeatures` observability block.
         sceneFeatures?: Record<string, string>;
+        // Rides the spread into runVoiceStream, which turns it into a TTS
+        // speed for providers that support one.
+        delivery?: "brief" | "natural" | "expansive" | null;
         model?: string;
         audioGate?: {
           waitUntilOpen: Promise<void>;

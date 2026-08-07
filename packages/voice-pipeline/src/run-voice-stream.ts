@@ -8,6 +8,8 @@ import {
 } from "@kawabunga/db";
 import {
   createStreamingTtsAdapterForVoice,
+  deliverySpeed,
+  type TtsTextCapability,
   DEFAULT_VOICE_MODEL,
   embedText,
   embedTextLocal,
@@ -114,6 +116,8 @@ export type VoiceStreamTtsRouting = {
   provider: StreamingTtsProvider;
   adapter: StreamingTextToSpeechAdapter;
   voiceContext: VoiceContext;
+  /** What markup the resolved model reads, and whether it takes a speed. */
+  textCapability: TtsTextCapability;
 };
 type StreamingTtsRouting = VoiceStreamTtsRouting;
 
@@ -121,6 +125,9 @@ export type VoiceStreamBody = {
   sessionId?: string;
   turnId?: string;
   promptChunk?: string;
+  /** The director's weight for this line. Shapes the words via promptChunk;
+   *  here it also shapes the tempo. */
+  delivery?: "brief" | "natural" | "expansive" | null;
   message?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   scene?: CuratorScene;
@@ -448,6 +455,19 @@ export async function* runVoiceStream(
         501,
         routingErr instanceof Error ? routingErr.message : String(routingErr),
       );
+    }
+    // DELIVERY BECOMES TEMPO. The director already decided how much floor this
+    // line gets; until now that reached the character's prompt and stopped, so
+    // a weighty consequence beat and a clipped aside were spoken at identical
+    // speed. Overlaid onto the voice context (not the voice row) because it is
+    // a property of THIS turn, not of the voice.
+    const turnSpeed = deliverySpeed(input.delivery, ttsRouting.textCapability);
+    if (turnSpeed !== null) {
+      ttsRouting.voiceContext.voiceSettings = {
+        ...(ttsRouting.voiceContext.voiceSettings ?? {}),
+        provider: ttsRouting.provider,
+        speed: turnSpeed,
+      };
     }
     const ttsVoiceContext = ttsRouting.voiceContext;
     const ttsProvider = ttsRouting.provider;
