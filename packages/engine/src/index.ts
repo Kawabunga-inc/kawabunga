@@ -44,6 +44,9 @@ export {
 export type { VoiceProvider, VoiceProfile } from "./voice-mapping";
 export {
   costTierFor,
+  deliverySpeed,
+  sanitizeForTts,
+  ttsTextCapability,
   formatCreditRate,
   formatFirstAudio,
   formatModelLabel,
@@ -51,6 +54,7 @@ export {
   voiceCapability,
 } from "./voice-capabilities";
 export type {
+  TtsTextCapability,
   VoiceCapability,
   VoiceCostTier,
   VoiceSpeedTier,
