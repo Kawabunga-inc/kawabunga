@@ -229,3 +229,47 @@ export function stripSurroundingDialogueQuotes(text: string): string {
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+/**
+ * WHICH VOICE SPEAKS A STAGE DIRECTION.
+ *
+ * The character prompt asks for actions in *asterisks*, "one short
+ * present-tense sentence, THIRD person" — and the model complies about three
+ * times in four. Measured across three days of live turns: 28 third-person
+ * against 10 first-person. Every one of those ten was read by the NARRATOR,
+ * so the narrator said "I turn my gaze to the fire" — narrating as though it
+ * were Abraham. There is no reading of that which sounds intentional.
+ *
+ * Asking the prompt more firmly does not fix a 26% compliance gap, so the
+ * voice follows the grammatical person instead:
+ *
+ *   "steps into the firelight"      → third person → narrator
+ *   "I turn my gaze to the fire"    → first person → the character's own voice
+ *
+ * Both are coherent. Notably this needs no rewriting: turning "I" into a name
+ * or pronoun would mean guessing a character's pronouns from their name, which
+ * is exactly the kind of guess that is wrong about real people.
+ *
+ * It also fails in the safe direction. A false negative just leaves the
+ * character voicing their own action — which is a legitimate design in its own
+ * right — while the failure it replaces has no acceptable reading.
+ */
+export function stageDirectionVoice(text: string): "narration" | "character" {
+  return isFirstPersonStageDirection(text) ? "character" : "narration";
+}
+
+/**
+ * Does this stage direction speak as "I"?
+ *
+ * Deliberately narrow, and anchored to the START of the direction: that is
+ * where the subject of "one short present-tense sentence" lives. A trailing
+ * "...the smoke rising like prayer, and I wait" is a compound the narrator can
+ * still carry; a direction that OPENS with "I" is the character's own mouth.
+ *
+ * Bare "I'm"/"I've" count — the apostrophe form is the same subject. "My" and
+ * "me" lead a possessive or object opening ("My hands tremble") which reads
+ * just as wrongly in the narrator's voice.
+ */
+export function isFirstPersonStageDirection(text: string): boolean {
+  return /^\s*(?:i\b|i'|my\b|me\b|mine\b)/i.test(text);
+}

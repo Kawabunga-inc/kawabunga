@@ -47,6 +47,7 @@ import { isStageDirection } from "./stage-direction";
 import {
   createPerformanceVoiceRouter,
   splitPerformanceSegments,
+  stageDirectionVoice,
   type PerformanceSegmentKind,
 } from "./performance-segments";
 import {
@@ -1333,7 +1334,11 @@ export async function* runVoiceStream(
               continue;
             }
             const chunkIdx = ttsChunkCount++;
-            const segmentVoice = segment.kind === "stage" ? "narration" : "character";
+            // Stage directions go to the narrator only when they are written
+            // in third person; a first-person action is the character's own
+            // mouth (see stageDirectionVoice).
+            const segmentVoice =
+              segment.kind === "stage" ? stageDirectionVoice(segment.text) : "character";
             if (chunkIdx === 0) {
               const firstRouting = segmentVoice === "narration" ? narrationTts : ttsRouting;
               serverTrace.mark("server.tts.fetch.requested", {
