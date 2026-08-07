@@ -74,6 +74,7 @@ import {
   streamNarration,
 } from "./narration";
 import { SceneDriver } from "./scene-driver";
+import { buildProactiveSuppressedJournalEntry } from "@kawabunga/orchestration";
 import { createSceneEndPublisher } from "./scene-lifecycle";
 import { buildSceneKeyterms, supportsKeyterms } from "./stt-keyterms";
 import { resolveLiveVoiceMaxTokens } from "./live-turn-policy";
@@ -495,6 +496,9 @@ export default defineAgent({
     let speaking = false;
     let userIsSpeaking = false;
     let proactiveCount = 0;
+    // One budget-spent entry per user turn — the brake is re-checked on every
+    // arm, and repeating it would bury the rest of the journal.
+    let budgetSpentJournaled = false;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let sceneEnded = false;
 
@@ -844,7 +848,22 @@ export default defineAgent({
       if (!PROACTIVE_ENABLED || sceneEnded) return;
       if (userIsSpeaking || speaking) return;
       armWorldEvent();
-      if (proactiveCount >= MAX_PROACTIVE) return; // bounded → wait for the user
+      if (proactiveCount >= MAX_PROACTIVE) {
+        // Bounded → wait for the user. Journaled so "the narrator went quiet"
+        // is legible as a budget decision rather than a failure.
+        if (!budgetSpentJournaled) {
+          budgetSpentJournaled = true;
+          persistJournalEntry(
+            buildProactiveSuppressedJournalEntry({
+              sceneId: sceneDriver.scene.id,
+              reason: "budget-spent",
+              decisionSpent: false,
+              beatsUsed: proactiveCount,
+            }),
+          );
+        }
+        return;
+      }
       idleTimer = setTimeout(proactiveTick, sceneIdleMs);
     };
     // TIMED world events outlive the MAX_PROACTIVE brake: that brake stops
@@ -868,7 +887,22 @@ export default defineAgent({
     sceneDriver.onWorldEvents(() => armWorldEvent());
     const proactiveTick = () => {
       idleTimer = null;
-      if (userIsSpeaking || speaking || sceneEnded) return; // someone already has the floor
+      if (userIsSpeaking || speaking || sceneEnded) {
+        // The timer elapsed and we still yielded. Journaled (unlike armIdle's
+        // cheap pre-checks) because a tick that fired and stood down is the
+        // signal that distinguishes "kept giving the user the floor" from
+        // "never woke up at all".
+        if (!sceneEnded) {
+          persistJournalEntry(
+            buildProactiveSuppressedJournalEntry({
+              sceneId: sceneDriver.scene.id,
+              reason: "floor-held",
+              decisionSpent: false,
+            }),
+          );
+        }
+        return;
+      }
       turn?.abort(); // supersede any straggler (defensive — barge-in already aborts)
       audioSource.clearQueue();
       turn = new AbortController();
@@ -941,6 +975,7 @@ export default defineAgent({
       audioSource.clearQueue();
       clearIdle();
       proactiveCount = 0;
+      budgetSpentJournaled = false;
       turn = new AbortController();
       const signal = turn.signal;
       console.log(`[voice-agent] user: ${text}`);

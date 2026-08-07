@@ -186,6 +186,51 @@ export function buildWorldEventArmedJournalEntry(
   };
 }
 
+/**
+ * Why the scene did NOT take an autonomous beat.
+ *
+ * Every path that abandons a proactive tick used to return before journaling,
+ * so a session that tried repeatedly and correctly yielded each time was
+ * indistinguishable from one that never tried at all. Reviewing session
+ * a726ec1b, the journal held 2 decisions against 28 director calls — the
+ * missing 26 were invisible. These entries are the difference between "the
+ * narrator is broken" and "the narrator kept giving you the floor".
+ */
+export type SceneProactiveSuppression =
+  /** The idle timer never armed: someone already held the floor. */
+  | "floor-held"
+  /** Armed, fired, but a newer turn (usually the user speaking) landed first. */
+  | "superseded"
+  /** MAX_PROACTIVE consecutive driver beats already taken; waiting for a user turn. */
+  | "budget-spent"
+  /** Last spoken line was refusal boilerplate — holding beats parroting it. */
+  | "refusal-echo"
+  /** The cascade hit its beat cap and handed the floor back. */
+  | "cascade-capped";
+
+export type SceneProactiveSuppressedJournalPayload = {
+  journalVersion: number;
+  sceneId: string;
+  reason: SceneProactiveSuppression;
+  /** True when a director call was already paid for before we gave up — the
+   *  difference between a cheap skip and a wasted round trip. */
+  decisionSpent: boolean;
+  /** Consecutive driver-initiated beats taken when this tick was suppressed. */
+  beatsUsed?: number;
+};
+
+export const SCENE_PROACTIVE_SUPPRESSED_TYPE = "scene.proactive.suppressed";
+
+export function buildProactiveSuppressedJournalEntry(
+  payload: Omit<SceneProactiveSuppressedJournalPayload, "journalVersion">,
+): SceneJournalEntry {
+  return {
+    type: SCENE_PROACTIVE_SUPPRESSED_TYPE,
+    source: "orchestration",
+    payload: { ...payload, journalVersion: SCENE_JOURNAL_VERSION },
+  };
+}
+
 /** Decision snapshot fields shared by every `scene.decision.*` payload —
  *  exported for the workbench's typed reads (both transports emit them). */
 export type SceneDecisionJournalPayload = {

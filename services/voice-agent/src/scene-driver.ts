@@ -41,10 +41,12 @@ import {
   userRoleFor,
   buildDecisionJournalEntries,
   buildReflectionJournalEntry,
+  buildProactiveSuppressedJournalEntry,
   buildWorldEventArmedJournalEntry,
   type OrchestratorExecutorResolution,
   type SceneChronicle,
   type SceneDecisionJournalExtras,
+  type SceneProactiveSuppression,
   type SceneDecisionResolution,
   type SceneJournalSink,
   type SceneSessionSnapshot,
@@ -548,6 +550,30 @@ export class SceneDriver {
       this.#onSfx(cues);
     } catch {
       // best-effort — audio must never disrupt the turn
+    }
+  }
+
+  /**
+   * Record a proactive tick the runtime chose NOT to take. Every one of these
+   * paths used to return silently, which made a scene that repeatedly yielded
+   * the floor look identical to one whose narrator never woke up.
+   */
+  #journalSuppression(
+    reason: SceneProactiveSuppression,
+    opts?: { decisionSpent?: boolean; beatsUsed?: number },
+  ): void {
+    if (!this.#journal) return;
+    try {
+      this.#journal(
+        buildProactiveSuppressedJournalEntry({
+          sceneId: this.scene.id,
+          reason,
+          decisionSpent: opts?.decisionSpent ?? false,
+          ...(opts?.beatsUsed !== undefined ? { beatsUsed: opts.beatsUsed } : {}),
+        }),
+      );
+    } catch {
+      // best-effort — never let instrumentation break a turn
     }
   }
 
@@ -1580,6 +1606,7 @@ export class SceneDriver {
     const lastTurn = this.#recentTurns[this.#recentTurns.length - 1];
     if (lastTurn && lastTurn.speakerSlug !== "user" && isRefusalBoilerplate(lastTurn.text)) {
       console.log("[voice-agent] proactive: hold (last reply was refusal boilerplate)");
+      this.#journalSuppression("refusal-echo");
       return false;
     }
     // A due TIMED world event upgrades this tick from "maybe fill the
@@ -1610,6 +1637,7 @@ export class SceneDriver {
     if (superseded()) {
       if (worldEvent) worldEvent.fired = false;
       console.log("[voice-agent] proactive: superseded before decision applied");
+      this.#journalSuppression("superseded", { decisionSpent: true });
       return false;
     }
     let resolution = resolveSceneDecision(
@@ -2204,6 +2232,7 @@ export class SceneDriver {
     }
     if (beats >= cascadeMax) {
       console.log(`[voice-agent] cascade capped at ${cascadeMax} beats — holding for the user`);
+      this.#journalSuppression("cascade-capped", { beatsUsed: beats });
     }
     return { spoke };
   }
