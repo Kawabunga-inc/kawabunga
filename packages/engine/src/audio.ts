@@ -508,6 +508,9 @@ export interface ElevenLabsVoiceProviderConfig {
   stability?: number;
   similarityBoost?: number;
   style?: number;
+  /** 0.7–1.2. Set per TURN from the director's delivery, not per voice —
+   *  see deliverySpeed(). Omitted entirely when 1 (the provider default). */
+  speed?: number;
 }
 
 /**
@@ -540,6 +543,7 @@ export function resolveElevenLabsConfig(
     stability: pickNum("stability") ?? base.stability,
     similarityBoost: pickNum("similarityBoost") ?? base.similarityBoost,
     style: pickNum("style") ?? base.style,
+    speed: pickNum("speed") ?? base.speed,
   };
 }
 
@@ -730,6 +734,9 @@ export class ElevenLabsStreamingAdapter
             stability: config.stability ?? 0.5,
             similarity_boost: config.similarityBoost ?? 0.75,
             style: config.style ?? 0,
+            // Only when the turn asked for it; absent means the provider
+            // default, which is what every turn sends today.
+            ...(typeof config.speed === "number" ? { speed: config.speed } : {}),
           },
         }),
       );

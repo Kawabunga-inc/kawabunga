@@ -188,9 +188,20 @@ vi.mock("@kawabunga/engine", () => ({
       });
     },
   })),
+  // Delivery only becomes a speed when the model has one; the real capability
+  // table is unit-tested separately, so the mock states the shape rather than
+  // re-deriving it.
+  deliverySpeed: vi.fn(() => null),
   createStreamingTtsAdapterForVoice: vi.fn((voice: { provider?: string; slug: string }) => ({
     provider: voice.provider ?? "pocket_tts",
     voiceContext: { slug: voice.slug },
+    textCapability: {
+      audioTags: false,
+      breakTags: false,
+      phonemeTags: false,
+      ipaSlashes: false,
+      speed: false,
+    },
     adapter: {
       stream: async function* ({ text }: { text: string }) {
         ttsTexts.push(text);
