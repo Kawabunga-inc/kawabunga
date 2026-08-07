@@ -1391,16 +1391,31 @@ function buildOrchestratorSystemPrompt(
     "- MOMENTUM: set `momentum: true` when the moment is UNRESOLVED and the",
     "  next beat must follow at once without the user - a blow just landed, a",
     "  death is unanswered, a hold is still held, a revelation mid-detonation.",
-    ...(initiativeMode(scene) === "shared"
+    // Momentum is the ONLY mechanism granting a beat without waiting for
+    // silence, so this branch decides whether an initiative dial can act at
+    // all. It keyed on `=== "shared"`, which dropped `narrator` into the
+    // restrictive arm beside `user`: a scene told "the world drives this
+    // scene, do not wait to be spoken to" was simultaneously told momentum is
+    // for crisis only. Measured over 32 director runs on a rising-tension
+    // moment, `narrator` took another beat 0% of the time against `shared`'s
+    // 38% — the strongest dial behaving as the weakest. Observed live in
+    // session a726ec1b: six decisions, momentum never once set.
+    //
+    // Keyed on the passive mode instead, so `narrator` inherits the same
+    // latitude as `shared`. A bespoke, more permissive narrator text was
+    // tried and measured WORSE on both axes (28% rising / 16% interrupting a
+    // direct question, vs shared's 38% / 13%) — this wording is already
+    // tuned, and a third variant would be three to maintain.
+    ...(initiativeMode(scene) === "user"
       ? [
-          "  The runtime then gives you the next turn immediately. In this shared-",
-          "  initiative scene, rising tension may carry momentum before it becomes",
-          "  crisis; calm conversation still yields the floor to the visitor. The",
-        ]
-      : [
           "  The runtime then gives you the next turn immediately. Momentum is for",
           "  CRISIS, never conversation: in ordinary dialogue leave it null - a",
           "  cascade of unprompted turns at a calm listener is a broken scene. The",
+        ]
+      : [
+          "  The runtime then gives you the next turn immediately. Rising tension",
+          "  may carry momentum before it becomes crisis; calm conversation still",
+          "  yields the floor to the visitor. The",
         ]),
     "  cascade ends when you emit a decision without momentum (or the user",
     "  speaks; they always take the floor instantly).",

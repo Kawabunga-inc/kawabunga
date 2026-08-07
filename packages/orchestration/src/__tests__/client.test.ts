@@ -738,6 +738,32 @@ describe("scene experience dials", () => {
     );
   });
 
+  // Momentum is the only mechanism that grants a beat WITHOUT waiting for
+  // silence, so the crisis-only clause decides whether an initiative dial can
+  // drive at all. It once keyed on `=== "shared"`, which handed `narrator` the
+  // restrictive text meant for `user` — the strongest dial behaving as the
+  // weakest, measured at a 0% rate of taking another beat on rising tension.
+  const CRISIS_ONLY = "CRISIS, never conversation";
+
+  it("restricts momentum to crisis only when the user holds initiative", () => {
+    expect(initiativeMode(scene)).toBe("user");
+    expect(systemFor(scene)).toContain(CRISIS_ONLY);
+  });
+
+  it("does not restrict momentum to crisis under shared or narrator initiative", () => {
+    // narrator is the regression: it is told "the world drives this scene",
+    // so telling it momentum is crisis-only contradicts that in the same breath.
+    expect(systemFor({ ...scene, initiative: "narrator" })).not.toContain(CRISIS_ONLY);
+    expect(systemFor({ ...scene, initiative: "shared" })).not.toContain(CRISIS_ONLY);
+  });
+
+  it("still tells every mode to yield the floor to an engaged visitor", () => {
+    for (const initiative of ["user", "shared", "narrator"] as const) {
+      const system = systemFor({ ...scene, initiative });
+      expect(system).toMatch(/leave it null|yields the floor to the visitor/);
+    }
+  });
+
   it("names the played role in reactive speaker attribution", () => {
     const roleScene: Scene = {
       ...scene,
