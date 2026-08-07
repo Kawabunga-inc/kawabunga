@@ -8,7 +8,7 @@ Service: `pocket-tts-production` (`f9a04d19-ed64-40a3-87c9-ac0f79e17a29`)
 
 Domain: `https://pocket-tts-production-production.up.railway.app`
 
-Deployment source: `codex/pocket-tts-service` at `b42dbab`
+Deployment source: `codex/pocket-tts` at `2a6ba72`
 
 ## Deployment contract
 
@@ -31,6 +31,10 @@ Deployment source: `codex/pocket-tts-service` at `b42dbab`
 | Unauthenticated `POST /warm` | `401` |
 | Authenticated `POST /speak` | `200`, `meta` + `audio` + `done` |
 | Smoke synthesis | 45 characters, 42 audio chunks, 1,842 ms client total |
+
+After Railway was switched from the bootstrap service branch to the unified
+PR branch, its deployment check passed and both `/healthz` and `/readyz`
+returned `200` with the runtime loaded, primed, and ready.
 
 ## Controlled pricing run
 
