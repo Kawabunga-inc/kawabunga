@@ -48,3 +48,36 @@ describe("narrator address detection drives the floor", () => {
     expect(held("I wondered what the narrator would say next")).toBe(true);
   });
 });
+
+describe("narratorKeepsFloor — the opening is a preamble", () => {
+  it("yields the opening to any speech, addressed or not", () => {
+    // Openings are authored and unbounded in length. A visitor who speaks into
+    // one has decided to begin; making them wait it out to be answered is the
+    // opposite of responsive. Before this, a 40s opening meant a 40s wait.
+    expect(
+      narratorKeepsFloor({ narrating: true, opening: true, addressesNarrator: false }),
+    ).toBe(false);
+    expect(
+      narratorKeepsFloor({ narrating: true, opening: true, addressesNarrator: true }),
+    ).toBe(false);
+  });
+
+  it("still holds mid-scene narration against unaddressed speech", () => {
+    // The distinction that matters: a consequence landing is a beat nothing
+    // replays, so a cough must not cost it.
+    expect(
+      narratorKeepsFloor({ narrating: true, opening: false, addressesNarrator: false }),
+    ).toBe(true);
+  });
+
+  it("treats an absent opening flag as mid-scene", () => {
+    // Callers that predate the flag must keep the protective behaviour.
+    expect(narratorKeepsFloor({ narrating: true, addressesNarrator: false })).toBe(true);
+  });
+
+  it("does not resurrect the floor when nothing is playing", () => {
+    expect(
+      narratorKeepsFloor({ narrating: false, opening: true, addressesNarrator: false }),
+    ).toBe(false);
+  });
+});
