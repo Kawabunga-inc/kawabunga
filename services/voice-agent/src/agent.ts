@@ -74,10 +74,11 @@ import {
   streamNarration,
 } from "./narration";
 import { SceneDriver } from "./scene-driver";
+import { isNarratorAddressed } from "@kawabunga/orchestration";
 import { buildProactiveSuppressedJournalEntry } from "@kawabunga/orchestration";
 import { createSceneEndPublisher } from "./scene-lifecycle";
 import { buildSceneKeyterms, supportsKeyterms } from "./stt-keyterms";
-import { resolveLiveVoiceMaxTokens } from "./live-turn-policy";
+import { narratorKeepsFloor, resolveLiveVoiceMaxTokens } from "./live-turn-policy";
 import { WorldAudioChannel } from "./world-audio";
 
 // --- Railway healthcheck: the agents worker doesn't serve HTTP itself, so expose
@@ -499,6 +500,30 @@ export default defineAgent({
     // One budget-spent entry per user turn — the brake is re-checked on every
     // arm, and repeating it would bury the rest of the journal.
     let budgetSpentJournaled = false;
+    // NARRATOR PROTECTION. A character is a conversational partner and can be
+    // cut off mid-word; the narrator is not, and losing its line loses a beat
+    // of the story that nothing replays. Session a726ec1b lost its climax this
+    // way — the armed-men narration was cancelled at 158 characters billed and
+    // 0ms of audio, and the visitor left 18 seconds later.
+    //
+    // While the narrator speaks, speech does not abort it. Speech ADDRESSED to
+    // the narrator still does (that is the visitor taking the helm, which is
+    // the whole point of the narrator channel). Anything else is deferred and
+    // replayed the moment narration ends — never dropped, so the visitor is
+    // not ignored, merely answered a beat later.
+    let narrating = false;
+    let deferredUserText: string | null = null;
+    /** Narration has ended: release the floor and replay anything the visitor
+     *  said under it, as a normal turn. Declared before respond() (a function
+     *  declaration, so it hoists past the const). */
+    function endNarration(): void {
+      narrating = false;
+      const pending = deferredUserText;
+      deferredUserText = null;
+      if (!pending || sceneEnded) return;
+      console.log(`[voice-agent] replaying deferred turn: ${pending}`);
+      respond(pending);
+    }
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let sceneEnded = false;
 
@@ -742,6 +767,7 @@ export default defineAgent({
         const signal = turn?.signal;
         if (signal?.aborted) return;
         speaking = true;
+        narrating = true;
         worldAudio?.setDucked(true);
         const turnId = crypto.randomUUID();
         const startedAt = new Date();
@@ -770,6 +796,7 @@ export default defineAgent({
           throw error;
         } finally {
           speaking = false;
+          endNarration();
           worldAudio?.setDucked(false);
           // Narration bypasses runVoiceStream (TTS only), so record the turn
           // here — otherwise the narrator never appears in /sessions and its
@@ -969,8 +996,22 @@ export default defineAgent({
     // whatever's in flight. Every room routes through the driver (who speaks + the
     // director cue); a single-character room is just the 1-char fastpath. A real user
     // turn resets the proactive budget; after the character speaks, we arm a follow-up.
-    const respond = (text: string) => {
+    const respond = (rawText: string) => {
       if (sceneEnded) return;
+      // Mid-narration: only the narrator can be interrupted, and only by being
+      // addressed. Everything else waits for the line to land — kept, not
+      // discarded, and replayed by endNarration().
+      if (narratorKeepsFloor({ narrating, addressesNarrator: isNarratorAddressed(rawText) })) {
+        deferredUserText = deferredUserText ? `${deferredUserText} ${rawText}` : rawText;
+        console.log(`[voice-agent] deferred under narration: ${rawText}`);
+        return;
+      }
+      // Absorb anything already deferred, in the order it was said. Addressing
+      // the narrator aborts its line, which fires endNarration() — and that
+      // would otherwise replay the deferred text straight over the turn we are
+      // starting here, killing the very command that interrupted.
+      const text = deferredUserText ? `${deferredUserText} ${rawText}` : rawText;
+      deferredUserText = null;
       turn?.abort();
       audioSource.clearQueue();
       clearIdle();
@@ -1027,6 +1068,11 @@ export default defineAgent({
       userIsSpeaking = ev.newState === "speaking";
       if (ev.newState === "speaking") {
         clearIdle(); // the user has the floor — cancel any pending proactive tick
+        // The narrator holds its line. We cannot know yet whether this is a
+        // cough or "narrator, do X" — VAD fires on sound, the words arrive
+        // ~700ms later at the endpoint — so the decision waits for the
+        // transcript in respond(). Cutting here would be deciding without it.
+        if (narrating) return;
         turn?.abort();
         audioSource.clearQueue();
         // Agent is now instantly silent — bring the bed back without waiting
@@ -1097,6 +1143,7 @@ export default defineAgent({
       const openingTurnId = crypto.randomUUID();
       let openingStatus: "succeeded" | "failed" | "cancelled" = "succeeded";
       speaking = true;
+      narrating = true;
       worldAudio?.setDucked(true);
       publishTurn({
         role: "agent",
@@ -1126,6 +1173,10 @@ export default defineAgent({
         })
         .then(() => ({ voiced: openingVoiced, endedAt: Date.now() }))
         .finally(() => {
+          // The opening is the single most abandoned moment we have — it can
+          // take 30s+ to arrive, so a visitor speaking into the wait must not
+          // be what silences it. Release the floor once it has played.
+          endNarration();
           persistJournalEntry({
             turnId: openingTurnId,
             type: SESSION_COST_EVENT_TYPE,
