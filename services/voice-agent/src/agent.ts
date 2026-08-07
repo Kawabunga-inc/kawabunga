@@ -513,12 +513,16 @@ export default defineAgent({
     // replayed the moment narration ends — never dropped, so the visitor is
     // not ignored, merely answered a beat later.
     let narrating = false;
+    // The opening narration is a skippable preamble rather than a story beat
+    // (see narratorKeepsFloor) — tracked separately so only it yields.
+    let narratingOpening = false;
     let deferredUserText: string | null = null;
     /** Narration has ended: release the floor and replay anything the visitor
      *  said under it, as a normal turn. Declared before respond() (a function
      *  declaration, so it hoists past the const). */
     function endNarration(): void {
       narrating = false;
+      narratingOpening = false;
       const pending = deferredUserText;
       deferredUserText = null;
       if (!pending || sceneEnded) return;
@@ -1005,7 +1009,13 @@ export default defineAgent({
       // Mid-narration: only the narrator can be interrupted, and only by being
       // addressed. Everything else waits for the line to land — kept, not
       // discarded, and replayed by endNarration().
-      if (narratorKeepsFloor({ narrating, addressesNarrator: isNarratorAddressed(rawText) })) {
+      if (
+        narratorKeepsFloor({
+          narrating,
+          opening: narratingOpening,
+          addressesNarrator: isNarratorAddressed(rawText),
+        })
+      ) {
         deferredUserText = deferredUserText ? `${deferredUserText} ${rawText}` : rawText;
         console.log(`[voice-agent] deferred under narration: ${rawText}`);
         return;
@@ -1148,6 +1158,7 @@ export default defineAgent({
       let openingStatus: "succeeded" | "failed" | "cancelled" = "succeeded";
       speaking = true;
       narrating = true;
+      narratingOpening = true;
       worldAudio?.setDucked(true);
       publishTurn({
         role: "agent",

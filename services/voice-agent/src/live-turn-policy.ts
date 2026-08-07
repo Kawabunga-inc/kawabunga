@@ -30,7 +30,21 @@ export function resolveLiveVoiceMaxTokens(value = process.env.VOICE_AGENT_REPLY_
 export function narratorKeepsFloor(input: {
   narrating: boolean;
   addressesNarrator: boolean;
+  /** True while the scene's OPENING narration is playing (as opposed to a
+   *  narration the narrator chose to speak mid-scene). */
+  opening?: boolean;
 }): boolean {
   if (!input.narrating) return false;
+  // THE OPENING IS A PREAMBLE, NOT A BEAT.
+  //
+  // Mid-scene narration is a beat of the story — a consequence landing, the
+  // world moving — and losing it loses something nothing replays. The opening
+  // is scene-setting the visitor has not agreed to sit through, its length is
+  // authored and unbounded, and a visitor who speaks into it has already
+  // decided to begin. Making them wait out a 40-second preamble to be answered
+  // is the opposite of responsive.
+  //
+  // So the opening yields to any speech, and only the opening does.
+  if (input.opening) return false;
   return !input.addressesNarrator;
 }
