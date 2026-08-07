@@ -1,8 +1,13 @@
 # Kawabunga Theme Tokens
 
-`themes/ocean.css` is the source of truth for runtime theme variables. New UI
-should use the canonical tokens below. Compatibility aliases remain available so
-older surfaces can migrate gradually.
+`themes/ocean.css` is the source of truth for runtime theme variables, and the
+only palette that ships. Use the canonical tokens below — the compatibility
+alias tier has been removed, so there is no longer a gradual-migration path to
+fall back on.
+
+Nothing downstream of `ocean.css` may redeclare a semantic token. A component
+that needs a different value changes it here, or composes one with `color-mix`
+from an existing token. `npm run theme:check` enforces the removed aliases.
 
 ## Canonical Color Tokens
 
@@ -70,11 +75,11 @@ Materials and effects:
 - `--elevation-menu`
 - `--elevation-side`
 
-## Compatibility Aliases
+## Removed Aliases
 
-Use the canonical token in new code:
+These no longer exist. `theme:check` fails the build if one reappears.
 
-| Alias | Canonical replacement |
+| Removed | Use instead |
 |---|---|
 | `--app-background` | `--background` |
 | `--node-canvas` | `--canvas-surface` |
@@ -101,6 +106,10 @@ Use the canonical token in new code:
 | `--danger` | `--status-error` |
 | `--forest-*` | semantic surface/accent tokens |
 
+Their Tailwind mappings went with them, so `bg-card`, `text-muted`,
+`bg-panel`, and `bg-forest-*` are gone too. Use `bg-surface-1`,
+`text-text-tertiary`, and friends.
+
 ## Usage Guidance
 
 - Prefer semantic tokens over raw hex values in app components.
@@ -112,32 +121,34 @@ Use the canonical token in new code:
   pickers.
 - Use `--material-surface` for broad panels and `--material-card` for repeated
   item cards.
-- Treat `--card` as compatibility only; new code should choose a semantic
-  surface or material token directly.
-- Use `--text-tertiary` for muted labels; avoid `--muted` in new code.
+- Choose a semantic surface or material token directly; there is no longer a
+  generic card alias to fall back on.
+- Use `--text-tertiary` for muted labels.
 - Use `--status-error` for validation/errors and `--critical-crimson` only for
   stronger destructive or graph-category red.
-- Use the theme debug palette in admin to inspect computed values and live-test
-  overrides. It marks compatibility aliases separately.
+## Theme Modes
 
-## Theme Modes and Variants
+**Ocean is the only palette.** The variant axis is retired — the `clean`,
+`river`, and five `mono-*` families are deleted, not dormant. `ocean.css` has
+one palette with three mode overrides, so a token has exactly one definition
+per mode and you can read its value off the file.
 
-`data-theme` controls mode. `data-theme-variant` controls the palette family
-inside that mode.
+`data-theme` selects the mode:
 
-**Ocean is the only shipping palette.** Both apps render it:
+- `dark` — the admin default, and what `apps/admin` renders.
+- `light` — follows the user's `odyssey-theme` preference.
+- `deep` — near-black cinematic mode. `apps/web` scene and visit pages mount
+  `<DeepTheme />` to opt in.
+- `system` — resolves to dark or light from `prefers-color-scheme`.
 
-- `apps/admin` pins `data-theme-variant="ocean"` in `app/layout.tsx` (the
-  inline pre-hydration script) and re-asserts it in `admin-shell.tsx`. Mode
-  follows the user's `odyssey-theme` preference (`dark` / `light` / `system`),
-  defaulting to `dark`.
-- `apps/web` sets no variant, so it falls through to the `:root` Ocean
-  defaults. Scene and visit pages mount `<DeepTheme />`, which sets
-  `data-theme="deep"` for the near-black cinematic player.
+`apps/admin` pins `data-theme-variant="ocean"` in `app/layout.tsx` (the inline
+pre-hydration script) and re-asserts it in `admin-shell.tsx`; `apps/web` sets
+no variant. Both land on the same `:root` palette either way — the attribute is
+now belt-and-braces rather than a selector anything keys off.
 
-Modes: `dark`, `light`, `system`, and `deep`.
+### The shell is not a theme layer
 
-The other variant blocks in `ocean.css` (`clean`, `river`, and the five
-`mono-*` families) are **dormant** — nothing sets them. They are retained only
-as reference palettes and are not maintained alongside Ocean. Do not build
-against them.
+`.odyssey-shell` in `apps/admin/src/app/globals.css` defines *material* only —
+blur, elevation, hairline highlights. It once carried a full teal palette that
+shadowed this file on every authenticated screen, which made Ocean impossible
+to tune from one place. Don't reintroduce that: colour belongs in `ocean.css`.
