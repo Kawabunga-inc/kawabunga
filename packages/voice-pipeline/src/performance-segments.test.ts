@@ -3,6 +3,7 @@ import {
   classifySegment,
   splitPerformanceSegments,
   stripSurroundingDialogueQuotes,
+  stageDirectionVoice,
 } from "./performance-segments";
 
 describe("performance segments", () => {
@@ -72,4 +73,60 @@ describe("performance segments", () => {
     ]);
   });
 
+});
+
+describe("stageDirectionVoice", () => {
+  // Every string below is a real stage direction taken from live session
+  // transcripts, not invented for the test.
+  it("gives third-person action to the narrator", () => {
+    for (const text of [
+      "steps into the firelight, hand outstretched",
+      "Abraham lifts a jug and pours water into a basin",
+      "He lifts his hand, the firelight catching his weathered face.",
+      "She releases a short, incredulous laugh.",
+      "A shiver climbs her spine before she can stop it",
+    ]) {
+      expect(stageDirectionVoice(text)).toBe("narration");
+    }
+  });
+
+  it("gives first-person action back to the character", () => {
+    // The narrator saying "I turn my gaze to the fire" is the defect: it
+    // narrates as though it were Abraham.
+    for (const text of [
+      "I turn my gaze to the fire, the smoke rising like prayer.",
+      "I let a startled laugh rise, then choke it.",
+      "I stare at the ember-blackened spot where Sarah fell",
+      "I'm shaking as I reach for the waterskin",
+      "My hands tremble against the tent pole",
+    ]) {
+      expect(stageDirectionVoice(text)).toBe("character");
+    }
+  });
+
+  it("does not mistake a word that merely starts with i", () => {
+    // "Isaac", "in", "if" — a prefix match here would silently hand a whole
+    // class of ordinary third-person action to the wrong voice.
+    for (const text of [
+      "Isaac steps back from the fire",
+      "into the dark he goes, without looking back",
+      "if he hears it, he gives no sign",
+      "Miriam sets down the basin",
+    ]) {
+      expect(stageDirectionVoice(text)).toBe("narration");
+    }
+  });
+
+  it("anchors on the opening subject, not a later one", () => {
+    // A compound sentence whose SUBJECT is third person still belongs to the
+    // narrator, even when an "I" appears further along.
+    expect(
+      stageDirectionVoice("the smoke rises like prayer, and I wait for an answer"),
+    ).toBe("narration");
+  });
+
+  it("tolerates leading whitespace left by the splitter", () => {
+    expect(stageDirectionVoice("   I turn away")).toBe("character");
+    expect(stageDirectionVoice("   turns away")).toBe("narration");
+  });
 });
