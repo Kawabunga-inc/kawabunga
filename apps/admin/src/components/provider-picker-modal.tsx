@@ -34,7 +34,7 @@ type ProviderMeta = {
 function pricingLabel(provider: VoiceProvider): string {
   const { creditsPerThousandChars } = voiceCapability(provider);
   if (creditsPerThousandChars == null) {
-    return provider === "pocket_tts" ? "Free" : "Unpriced";
+    return provider === "pocket_tts" ? "Infrastructure" : "Unpriced";
   }
   return formatCreditRate(creditsPerThousandChars);
 }
@@ -43,7 +43,7 @@ const PROVIDER_META: Record<VoiceProvider, ProviderMeta> = {
   pocket_tts: {
     title: "Pocket TTS",
     blurb: "Clone from your audio. Self-hosted on Railway.",
-    pricing: "Free",
+    pricing: "Infrastructure",
     modelHint: "~15s extract",
   },
   elevenlabs: {
@@ -77,7 +77,7 @@ const PROVIDER_META: Record<VoiceProvider, ProviderMeta> = {
 };
 
 /** Order matches the brand-guide picker design: Pocket first (default
- * free path), then hosted in ascending price order. */
+ * self-hosted path), then hosted in ascending price order. */
 const PROVIDER_ORDER: VoiceProvider[] = [
   "pocket_tts",
   "fish_audio",

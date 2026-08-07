@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCharacterStore, getVoiceStore } from "@kawabunga/db";
+import {
+  getPocketTtsAuthHeaders,
+  getPocketTtsBaseUrl,
+} from "@kawabunga/engine";
 import { createEmbeddingSignedUrl } from "@/lib/voices-storage";
 
 export const runtime = "nodejs";
@@ -9,15 +13,15 @@ export const dynamic = "force-dynamic";
  * POST /api/characters/:id/probe/voice
  *
  * The L03 "Spoken preview" path. Synthesizes a short sample of the
- * character's voice using the Kyutai Pocket TTS service (the same one
+ * character's voice using the dedicated Pocket TTS service (the same one
  * the live voice path already uses) and returns the audio as a single
  * base64-encoded WAV so the harness can play it inline.
  *
  * Flow:
  *   1. Resolve voice id — explicit `voiceStyle.voiceId` if set, else the
- *      character's slug. The audio-rt service maps that to a baked
+ *      character's slug. The Pocket service maps that to a baked
  *      `.safetensors` file under services/audio-rt/voices/.
- *   2. POST to ${KYUTAI_TTS_BASE_URL}/speak — receives SSE: meta /
+ *   2. POST to ${POCKET_TTS_BASE_URL}/speak — receives SSE: meta /
  *      audio chunks / done / error.
  *   3. Accumulate the int16 LE PCM chunks, wrap in a 44-byte WAV
  *      header, base64-encode, return.
@@ -32,8 +36,6 @@ export const dynamic = "force-dynamic";
  * `.safetensors` ahead of time. Those fields are design-time inputs
  * for the offline bake step (`scripts/bake-voice-clip.ts`, future).
  */
-
-const PUBLIC_TTS_FALLBACK = "https://audio-rt-production.up.railway.app";
 
 type Body = { text?: string };
 
@@ -62,9 +64,9 @@ export async function POST(
   // Voice resolution:
   //   - If character.voiceId is set → look up the voice, sign its embedding
   //     URL, pass both `voice` (slug for the in-process cache key) and
-  //     `voiceUrl` (signed URL audio-rt fetches on cache miss).
-  //   - Otherwise → fall back to character.slug, which audio-rt resolves
-  //     against baked-in voices under services/audio-rt/voices/.
+  //     `voiceUrl` (signed URL Pocket fetches on cache miss).
+  //   - Otherwise → fall back to character.slug, which Pocket resolves
+  //     against baked-in voices.
   let voice = character.slug;
   let voiceUrl: string | null = null;
   if (character.voiceId) {
@@ -77,28 +79,29 @@ export async function POST(
     }
   }
 
-  const ttsBaseUrl =
-    (process.env.KYUTAI_TTS_BASE_URL ?? "").trim().replace(/\/+$/, "") ||
-    PUBLIC_TTS_FALLBACK;
+  const ttsBaseUrl = getPocketTtsBaseUrl();
 
   let upstream: Response;
   try {
     upstream = await fetch(`${ttsBaseUrl}/speak`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getPocketTtsAuthHeaders(),
+      },
       body: JSON.stringify({ text, voice, voiceUrl }),
     });
   } catch (err) {
     return jsonError(
       502,
-      `audio-rt unreachable at ${ttsBaseUrl}: ${err instanceof Error ? err.message : String(err)}`,
+      `Pocket TTS unreachable at ${ttsBaseUrl}: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
   if (!upstream.ok || !upstream.body) {
     const errText = await upstream.text().catch(() => "");
     return jsonError(
       upstream.status,
-      `audio-rt /speak failed (${upstream.status}): ${errText.slice(0, 200)}`,
+      `Pocket TTS /speak failed (${upstream.status}): ${errText.slice(0, 200)}`,
     );
   }
 
@@ -148,14 +151,14 @@ export async function POST(
         if (firstAudioMs === null) firstAudioMs = performance.now() - startedAt;
       } else if (eventName === "error") {
         const e = payload as { message?: string };
-        upstreamError = e.message ?? "audio-rt returned error event";
+        upstreamError = e.message ?? "Pocket TTS returned error event";
       }
     }
   }
 
   if (upstreamError) return jsonError(502, upstreamError);
   if (pcmChunks.length === 0) {
-    return jsonError(502, "audio-rt returned no audio chunks");
+    return jsonError(502, "Pocket TTS returned no audio chunks");
   }
 
   // Concatenate PCM, wrap in WAV header, base64-encode.

@@ -1,5 +1,10 @@
 export { getOpenAIClient } from "./openai-client";
-export { embedText, embedTexts, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from "./embedding";
+export {
+  embedText,
+  embedTexts,
+  EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+} from "./embedding";
 export {
   embedTextLocal,
   embedTextsLocal,
@@ -25,6 +30,8 @@ export {
   getAudioRuntimeConfig,
   getElevenLabsPricingGuardInfo,
   getPocketTtsBaseUrl,
+  getPocketTtsAuthHeaders,
+  warmPocketTtsService,
   POCKET_TTS_SAMPLE_RATE,
   POCKET_TTS_PUBLIC_BASE_URL,
 } from "./audio";
@@ -34,6 +41,7 @@ export type {
   StreamingTtsProvider,
   VoiceForRouting,
   ElevenLabsVoiceProviderConfig,
+  PocketTtsWarmResult,
 } from "./audio";
 export {
   getVoiceDiscoveryDebugInfo,
@@ -59,6 +67,11 @@ export type {
   VoiceCostTier,
   VoiceSpeedTier,
 } from "./voice-capabilities";
+export {
+  pocketTtsEffectiveUsdPerMillionCharacters,
+  summarizePocketTtsLatency,
+} from "./pocket-tts-metrics";
+export type { PocketTtsLatencySummary } from "./pocket-tts-metrics";
 export type {
   SpeechToTextAdapter,
   TextToSpeechAdapter,

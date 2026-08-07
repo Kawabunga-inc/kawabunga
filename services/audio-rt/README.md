@@ -1,9 +1,13 @@
 # audio-rt
 
-FastAPI gateway that wraps Kyutai STT (pytorch, lazy-loaded) and Kyutai
-**Pocket TTS** (CPU-only, 100M params) behind a single HTTP+SSE service.
-Deployed to Railway as `audio-rt-production`; consumed by the admin app
-via `KYUTAI_BASE_URL` (STT) and `KYUTAI_TTS_BASE_URL` (TTS).
+FastAPI gateway for Kyutai/faster-whisper STT and streaming endpointing.
+Deployed to Railway as `audio-rt-production`; consumed via
+`KYUTAI_BASE_URL` and `AUDIO_RT_WS_URL`.
+
+Pocket TTS now deploys independently from [`../pocket-tts`](../pocket-tts).
+The `/speak` and `/export-voice` handlers remain here temporarily for rollback,
+but `POCKET_TTS_WARM_ON_STARTUP=0` keeps their runtime lazy so this service no
+longer pays to hold Pocket in memory.
 
 ## Endpoints
 
@@ -11,10 +15,10 @@ via `KYUTAI_BASE_URL` (STT) and `KYUTAI_TTS_BASE_URL` (TTS).
   voices currently cached in memory.
 - `POST /transcribe` — body `{ audioBase64, mimeType }` → JSON `{ transcript, … }`.
   Decodes any browser-recorded format via ffmpeg, runs Kyutai STT.
-- `POST /speak` — body `{ text, voice? }` → SSE stream of
+- `POST /speak` — compatibility-only body `{ text, voice? }` → SSE stream of
   `meta` / `audio` (base64-encoded int16 PCM @ 24 kHz) / `done`/ `error`
   events.
-- `POST /export-voice` — body `{ audioBase64, mimeType }` → raw
+- `POST /export-voice` — compatibility-only body `{ audioBase64, mimeType }` → raw
   `application/octet-stream` bytes of a Pocket TTS `.safetensors`
   embedding extracted from the reference clip. Called by the admin
   `/voices` surface; admin then uploads the bytes to the Supabase
@@ -74,6 +78,24 @@ its own model, so concurrent `/speak` requests fan out across workers.
   stalls, the endpoint emits an SSE `error` and exits that uvicorn worker;
   uvicorn's worker supervisor starts a clean replacement so the generation
   lock cannot stay wedged.
+
+## Legacy Pocket cost and latency rollup
+
+For the dedicated deployment and current pricing workflow, see
+[`../pocket-tts/README.md`](../pocket-tts/README.md). The repository command
+still accepts the old shared endpoint through `KYUTAI_TTS_BASE_URL` during
+migration:
+
+```bash
+npm run pocket:metrics -- --runs 12 --concurrency 1
+npm run pocket:metrics -- --monthly-cost-usd 24.50
+```
+
+For historical shared-service measurements, use Pocket's allocated share of
+the Railway cost, not the whole audio-rt bill. The command prints the normalized
+`SESSION_COST_POCKET_TTS_USD_PER_MILLION_CHARACTERS` value consumed by both
+the session ledger and admin voice cards. `--monthly-characters` can replace
+the observed 30-day volume with a planning forecast.
 
 ## Local dev
 

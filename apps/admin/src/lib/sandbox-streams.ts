@@ -146,6 +146,36 @@ export type WarmSandboxVoiceContextResult = {
   cacheScope?: string;
 };
 
+export type WarmPocketTtsResult = {
+  ok: boolean;
+  skipped?: boolean;
+  provider?: string;
+  voice?: string;
+  latencyMs?: number;
+  error?: unknown;
+};
+
+export async function warmPocketTts(opts: {
+  characterId: string;
+  signal?: AbortSignal;
+}): Promise<WarmPocketTtsResult> {
+  const res = await fetch("/api/audio/pocket-warm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ characterId: opts.characterId }),
+    signal: opts.signal,
+  });
+  const payload = (await res.json().catch(() => ({}))) as WarmPocketTtsResult;
+  if (!res.ok || !payload.ok) {
+    const detail =
+      typeof payload.error === "string"
+        ? payload.error
+        : JSON.stringify(payload.error ?? payload);
+    throw new Error(`pocket-warm: ${detail.slice(0, 300)}`);
+  }
+  return payload;
+}
+
 export async function warmSandboxVoiceContext(
   opts: WarmSandboxVoiceContextOptions,
 ): Promise<WarmSandboxVoiceContextResult> {

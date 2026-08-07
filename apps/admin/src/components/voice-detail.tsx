@@ -277,7 +277,7 @@ export function VoiceDetail({
 
   /* Refresh the audition preview clip. Always hits /preview, which
    * branches internally:
-   *  - Pocket   → audio-rt /speak with the existing embedding (no
+   *  - Pocket   → pocket-tts /speak with the existing embedding (no
    *               re-extract, the .safetensors stays put)
    *  - Hosted   → provider TTS (ElevenLabs today)
    * Either way it's just the audio clip — to actually re-derive the
@@ -3555,7 +3555,7 @@ function ProcessingPanel({ voice }: { voice: VoiceDetailData }) {
                 color: "var(--text-quaternary)",
               }}
             >
-              pocket-tts · audio-rt-production
+              pocket-tts · pocket-tts-production
             </span>
           </div>
           <span
@@ -3985,7 +3985,7 @@ function extractExceptionSummary(raw: string): string {
     }
   }
   const first = lines[0] ?? raw.trim();
-  return first.replace(/^audio-rt \/export-voice \d+:\s*/, "");
+  return first.replace(/^(?:audio-rt|Pocket TTS) \/export-voice \d+:\s*/, "");
 }
 
 /* ── Step row ─────────────────────────────────────────────────── */

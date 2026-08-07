@@ -15,6 +15,7 @@ import {
   prepareSandboxVoiceTurn,
   streamVoice,
   transcribeAudio,
+  warmPocketTts,
   warmSandboxVoiceContext,
   type ChatHistoryTurn,
 } from "@/lib/sandbox-streams";
@@ -225,6 +226,7 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
   const recorderMimeRef = useRef<string>("");
   const recorderStartedAtRef = useRef<number | null>(null);
   const voiceContextWarmRef = useRef<Promise<unknown> | null>(null);
+  const pocketTtsWarmRef = useRef<Promise<unknown> | null>(null);
   const streamingSttRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const streamingTranscriptRef = useRef("");
   const streamingTurnIdRef = useRef<string | null>(null);
@@ -292,8 +294,9 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
     };
   }, [refreshMicInputDevices]);
 
-  // Pre-session heatup. Cache the entry-cue bytes and warm the
-  // character-scoped voice-context cache (10 min TTL; session-scoped lookups
+  // Pre-session heatup. Cache the entry-cue bytes, wake the serverless Pocket
+  // service, and warm the character-scoped voice-context cache (10 min TTL;
+  // session-scoped lookups
   // fall back to it) so the start click only pays for session creation and
   // the STT handshake. Repeat fires are cheap — the route dedupes in-flight
   // builds and serves fresh entries from cache.
@@ -304,6 +307,12 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
     void warmSandboxVoiceContext({ characterId: character.id }).catch(
       (err) => {
         console.warn("[sandbox] pre-session voice context warm failed", err);
+      },
+    );
+    pocketTtsWarmRef.current = warmPocketTts({ characterId: character.id }).catch(
+      (err) => {
+        console.warn("[sandbox] pre-session Pocket TTS warm failed", err);
+        return null;
       },
     );
   }, [phase, mode, character.id]);
@@ -427,6 +436,12 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
         console.warn("[sandbox] voice context warm failed", err);
         return null;
       });
+    const pocketTtsWarm =
+      pocketTtsWarmRef.current ??
+      warmPocketTts({ characterId: character.id }).catch((err) => {
+        console.warn("[sandbox] Pocket TTS warm failed", err);
+        return null;
+      });
     try {
       if (VOICE_AGENT_ENABLED) {
         // Join and subscribe during the intro, but keep both directions gated.
@@ -479,6 +494,7 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
         liveKitSessionRef.current = lkSession;
         await Promise.all([
           voiceContextWarmRef.current,
+          pocketTtsWarm,
           lkSession.connect({
             characterId: character.id,
             sessionId,
@@ -490,6 +506,7 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
       } else {
         await Promise.all([
           voiceContextWarmRef.current,
+          pocketTtsWarm,
           startVoiceInput("session_start", undefined, true),
         ]);
       }
@@ -528,6 +545,7 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
     stopRecorder();
     stopStreamingStt();
     voiceContextWarmRef.current = null;
+    pocketTtsWarmRef.current = null;
     streamingTurnIdRef.current = null;
     lastPrepareRef.current = null;
     setVoiceState("idle");

@@ -35,7 +35,8 @@ export function pcmToWav(
   const view = new DataView(header);
   let offset = 0;
   const writeString = (s: string) => {
-    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
+    for (let i = 0; i < s.length; i++)
+      view.setUint8(offset + i, s.charCodeAt(i));
     offset += s.length;
   };
   const writeUint32 = (n: number) => {
@@ -68,10 +69,10 @@ export function pcmToWav(
 }
 
 /**
- * Drain an SSE response body from audio-rt's /speak endpoint into a
+ * Drain an SSE response body from Pocket TTS's /speak endpoint into a
  * single playable WAV byte array.
  *
- * audio-rt emits `meta` (sampleRate + channels), `audio` (base64 chunks),
+ * Pocket TTS emits `meta` (sampleRate + channels), `audio` (base64 chunks),
  * `done`, and `error` events; we accumulate the audio chunks and use
  * meta to construct the WAV header.
  */
@@ -121,13 +122,14 @@ export async function drainSpeakStreamToWav(
         pcmChunks.push(new Uint8Array(Buffer.from(a.chunk, "base64")));
       } else if (eventName === "error") {
         const e = payload as { message?: string };
-        upstreamError = e.message ?? "audio-rt returned error event";
+        upstreamError = e.message ?? "Pocket TTS returned error event";
       }
     }
   }
 
   if (upstreamError) throw new Error(upstreamError);
-  if (pcmChunks.length === 0) throw new Error("audio-rt returned no audio chunks");
+  if (pcmChunks.length === 0)
+    throw new Error("Pocket TTS returned no audio chunks");
 
   return pcmToWav(concatBytes(pcmChunks), sampleRate, channels);
 }

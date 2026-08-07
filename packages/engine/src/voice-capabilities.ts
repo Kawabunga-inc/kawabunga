@@ -81,9 +81,12 @@ const CAPABILITIES: Record<string, Record<string, VoiceCapability>> = {
       // Self-hosted: the cost is infrastructure, not per character. Reporting
       // a per-character rate here would be fiction.
       creditsPerThousandChars: null,
-      typicalFirstAudioMs: null,
+      // Production /speak benchmark, warm concurrency-1 path, 2026-08-07:
+      // client p50 365ms / p95 528ms over 50 runs (gateway p50 161ms).
+      // Pocket serializes generation within each worker.
+      typicalFirstAudioMs: 365,
       defaultModelId: null,
-      note: "Self-hosted — cost is infrastructure, not per character.",
+      note: "Self-hosted — cost uses the configured rolling infrastructure allocation.",
     },
   },
   openai: {

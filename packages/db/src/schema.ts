@@ -366,20 +366,20 @@ export const charactersTable = pgTable(
 //
 // Pocket TTS voices: a speaker embedding (kvcache state) exported from a
 // short audio clip and stored as .safetensors. Source clip in the
-// `voice-sources` bucket; .safetensors in `voice-embeddings`. audio-rt
-// loads the embedding on first /speak call and caches it in-process.
+// `voice-sources` bucket; .safetensors in `voice-embeddings`. Pocket TTS loads
+// the embedding on first /speak call and caches it in-process.
 //
-// Slug is the stable address used by audio-rt's /speak payload (e.g.
-// "abraham"). For voices baked into the audio-rt Docker image (legacy)
+// Slug is the stable address used by Pocket TTS's /speak payload (e.g.
+// "abraham"). For voices baked into the Pocket Docker image
 // only the slug matters; for Supabase-managed voices both id and slug
-// resolve to the same embedding via the lookup path inside audio-rt.
+// resolve to the same embedding via the lookup path inside Pocket TTS.
 //
 // Hosted providers (ElevenLabs, OpenAI, Cartesia, …): no extraction step;
 // rows insert directly as `status='ready'` once `providerConfig` validates.
 //
 // Status lifecycle (semantics depend on provider):
 //   uploaded   — Pocket only: source in storage, no embedding yet
-//   processing — Pocket only: audio-rt is running export-voice
+//   processing — Pocket only: pocket-tts is running export-voice
 //   ready      — voice is usable (default for hosted providers)
 //   failed     — provider error; statusError holds the message
 export const voicesTable = pgTable(

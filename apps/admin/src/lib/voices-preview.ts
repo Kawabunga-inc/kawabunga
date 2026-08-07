@@ -1,5 +1,9 @@
 import { getVoiceStore, type VoiceRecord } from "@kawabunga/db";
 import {
+  getPocketTtsAuthHeaders,
+  getPocketTtsBaseUrl,
+} from "@kawabunga/engine";
+import {
   createEmbeddingSignedUrl,
   uploadPreview,
 } from "@/lib/voices-storage";
@@ -23,7 +27,7 @@ export type SynthResult = {
 
 /** Synthesize arbitrary text using the voice's configured provider.
  * Multi-provider:
- *  - pocket_tts → audio-rt /speak with the row's embedding (~2–5s)
+ *  - pocket_tts → dedicated Pocket service /speak with the row's embedding
  *  - elevenlabs → ElevenLabs /v1/text-to-speech (~300–1500ms)
  *  - openai     → not yet wired up
  *  - cartesia   → not yet wired up
@@ -186,9 +190,7 @@ async function callElevenLabs(args: {
   return buf;
 }
 
-/* ── Pocket TTS (audio-rt) ──────────────────────────────────── */
-
-const POCKET_TTS_FALLBACK = "https://audio-rt-production.up.railway.app";
+/* ── Pocket TTS ─────────────────────────────────────────────── */
 
 async function synthPocketForVoice(
   voice: VoiceRecord,
@@ -199,17 +201,18 @@ async function synthPocketForVoice(
       "voice has no extracted embedding yet — run /extract before synthesizing alt takes.",
     );
   }
-  const ttsBaseUrl =
-    (process.env.KYUTAI_TTS_BASE_URL ?? "").trim().replace(/\/+$/, "") ||
-    POCKET_TTS_FALLBACK;
+  const ttsBaseUrl = getPocketTtsBaseUrl();
   const voiceUrl = await createEmbeddingSignedUrl(voice.embeddingPath);
   const upstream = await fetch(`${ttsBaseUrl}/speak`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...getPocketTtsAuthHeaders(),
+    },
     body: JSON.stringify({ text, voice: voice.slug, voiceUrl }),
   });
   if (!upstream.ok || !upstream.body) {
-    throw new Error(`audio-rt /speak ${upstream.status}`);
+    throw new Error(`Pocket TTS /speak ${upstream.status}`);
   }
   const wavBytes = await drainSpeakStreamToWav(upstream.body);
   return {
