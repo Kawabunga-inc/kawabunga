@@ -63,8 +63,24 @@ import { buildLlmSessionCostEntry, isRefusalBoilerplate } from "@kawabunga/voice
 
 /** Don't speculate off a stray opener ("uh", "so") — wait for some real intent. */
 const MIN_SPECULATE_CHARS = 8;
-/** Enough accumulated words to identify intent before spending a director call. */
-const MIN_SPECULATE_WORDS = 8;
+/**
+ * Enough accumulated words to identify intent before spending a director call.
+ *
+ * Was 8, which excluded 40.5% of real turns: measured over two weeks, 29.6% of
+ * utterances are 4-5 words and 10.9% are 6-7. That matched the observed 39% of
+ * turns whose speculation outcome was "none" — the whole short-utterance half
+ * of the distribution paid full director latency.
+ *
+ * Lowering it alone would have traded that for long turns, since acceptance
+ * needs a 60% prefix match and a single early guess covers little of a long
+ * sentence. RE-speculation is what makes the lower bar safe: the guess is
+ * refreshed as the utterance grows, so a 4-word turn is covered by the first
+ * attempt and a 20-word turn by a later one.
+ */
+const MIN_SPECULATE_WORDS = 4;
+/** Re-speculate once the partial has grown by this many words — enough that the
+ *  intent may have changed, few enough to keep coverage high on a long turn. */
+const RESPECULATE_WORD_STRIDE = 4;
 /** Accept a speculation only if it was computed off ≥ this fraction of the final
  *  turn (and is a prefix of it) — so the speaker was chosen from ~the whole intent,
  *  not a short lead-in that happens to prefix-match. */
@@ -312,7 +328,9 @@ export class SceneDriver {
     abort: AbortController;
     promise: Promise<DecideResult>;
   } | null = null;
-  #speculationStartedForTurn = false;
+  /** Words in the partial the live speculation was computed from, so a grown
+   *  utterance can supersede it. 0 = nothing speculated this turn. */
+  #speculatedWordCount = 0;
   // Optional persistence hook — invoked with a fresh snapshot after every decision.
   #onState: ((snapshot: SceneSessionSnapshot) => void) | null = null;
   // The scene journal sink — receives typed entries for every decision,
@@ -918,7 +936,7 @@ export class SceneDriver {
     this.#epoch += 1;
     this.#speculation?.abort.abort();
     this.#speculation = null;
-    this.#speculationStartedForTurn = false;
+    this.#speculatedWordCount = 0;
   }
 
   /** Scene-authored proactive cadence. The host's explicit env override still
@@ -954,9 +972,22 @@ export class SceneDriver {
     if (text.length < MIN_SPECULATE_CHARS) return;
     if (text.split(/\s+/).filter(Boolean).length < MIN_SPECULATE_WORDS) return;
     if (!SOLO_CUE_ENABLED && this.#presentRoster().length <= 1) return;
-    if (this.#speculationStartedForTurn) return;
     if (this.#speculation?.basedOnText === text) return;
-    this.#speculationStartedForTurn = true;
+    const words = text.split(/\s+/).filter(Boolean).length;
+    // Only supersede once the utterance has grown enough to plausibly change
+    // the answer. Without this a word-by-word partial stream would fire a
+    // director call per word.
+    if (
+      this.#speculatedWordCount > 0 &&
+      words - this.#speculatedWordCount < RESPECULATE_WORD_STRIDE
+    ) {
+      return;
+    }
+    // The previous guess is now the worse one — it covers less of the final
+    // utterance than this does. Cancel it so its provider call stops rather
+    // than racing the replacement.
+    this.#speculation?.abort.abort();
+    this.#speculatedWordCount = words;
     const abort = new AbortController();
     this.#speculation = {
       basedOnText: text,
@@ -977,7 +1008,7 @@ export class SceneDriver {
     const superseded = () => epoch !== this.#epoch || opts?.signal?.aborted === true;
     const spec = this.#speculation;
     this.#speculation = null;
-    this.#speculationStartedForTurn = false;
+    this.#speculatedWordCount = 0;
 
     this.#recentTurns.push({ speakerSlug: "user", text: userText });
     this.#trim();

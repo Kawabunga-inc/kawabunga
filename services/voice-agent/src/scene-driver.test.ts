@@ -1135,6 +1135,62 @@ describe("SceneDriver — speculation", () => {
     driver.speculate("uh");
     expect(exec.calls).toBe(0);
   });
+
+  // 40.5% of real utterances are 4-7 words — measured over two weeks — and the
+  // old 8-word bar excluded every one of them from speculation, which matched
+  // the 39% of turns whose recorded outcome was "none".
+  it("speculates on a short utterance the old bar would have skipped", async () => {
+    const exec = fakeExecutor([speakDecision("sarah")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.speculate("Sarah, were you laughing");
+    expect(exec.calls).toBe(1);
+  });
+
+  it("supersedes an early guess once the utterance has grown", async () => {
+    // A single early guess cannot serve a long turn: acceptance needs a 60%
+    // prefix match, so four words of a twenty-word sentence would always miss.
+    const exec = fakeExecutor([speakDecision("sarah"), speakDecision("sarah")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.speculate("Sarah, were you laughing");
+    driver.speculate("Sarah, were you laughing at the promise that was made today");
+    expect(exec.calls).toBe(2); // the second supersedes the first
+  });
+
+  it("does not re-speculate on every word of a growing partial", async () => {
+    // Without a stride, a word-by-word transcript stream would fire one
+    // director call per word.
+    const exec = fakeExecutor([speakDecision("sarah")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.speculate("Sarah, were you laughing");
+    driver.speculate("Sarah, were you laughing at");
+    driver.speculate("Sarah, were you laughing at the");
+    expect(exec.calls).toBe(1);
+  });
+
+  it("accepts the refreshed guess on a long turn", async () => {
+    const exec = fakeExecutor([speakDecision("sarah"), speakDecision("sarah")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak } = fakeSpeak(["I did not laugh."]);
+    const final = "Sarah, were you laughing at the promise that was made today";
+    driver.speculate("Sarah, were you laughing");
+    driver.speculate(final);
+    await driver.drive(final, speak);
+    // Two speculative calls, and the final turn reused the second rather than
+    // paying a third.
+    expect(exec.calls).toBe(2);
+  });
 });
 
 describe("SceneDriver — solo scenes", () => {
@@ -1452,18 +1508,22 @@ describe("SceneDriver — speculation cancellation", () => {
     };
   };
 
-  it("issues at most one speculative director call per user turn", async () => {
+  it("aborts a superseded speculation instead of racing it", async () => {
     const exec = signalRecordingExecutor(speakDecision("abraham"));
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
     });
 
-    driver.speculate("Sarah, did you laugh"); // not enough words yet
-    driver.speculate("Sarah, did you laugh at the promise of a son");
-    driver.speculate("Sarah, did you laugh at the promise of a son today");
-    expect(exec.signals).toHaveLength(1);
-    expect(exec.signals[0]?.aborted).toBe(false);
+    driver.speculate("Sarah, did you laugh");
+    driver.speculate("Sarah, did you laugh at the promise of a son"); // supersedes
+    driver.speculate("Sarah, did you laugh at the promise of a son today"); // within stride
+
+    // Only the growth that cleared the stride cost a call, and the guess it
+    // replaced was cancelled rather than left running against the new one.
+    expect(exec.signals).toHaveLength(2);
+    expect(exec.signals[0]?.aborted).toBe(true);
+    expect(exec.signals[1]?.aborted).toBe(false);
   });
 
   it("aborts a stale speculation on a MISS", async () => {
