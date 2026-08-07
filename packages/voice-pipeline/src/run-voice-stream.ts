@@ -39,12 +39,6 @@ import {
   getOrWaitSandboxVoiceContextCache,
   sandboxVoiceContextCacheKeyForDebug,
 } from "./sandbox-voice-context-cache";
-import {
-  getCachedVoiceAckAudio,
-  voiceAckAudioCacheKey,
-  type CachedVoiceAckAudio,
-} from "./voice-ack-audio-cache";
-import { isAckLaneEnabled, selectVoiceAck } from "./voice-ack-lane";
 import { isStageDirection } from "./stage-direction";
 import {
   createPerformanceVoiceRouter,
@@ -560,12 +554,11 @@ export async function* runVoiceStream(
     let replyText = "";
     let emittedAnyToken = false;
     let brainFirstTokenAt: number | null = null;
-    let ackFirstAudioAt: number | null = null;
     let ttsCursor = 0;
     let ttsChunkCount = 0;
     let drainChain: Promise<void> = Promise.resolve();
     const performanceSegments: Array<{ kind: PerformanceSegmentKind; chars: number }> = [];
-    let activeNarrationChunk: { chunkIdx: number; kind: "ack" | "main" } | null = null;
+    let activeNarrationChunk: { chunkIdx: number; kind: "main" } | null = null;
     const performanceVoiceRouter = createPerformanceVoiceRouter({
       narrationAvailable: Boolean(narrationTts),
       onNarrationFailure: (error) => {
@@ -584,10 +577,6 @@ export async function* runVoiceStream(
         );
       },
     });
-    let ackText: string | null = null;
-    let cachedAckAudio: CachedVoiceAckAudio | null = null;
-    let mainTokenGateOpen = true;
-    const queuedMainTokenDeltas: string[] = [];
     const ttsUsage = new Map<
       string,
       { provider: string; model: string | null; characters: number; audioSamples: number }
@@ -650,77 +639,10 @@ export async function* runVoiceStream(
     };
 
     const emitMainTokenDelta = (delta: string) => {
-      if (!mainTokenGateOpen) {
-        queuedMainTokenDeltas.push(delta);
-        return;
-      }
       sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.token, { delta });
     };
 
-    const releaseMainTokenGate = () => {
-      if (mainTokenGateOpen) return;
-      mainTokenGateOpen = true;
-      while (queuedMainTokenDeltas.length > 0) {
-        sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.token, {
-          delta: queuedMainTokenDeltas.shift()!,
-        });
-      }
-    };
 
-    const dispatchCachedAckAudio = (cached: CachedVoiceAckAudio): void => {
-      const chunkIdx = ttsChunkCount++;
-      serverTrace.mark("server.ack.audio_cache.dispatched", {
-        chunkIdx,
-        frames: cached.frames.length,
-        samples: cached.totalSamples,
-      });
-      serverTrace.mark("server.tts.chunk.dispatched", {
-        chunkIdx,
-        kind: "ack",
-        chars: cached.ackText.length,
-        cachedAudio: true,
-      });
-      drainChain = drainChain.then(async () => {
-        for (const frame of cached.frames) {
-          if (signal.aborted) break;
-          totalSamples += frame.samples;
-          if (ackFirstAudioAt === null) {
-            ackFirstAudioAt = performance.now();
-            serverTrace.mark("server.ack.tts.first-audio", {
-              latencyMs: Math.round(ackFirstAudioAt - startedAt),
-              provider: ttsProvider,
-              attempt: "cache",
-            });
-            sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.token, { delta: `${cached.ackText} ` });
-            releaseMainTokenGate();
-          }
-          if (firstAudioAt === null) {
-            firstAudioAt = performance.now();
-            serverTrace.mark("server.tts.first-audio", {
-              latencyMs: Math.round(firstAudioAt - startedAt),
-              chunkIdx,
-              kind: "ack",
-              provider: ttsProvider,
-              attempt: "cache",
-            });
-            sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.firstAudio, {
-              latencyMs: Math.round(firstAudioAt - startedAt),
-            });
-          }
-          sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.audio, {
-            pcm: frame.pcmFloat32Base64,
-            samples: frame.samples,
-            sampleRate: frame.sampleRate,
-          });
-        }
-        serverTrace.mark("server.tts.chunk.drained", {
-          chunkIdx,
-          kind: "ack",
-          provider: ttsProvider,
-          attempt: "cache",
-        });
-      });
-    };
 
     try {
       if (signal.aborted) return;
@@ -962,44 +884,6 @@ export async function* runVoiceStream(
       }
 
       const activeContextCacheKey = cachedContext?.key ?? contextCacheKey;
-      const ackEnabled =
-        contextCacheHit &&
-        input.ackMode !== "off" &&
-        !input.textOnly && // acks are audio — meaningless without TTS
-        isAckLaneEnabled();
-      ackText = selectVoiceAck({
-        enabled: ackEnabled,
-        characterTitle: character.title,
-        message,
-        selectedPages: curatorSelectedPages,
-      });
-      if (ackText) {
-        mainTokenGateOpen = false;
-        serverTrace.mark("server.ack.selected", {
-          text: ackText,
-          selectedPages: curatorSelectedPages.map((selected) => selected.page.slug),
-        });
-        cachedAckAudio = getCachedVoiceAckAudio(voiceAckAudioCacheKey({
-          contextCacheKey: activeContextCacheKey,
-          ttsProvider,
-          ttsVoice: ttsVoiceContext.slug,
-          ackText,
-        }));
-        serverTrace.mark(
-          cachedAckAudio ? "server.ack.audio_cache.hit" : "server.ack.audio_cache.miss",
-          {
-            provider: ttsProvider,
-            voice: ttsVoiceContext.slug,
-            text: ackText,
-            frames: cachedAckAudio?.frames.length ?? 0,
-            samples: cachedAckAudio?.totalSamples ?? 0,
-          },
-        );
-        if (cachedAckAudio) {
-          dispatchCachedAckAudio(cachedAckAudio);
-        }
-      }
-
       const recentSummaries = await summariesPromise;
       const recentSection = formatRecentConversation(recentSummaries);
       // Horizon turns get a final-position reminder OUTSIDE the knowledge dump —
@@ -1098,9 +982,6 @@ export async function* runVoiceStream(
         contextCacheHit,
         contextCacheScope,
         contextCacheBuiltAt,
-        ackEnabled,
-        ackSelected: Boolean(ackText),
-        ackAudioCacheHit: Boolean(cachedAckAudio),
         sceneFeatures,
       });
       sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.trace, serverTrace.toJSON());
@@ -1156,9 +1037,6 @@ export async function* runVoiceStream(
               contextCacheScope,
               contextCacheBuiltAt,
               realtimeLane: contextCacheHit,
-              ackEnabled,
-              ackText,
-              ackAudioCacheHit: Boolean(cachedAckAudio),
               sceneFeatures,
             },
           });
@@ -1185,7 +1063,7 @@ export async function* runVoiceStream(
       const drainOneChunk = async (
         chunkIdx: number,
         chunkText: string,
-        kind: "ack" | "main",
+        kind: "main",
         voice: "character" | "narration" = "character",
       ): Promise<void> => {
         if (signal.aborted) return;
@@ -1225,18 +1103,6 @@ export async function* runVoiceStream(
             if (frame.type === "audio") {
               totalSamples += frame.samples;
               attemptSamples += frame.samples;
-              if (kind === "ack" && ackFirstAudioAt === null) {
-                ackFirstAudioAt = performance.now();
-                serverTrace.mark("server.ack.tts.first-audio", {
-                  latencyMs: Math.round(ackFirstAudioAt - startedAt),
-                  provider: routing.provider,
-                  attempt,
-                });
-                if (ackText) {
-                  sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.token, { delta: `${ackText} ` });
-                }
-                releaseMainTokenGate();
-              }
               if (firstAudioAt === null) {
                 firstAudioAt = performance.now();
                 serverTrace.mark("server.tts.first-audio", {
@@ -1415,30 +1281,6 @@ export async function* runVoiceStream(
         drainChain = drainChain.then(() => drainOneChunk(chunkIdx, trimmed, "main"));
       };
 
-      const dispatchAckChunk = (text: string): void => {
-        if (input.textOnly) return; // headless: tokens only, never synth
-        const trimmed = text.trim();
-        if (!trimmed) return;
-        const chunkIdx = ttsChunkCount++;
-        serverTrace.mark("server.ack.tts.requested", {
-          provider: ttsProvider,
-          voice: ttsVoiceContext.slug,
-          chars: trimmed.length,
-        });
-        serverTrace.mark("server.tts.chunk.dispatched", {
-          chunkIdx,
-          kind: "ack",
-          chars: trimmed.length,
-        });
-        drainChain = drainChain
-          .then(() => drainOneChunk(chunkIdx, trimmed, "ack"))
-          .catch((ackErr) => {
-            serverTrace.mark("server.ack.tts.failed", {
-              message: ackErr instanceof Error ? ackErr.message : String(ackErr),
-            });
-            releaseMainTokenGate();
-          });
-      };
 
       // Refusal guard state. While the hold is active, tokens accumulate in
       // replyText but nothing is emitted to the client and no TTS is
@@ -1550,10 +1392,6 @@ export async function* runVoiceStream(
           ttsCursor = forced;
         }
       };
-
-      if (ackText && !cachedAckAudio) {
-        dispatchAckChunk(ackText);
-      }
 
       // Turn-debugging: emit the COMPLETE brain input — raw retrieval hits (with
       // similarity), the exact system blocks, and the messages array as the model
@@ -1793,20 +1631,15 @@ export async function* runVoiceStream(
       // browser has already received every audio frame.
       await drainChain;
       await persistTtsCosts();
-      releaseMainTokenGate();
 
       serverTrace.mark("server.tts.done", {
         audioSamples: totalSamples,
         chunks: ttsChunkCount,
         segments: performanceSegments,
       });
-      const deliveredAckText = ackFirstAudioAt !== null ? ackText : null;
-      const assistantText = [deliveredAckText, replyText].filter(Boolean).join(" ").trim();
-      const ackFirstAudioMs =
-        ackFirstAudioAt !== null ? Math.round(ackFirstAudioAt - startedAt) : null;
+      const assistantText = replyText.trim();
       const brainFirstTokenMs =
         brainFirstTokenAt !== null ? Math.round(brainFirstTokenAt - startedAt) : null;
-      const ackDelivered = Boolean(deliveredAckText);
       if (input.sessionId) {
         const firstAudioMs =
           firstAudioAt !== null
@@ -1833,12 +1666,7 @@ export async function* runVoiceStream(
             firstAudioMs,
             totalMs,
             estimatedCostUsd: cost.estimatedCostUsd,
-            ackEnabled,
-            ackText,
-            ackDelivered,
-            ackFirstAudioMs,
             brainFirstTokenMs,
-            ackAudioCacheHit: Boolean(cachedAckAudio),
             segments: performanceSegments,
             serverTrace: serverTrace.toJSON(),
           },
@@ -1876,7 +1704,6 @@ export async function* runVoiceStream(
               latencySummary: {
                 firstAudioMs,
                 totalMs,
-                ackFirstAudioMs,
                 brainFirstTokenMs,
               },
               trace: serverTrace.toJSON(),
@@ -1885,12 +1712,7 @@ export async function* runVoiceStream(
                 cost,
                 ttsProvider,
                 ttsVoice: ttsVoiceContext.slug,
-                ackEnabled,
-                ackText,
-                ackDelivered,
-                ackFirstAudioMs,
                 brainFirstTokenMs,
-                ackAudioCacheHit: Boolean(cachedAckAudio),
                 segments: performanceSegments,
               },
             });
@@ -1943,12 +1765,7 @@ export async function* runVoiceStream(
         model: modelId,
         ttsProvider,
         ttsVoice: ttsVoiceContext.slug,
-        ackEnabled,
-        ackText,
-        ackDelivered,
-        ackFirstAudioMs,
         brainFirstTokenMs,
-        ackAudioCacheHit: Boolean(cachedAckAudio),
         segments: performanceSegments,
         estimatedCostUsd: estimateSessionTurnCost(modelId, {
           inputTokens,
