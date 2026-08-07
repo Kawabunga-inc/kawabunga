@@ -6,6 +6,8 @@ import {
   formatModelLabel,
   speedTierFor,
   voiceCapability,
+  sanitizeForTts,
+  ttsTextCapability,
 } from "../voice-capabilities";
 
 describe("voiceCapability", () => {
@@ -87,5 +89,76 @@ describe("formatModelLabel", () => {
   it("renders an em dash rather than an empty cell", () => {
     expect(formatModelLabel(null)).toBe("\u2014");
     expect(formatModelLabel("  ")).toBe("\u2014");
+  });
+});
+
+describe("ttsTextCapability", () => {
+  it("gives every voice we actually run the v2.5 dialect: no audio tags", () => {
+    // The one that matters. Every ElevenLabs voice in the library today runs
+    // eleven_flash_v2_5, which has no notion of [laughs] — it reads the
+    // characters. Our own transcript convention wraps narration in brackets,
+    // so this is one leak away, not hypothetical.
+    expect(ttsTextCapability("elevenlabs", "eleven_flash_v2_5").audioTags).toBe(false);
+    expect(ttsTextCapability("elevenlabs").audioTags).toBe(false);
+    expect(ttsTextCapability("cartesia", "sonic-2").audioTags).toBe(false);
+    expect(ttsTextCapability("fish_audio", "s2.1-pro").audioTags).toBe(false);
+  });
+
+  it("recognises v3 as the only audio-tag dialect, and that it dropped breaks", () => {
+    const v3 = ttsTextCapability("elevenlabs", "eleven_v3");
+    expect(v3.audioTags).toBe(true);
+    expect(v3.ipaSlashes).toBe(true);
+    // v3 does not support SSML break tags — claiming otherwise would emit
+    // markup it reads as text.
+    expect(v3.breakTags).toBe(false);
+  });
+
+  it("does not confuse eleven_flash_v2 with eleven_flash_v2_5", () => {
+    // Phoneme tags are documented for flash_v2 ONLY. A prefix match here would
+    // emit <phoneme> to v2_5, which reads it as text.
+    expect(ttsTextCapability("elevenlabs", "eleven_flash_v2").phonemeTags).toBe(true);
+    expect(ttsTextCapability("elevenlabs", "eleven_flash_v2_5").phonemeTags).toBe(false);
+  });
+
+  it("defaults an unknown provider to plain prose", () => {
+    // Plain prose is read correctly by every engine; the safe default is the
+    // one that is never wrong, only ever less expressive.
+    const unknown = ttsTextCapability("some_new_provider");
+    expect(unknown).toEqual({
+      audioTags: false,
+      breakTags: false,
+      phonemeTags: false,
+      ipaSlashes: false,
+      speed: false,
+    });
+  });
+});
+
+describe("sanitizeForTts", () => {
+  const v25 = ttsTextCapability("elevenlabs", "eleven_flash_v2_5");
+  const v3 = ttsTextCapability("elevenlabs", "eleven_v3");
+
+  it("strips bracket spans a model would otherwise read aloud", () => {
+    expect(sanitizeForTts("[whispers] I never knew it could be this way.", v25)).toBe(
+      "I never knew it could be this way.",
+    );
+    expect(sanitizeForTts("Thank you all. [applause] What was that?", v25)).toBe(
+      "Thank you all. What was that?",
+    );
+  });
+
+  it("leaves them intact for a model that performs them", () => {
+    expect(sanitizeForTts("[whispers] I never knew.", v3)).toBe("[whispers] I never knew.");
+  });
+
+  it("does not let an unclosed bracket swallow the line", () => {
+    // A truncated generation can leave a bracket open; a greedy or multiline
+    // pattern would delete everything after it.
+    expect(sanitizeForTts("[sighs it was a long day", v25)).toBe("[sighs it was a long day");
+  });
+
+  it("leaves ordinary prose untouched", () => {
+    const line = "Evening comes slow to Mamre. The camp quiets.";
+    expect(sanitizeForTts(line, v25)).toBe(line);
   });
 });

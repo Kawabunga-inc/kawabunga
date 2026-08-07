@@ -179,3 +179,97 @@ export function formatModelLabel(modelId: string | null | undefined): string {
     // "v2 5" is a version, not two words.
     .replace(/\bv(\d+) (\d+)\b/gi, "v$1.$2");
 }
+
+/* ── Text dialect ───────────────────────────────────────────────
+ *
+ * WHAT MARKUP THIS MODEL UNDERSTANDS — a property of the provider and model,
+ * exactly like cost and speed, and for the same reason: it changes whenever a
+ * voice is re-pointed at a different model, and storing it per voice would go
+ * stale silently.
+ *
+ * The routing layer already sends the right text to the right voice on the
+ * right model. What it could not do is tell the text PRODUCERS which dialect
+ * their words would be read in. So every producer writes one dialect and hopes.
+ *
+ * That hope is wrong today in a specific, audible way. ElevenLabs v3 reads
+ * `[laughs]` as a performance direction; v2.5 — which every voice we run uses —
+ * has no such notion and reads the characters. Our own transcript convention
+ * wraps narration in brackets, so the failure is one leak away rather than
+ * hypothetical.
+ */
+export interface TtsTextCapability {
+  /** `[laughs]`, `[whispers]` — Eleven v3 only. On other models these are text. */
+  audioTags: boolean;
+  /** `<break time="1.5s" />` — the v2 family. v3 dropped SSML breaks entirely. */
+  breakTags: boolean;
+  /** `<phoneme alphabet="ipa" ...>` — narrower than it looks: ElevenLabs
+   *  documents these for `eleven_flash_v2` only, NOT `eleven_flash_v2_5`. */
+  phonemeTags: boolean;
+  /** Bare `/ˌbaɪoʊˈkemɪstri/` in the text — v3's replacement for phoneme tags. */
+  ipaSlashes: boolean;
+  /** `voice_settings.speed` (0.7–1.2). */
+  speed: boolean;
+}
+
+const NO_MARKUP: TtsTextCapability = {
+  audioTags: false,
+  breakTags: false,
+  phonemeTags: false,
+  ipaSlashes: false,
+  speed: false,
+};
+
+const TEXT_CAPABILITIES: Record<string, Record<string, TtsTextCapability>> = {
+  elevenlabs: {
+    // flash / turbo v2.5 — what every voice we run uses today.
+    "*": { ...NO_MARKUP, breakTags: true, speed: true },
+    // eleven_flash_v2 (no .5) is the one model with phoneme-tag support.
+    phoneme: { ...NO_MARKUP, breakTags: true, phonemeTags: true, speed: true },
+    // v3: audio tags and inline IPA, and SSML breaks are gone.
+    v3: { ...NO_MARKUP, audioTags: true, ipaSlashes: true, speed: true },
+  },
+  cartesia: { "*": { ...NO_MARKUP, speed: true } },
+  fish_audio: { "*": NO_MARKUP },
+  pocket_tts: { "*": NO_MARKUP },
+  openai: { "*": NO_MARKUP },
+};
+
+/**
+ * Resolve the text dialect for a voice. Unknown providers and models get
+ * NO_MARKUP: plain prose is understood by every engine, so the default is the
+ * one that is never wrong, only ever less expressive.
+ */
+export function ttsTextCapability(
+  provider: string,
+  modelId?: string | null,
+): TtsTextCapability {
+  const byModel = TEXT_CAPABILITIES[provider];
+  if (!byModel) return NO_MARKUP;
+  if (provider === "elevenlabs" && modelId) {
+    const id = modelId.toLowerCase();
+    if (id.includes("v3")) return byModel.v3!;
+    // "eleven_flash_v2" but not "eleven_flash_v2_5" — the trailing .5 is a
+    // different model with different support.
+    if (/flash[_-]v2$/.test(id)) return byModel.phoneme!;
+  }
+  return byModel[modelId ?? ""] ?? byModel["*"]!;
+}
+
+/**
+ * Strip markup this model cannot read, so it is never spoken aloud.
+ *
+ * Only bracket spans, and only when the model has no audio-tag notion. A
+ * narrator reading "open bracket laughs close bracket" is unambiguously worse
+ * than silence, whereas stripping a bracket that happened to be meaningful
+ * prose costs a parenthetical.
+ *
+ * Deliberately NOT stripped: `<break>`/`<phoneme>` on models that lack them.
+ * Nothing in this codebase emits them, so a stripper would be dead code
+ * standing between every line and its audio.
+ */
+export function sanitizeForTts(text: string, capability: TtsTextCapability): string {
+  if (capability.audioTags) return text;
+  // Non-greedy, single-line: a bracket left unclosed by a truncated generation
+  // must not swallow the remainder of the line.
+  return text.replace(/\[[^\]\n]*\]/g, " ").replace(/\s{2,}/g, " ").trim();
+}

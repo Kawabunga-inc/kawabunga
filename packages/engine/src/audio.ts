@@ -5,6 +5,12 @@
 import "./ws-env";
 import { getOpenAIClient } from "./openai-client";
 import {
+  sanitizeForTts,
+  ttsTextCapability,
+  voiceCapability,
+  type TtsTextCapability,
+} from "./voice-capabilities";
+import {
   SpeechToTextAdapter,
   StreamingTextToSpeechAdapter,
   StreamingTtsChunk,
@@ -1172,16 +1178,58 @@ export interface VoiceForRouting {
  * caller passes `voiceContext` straight into `adapter.stream()`. Throws
  * if the provider has no streaming adapter wired up yet.
  */
+/**
+ * Wrap an adapter so text is cleaned for the dialect its MODEL actually reads,
+ * before it can ever be spoken.
+ *
+ * Applied here rather than inside each adapter deliberately: a provider added
+ * later inherits this by construction, and there is no per-provider copy of
+ * the rule to forget. Every path to audio goes through this factory.
+ */
+function withTextDialect(
+  adapter: StreamingTextToSpeechAdapter,
+  provider: string,
+  modelId: string | null,
+): StreamingTextToSpeechAdapter {
+  const capability = ttsTextCapability(provider, modelId);
+  return {
+    stream(params) {
+      const text = sanitizeForTts(params.text, capability);
+      // A line that was ONLY markup sanitizes to empty. Passing that on bills a
+      // request and returns silence, so hand the original back instead: reading
+      // brackets aloud is bad, but a silent turn is worse.
+      return adapter.stream({ ...params, text: text || params.text });
+    },
+  };
+}
+
+/** The model this voice will actually be spoken by — the per-voice override
+ *  when set, else the provider default. Mirrors what each adapter resolves
+ *  internally, so the dialect matches the request that gets sent. */
+function resolvedModelIdFor(voice: VoiceForRouting): string | null {
+  const configured = (voice.providerConfig as { modelId?: unknown } | undefined)?.modelId;
+  if (typeof configured === "string" && configured.trim()) return configured.trim();
+  return voiceCapability(voice.provider).defaultModelId;
+}
+
 export function createStreamingTtsAdapterForVoice(voice: VoiceForRouting): {
   provider: StreamingTtsProvider;
   adapter: StreamingTextToSpeechAdapter;
   voiceContext: VoiceContext;
+  /** What markup the resolved model reads. Exposed so text PRODUCERS can ask
+   *  before writing, instead of writing one dialect and hoping. */
+  textCapability: TtsTextCapability;
 } {
+  const modelId = resolvedModelIdFor(voice);
+  const textCapability = ttsTextCapability(voice.provider, modelId);
+  const wrap = (adapter: StreamingTextToSpeechAdapter) =>
+    withTextDialect(adapter, voice.provider, modelId);
   switch (voice.provider) {
     case "pocket_tts": {
       return {
         provider: "pocket_tts",
-        adapter: new PocketTtsStreamingAdapter(),
+        textCapability,
+        adapter: wrap(new PocketTtsStreamingAdapter()),
         voiceContext: {
           slug: voice.slug,
           embeddingUrl: voice.embeddingUrl ?? null,
@@ -1191,7 +1239,8 @@ export function createStreamingTtsAdapterForVoice(voice: VoiceForRouting): {
     case "elevenlabs": {
       return {
         provider: "elevenlabs",
-        adapter: new ElevenLabsStreamingAdapter(),
+        textCapability,
+        adapter: wrap(new ElevenLabsStreamingAdapter()),
         voiceContext: {
           slug: voice.slug,
           providerConfig: voice.providerConfig,
@@ -1202,7 +1251,8 @@ export function createStreamingTtsAdapterForVoice(voice: VoiceForRouting): {
     case "cartesia": {
       return {
         provider: "cartesia",
-        adapter: new CartesiaStreamingAdapter(),
+        textCapability,
+        adapter: wrap(new CartesiaStreamingAdapter()),
         voiceContext: {
           slug: voice.slug,
           providerConfig: voice.providerConfig,
@@ -1213,7 +1263,8 @@ export function createStreamingTtsAdapterForVoice(voice: VoiceForRouting): {
     case "fish_audio": {
       return {
         provider: "fish_audio",
-        adapter: new FishAudioStreamingAdapter(),
+        textCapability,
+        adapter: wrap(new FishAudioStreamingAdapter()),
         voiceContext: {
           slug: voice.slug,
           providerConfig: voice.providerConfig,
