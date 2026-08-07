@@ -82,7 +82,7 @@ function SettingsOverlay({ onClose }: { onClose: () => void }) {
                     className="shrink-0 rounded-full"
                   />
                 ) : (
-                  <div className="h-11 w-11 shrink-0 rounded-full bg-gradient-to-br from-[#1a4a45] to-[#8fd1cb]" />
+                  <div className="h-11 w-11 shrink-0 rounded-full bg-gradient-to-br from-[#1a4a45] to-[var(--color-accent-strong)]" />
                 )}
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[15px] font-semibold text-white/90" style={{ fontFamily: heading }}>
@@ -152,7 +152,7 @@ function ProfileMenu() {
               className="shrink-0 rounded-full"
             />
           ) : (
-            <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-[#1a4a45] to-[#8fd1cb]" />
+            <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-[#1a4a45] to-[var(--color-accent-strong)]" />
           )}
           <div className="flex flex-1 flex-col items-start gap-px overflow-hidden">
             <span className="truncate text-[13px] font-medium text-white/80">
@@ -247,7 +247,7 @@ function MobileTopBar() {
       {session?.user?.image ? (
         <Image src={session.user.image} alt="" width={32} height={32} className="rounded-full" />
       ) : (
-        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1a4a45] to-[#8fd1cb]" />
+        <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1a4a45] to-[var(--color-accent-strong)]" />
       )}
     </div>
   );
@@ -265,7 +265,7 @@ function MobileBottomNav() {
             key={item.href}
             href={item.href}
             className={`flex flex-col items-center gap-1 ${
-              active ? "text-[#8fd1cb]" : "text-white/35"
+              active ? "text-[var(--color-accent-strong)]" : "text-white/35"
             }`}
           >
             {item.icon}
@@ -307,7 +307,7 @@ export function DashboardSidebar() {
                   href={item.href}
                   className={`flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-sm transition-colors ${
                     active
-                      ? "bg-[#8fd1cb]/10 font-medium text-[#8fd1cb]"
+                      ? "bg-[color-mix(in_srgb,var(--color-accent-strong)_10%,transparent)] font-medium text-[var(--color-accent-strong)]"
                       : "text-white/50 hover:bg-white/5 hover:text-white/70"
                   }`}
                 >

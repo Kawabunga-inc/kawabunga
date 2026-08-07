@@ -202,7 +202,7 @@ export function NewCharacterForm() {
       }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
           <div style={{
-            fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", fontWeight: 500, color: "#8FD1CB",
+            fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", fontWeight: 500, color: "var(--color-accent-strong)",
             letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "var(--space-4)",
           }}>
             Ingestion prompt · optional

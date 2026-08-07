@@ -23,6 +23,14 @@ export type VoiceSummary = {
    * pills. Empty array when unbound. The total count for the overflow
    * indicator lives on `boundCharacterCount`. */
   boundCharacters: BoundCharacterPreview[];
+  /* Tone descriptors, rendered as pills. */
+  tags: string[];
+  language: string | null;
+  /* Selects the within-provider pricing tier (ElevenLabs premium vs flash)
+   * and is shown beside the provider pill. Null = the provider default. */
+  modelId: string | null;
+  /* Whether /api/voices/:id/sample has anything to play. */
+  hasSample: boolean;
   createdAt: string;
   updatedAt: string;
 };

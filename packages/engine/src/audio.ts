@@ -22,7 +22,8 @@ export type StreamingTtsProvider =
   | "pocket_tts"
   | "elevenlabs"
   | "openai"
-  | "cartesia";
+  | "cartesia"
+  | "fish_audio";
 
 export const ELEVENLABS_DEFAULT_MODEL_ID = "eleven_flash_v2_5";
 export const POCKET_TTS_PUBLIC_BASE_URL = "https://audio-rt-production.up.railway.app";
@@ -33,6 +34,12 @@ export const POCKET_TTS_SAMPLE_RATE = 24000;
 export const CARTESIA_DEFAULT_MODEL_ID = "sonic-2";
 export const CARTESIA_DEFAULT_VERSION = "2024-11-13";
 export const CARTESIA_SAMPLE_RATE = 24000;
+// Fish Audio. `s2.1-pro` is their current flagship; `s1` measured marginally
+// faster to first audio but this is the better model and the gap is ~40ms.
+// Override per voice via providerConfig.modelId, or globally via
+// FISH_AUDIO_MODEL_ID.
+export const FISH_AUDIO_DEFAULT_MODEL_ID = "s2.1-pro";
+export const FISH_AUDIO_SAMPLE_RATE = 24000;
 const DEFAULT_TTS_FIRST_AUDIO_TIMEOUT_MS = 15_000;
 
 type StreamReadResult<T> =
@@ -982,6 +989,170 @@ export class CartesiaStreamingAdapter
   }
 }
 
+// ── Fish Audio streaming adapter ──────────────────────────────────────
+//
+// The cheap tier: 15 credits/1k against ElevenLabs' and Cartesia's 50, for
+// speech that lands ~290ms in. That trade — a third of the price for ~250ms
+// more latency than Cartesia — is why routing is per voice: put Fish on the
+// narrator, where the volume is and where nobody is waiting to interrupt.
+//
+// Unlike the other three this is plain HTTP, not a websocket. Fish's live
+// endpoint speaks msgpack, but `POST /v1/tts` accepts JSON, streams its body
+// chunked, and measured the same time-to-first-audio — so a msgpack
+// dependency would buy nothing. We ask for raw `pcm` at 24kHz, which is
+// s16le and already our pipeline's rate, so the only work per chunk is the
+// int16→float32 widening every other adapter also does.
+//
+// NOTE ON BILLING: Fish bills per UTF-8 *byte*, not per character. Latin
+// text is 1:1 so the 15 cr/1k in voice-capabilities holds, but non-Latin
+// scripts cost up to ~3x that.
+
+export interface FishAudioVoiceProviderConfig {
+  /** Fish's `reference_id` — the voice/model id from the Fish library. */
+  voiceId: string;
+  modelId?: string;
+  /** Fish's generation-latency mode. "balanced" is their streaming default. */
+  latency?: "normal" | "balanced";
+}
+
+export class FishAudioStreamingAdapter implements StreamingTextToSpeechAdapter {
+  async *stream({
+    text,
+    voice,
+    signal,
+  }: {
+    text: string;
+    voice: VoiceContext;
+    signal?: AbortSignal;
+  }): AsyncIterable<StreamingTtsChunk> {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const apiKey = process.env.FISH_AUDIO_API_KEY;
+    if (!apiKey) {
+      yield { type: "error", message: "FISH_AUDIO_API_KEY is not configured." };
+      return;
+    }
+
+    const config = (voice.providerConfig ?? {}) as Partial<FishAudioVoiceProviderConfig>;
+    if (!config.voiceId) {
+      yield {
+        type: "error",
+        message: `Fish Audio voice "${voice.slug}" is missing providerConfig.voiceId.`,
+      };
+      return;
+    }
+    const modelId =
+      config.modelId ??
+      (process.env.FISH_AUDIO_MODEL_ID?.trim() || FISH_AUDIO_DEFAULT_MODEL_ID);
+
+    const abort = new AbortController();
+    const onAbort = () => abort.abort(signal?.reason);
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    let resp: Response;
+    try {
+      resp = await fetch("https://api.fish.audio/v1/tts", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+          // Fish selects the backbone model by header, not in the body.
+          model: modelId,
+        },
+        body: JSON.stringify({
+          text: trimmed,
+          reference_id: config.voiceId,
+          format: "pcm",
+          sample_rate: FISH_AUDIO_SAMPLE_RATE,
+          latency: config.latency ?? "balanced",
+        }),
+        signal: abort.signal,
+      });
+    } catch (err) {
+      signal?.removeEventListener("abort", onAbort);
+      // An abort is the caller barging in, not a failure worth reporting.
+      if (signal?.aborted) return;
+      yield {
+        type: "error",
+        message: `Fish Audio request failed: ${err instanceof Error ? err.message : String(err)}`,
+      };
+      return;
+    }
+
+    if (!resp.ok || !resp.body) {
+      signal?.removeEventListener("abort", onAbort);
+      const detail = await resp.text().catch(() => "");
+      yield {
+        type: "error",
+        message: `Fish Audio ${resp.status}: ${detail.slice(0, 300) || "no body"}`,
+      };
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    let receivedAudio = false;
+    const firstAudioTimeoutMs = getTtsFirstAudioTimeoutMs();
+    // A chunk boundary can land mid-sample: s16le is 2 bytes and the
+    // transport doesn't care. Carrying the orphan byte into the next chunk
+    // is what keeps a split sample from shearing the waveform.
+    let carry: number | null = null;
+
+    try {
+      while (true) {
+        const next = receivedAudio
+          ? reader.read()
+          : readWithTimeout(reader, firstAudioTimeoutMs);
+        const { done, value } = await next;
+        if (done) break;
+        if (signal?.aborted) break;
+        if (!value || value.byteLength === 0) continue;
+
+        let bytes: Uint8Array = value;
+        if (carry !== null) {
+          const merged = new Uint8Array(value.byteLength + 1);
+          merged[0] = carry;
+          merged.set(value, 1);
+          bytes = merged;
+        }
+        carry = bytes.byteLength % 2 === 1 ? bytes[bytes.byteLength - 1]! : null;
+
+        const samples = (bytes.byteLength / 2) | 0;
+        if (samples === 0) continue;
+        const float32 = new Float32Array(samples);
+        const view = new DataView(bytes.buffer, bytes.byteOffset, samples * 2);
+        for (let i = 0; i < samples; i += 1) {
+          float32[i] = view.getInt16(i * 2, true) / 32768;
+        }
+
+        receivedAudio = true;
+        yield {
+          type: "audio",
+          pcmFloat32Base64: Buffer.from(
+            float32.buffer,
+            float32.byteOffset,
+            float32.byteLength,
+          ).toString("base64"),
+          samples,
+          sampleRate: FISH_AUDIO_SAMPLE_RATE,
+        };
+      }
+    } catch (err) {
+      await reader.cancel().catch(() => undefined);
+      if (!signal?.aborted) {
+        yield {
+          type: "error",
+          message: `Fish Audio stream failed: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
+    } finally {
+      signal?.removeEventListener("abort", onAbort);
+      // Abandoning mid-sentence must not leave the response draining.
+      if (signal?.aborted) abort.abort();
+    }
+  }
+}
+
 /**
  * Voice-level descriptor sufficient to dispatch to the right streaming
  * adapter. Constructed by the route from a `voices` row (+ a signed URL
@@ -1032,6 +1203,17 @@ export function createStreamingTtsAdapterForVoice(voice: VoiceForRouting): {
       return {
         provider: "cartesia",
         adapter: new CartesiaStreamingAdapter(),
+        voiceContext: {
+          slug: voice.slug,
+          providerConfig: voice.providerConfig,
+          voiceSettings: voice.voiceSettings ?? null,
+        },
+      };
+    }
+    case "fish_audio": {
+      return {
+        provider: "fish_audio",
+        adapter: new FishAudioStreamingAdapter(),
         voiceContext: {
           slug: voice.slug,
           providerConfig: voice.providerConfig,

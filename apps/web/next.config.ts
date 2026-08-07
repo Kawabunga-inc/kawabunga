@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     "@kawabunga/db",
     "@kawabunga/auth",
     "@kawabunga/engine",
+    "@kawabunga/live-scene",
     "@kawabunga/ui",
   ],
   images: {

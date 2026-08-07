@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "dotenv -e ../../.env -- next dev --webpack --port 3001",
+    "dev": "dotenv -e ../../.env -- node ../../scripts/with-dev-port.mjs admin -- next dev --webpack",
     "dev:preview": "NEXT_DIST_DIR=.next-preview dotenv -e ../../.env -- next dev --webpack",
     "build": "next build",
     "start": "next start"
@@ -13,11 +13,13 @@
     "@kawabunga/auth": "*",
     "@kawabunga/db": "*",
     "@kawabunga/engine": "*",
+    "@kawabunga/live-scene": "*",
     "@kawabunga/orchestration": "*",
     "@kawabunga/scene-player": "*",
     "@kawabunga/types": "*",
     "@kawabunga/ui": "*",
     "@kawabunga/utils": "*",
+    "@kawabunga/voice-pipeline": "*",
     "@kawabunga/wiki-curator": "*",
     "@kawabunga/wiki-ingest": "*",
     "@paper-design/shaders-react": "^0.0.72",

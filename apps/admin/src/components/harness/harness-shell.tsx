@@ -258,7 +258,7 @@ function PanelToggle({
         outlineOffset: -1,
         // Subtle active tint when the panel is visible so the user can read
         // "left: on, right: off" at a glance.
-        background: collapsed ? "transparent" : "rgba(140,231,210,0.06)",
+        background: collapsed ? "transparent" : "var(--color-accent-wash)",
         color: collapsed ? "var(--text-tertiary)" : "var(--foreground)",
         cursor: "pointer",
         flexShrink: 0,

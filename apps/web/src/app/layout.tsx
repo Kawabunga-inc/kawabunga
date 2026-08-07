@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     ],
     shortcut: [{ url: "/favicon.svg", type: "image/svg+xml" }],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-    other: [{ rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#8fd1cb" }],
+    other: [{ rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "rgb(143 209 203)" }],
   },
   openGraph: {
     title: "Kawabunga",
@@ -60,13 +60,13 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
   },
   other: {
-    "msapplication-TileColor": "#0c0e14",
+    "msapplication-TileColor": "rgb(19 24 29)",
     "msapplication-TileImage": "/mstile-150x150.png",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0c0e14",
+  themeColor: "rgb(19 24 29)",
 };
 
 export default function RootLayout({

@@ -25,6 +25,11 @@ export function selectVoiceAck(input: {
   // CONNECTION, not a topic — any canned topical ack is a non-sequitur.
   // Skip; the real reply is the acknowledgment.
   if (isChannelCheckMessage(message)) return null;
+  // Third-party-directed messages ("I have a message for your wife", "tell
+  // Sarah…") are not addressed to THIS character's topics - a first-person
+  // topical ack ("I can speak to that.") answers on someone else's behalf
+  // (observed live: Abraham acking a message meant for Sarah). Skip.
+  if (isThirdPartyDirectedMessage(message)) return null;
   const messageLower = message.toLowerCase();
   // Candidate entity pages (exclude the always-seeded *-voice-identity sheet —
   // its title is an editorial meta-name, not an in-world topic).
@@ -59,6 +64,23 @@ export function selectVoiceAck(input: {
 }
 
 /** Meta-questions about the audio channel itself, not the character's world. */
+/** A message aimed THROUGH this character at someone else: "a message for
+ *  your wife", "tell Sarah...", "give this to Eliezer". Deliberately narrow -
+ *  a false positive only skips one canned ack. */
+export function isThirdPartyDirectedMessage(message: string): boolean {
+  const text = message.trim();
+  // "...for your wife/husband/wife Sarah/the old man" - possessive or named
+  // recipient after "for" that is not the speaker or the addressed character.
+  if (/\b(message|word|news|letter|question|gift|something)\s+(?:is\s+)?for\s+(?!you\b|me\b)/i.test(text)) {
+    return true;
+  }
+  // Imperative relay: "tell/ask/give/bring/fetch <someone>" (not "tell me").
+  if (/^(?:please\s+)?(?:tell|ask|give|bring|fetch|send)\s+(?!me\b|us\b)[a-z]/i.test(text)) {
+    return true;
+  }
+  return false;
+}
+
 function isChannelCheckMessage(message: string): boolean {
   const normalized = message.trim().toLowerCase().replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
   return (

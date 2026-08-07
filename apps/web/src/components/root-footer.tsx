@@ -30,7 +30,7 @@ export function RootFooter() {
       <div className="relative z-10 flex flex-1 items-center py-14 sm:py-20">
         <div className="max-w-5xl">
           <p
-            className="text-[10px] uppercase tracking-[0.22em] text-[#8fd1cb]"
+            className="text-[10px] uppercase tracking-[0.22em] text-[var(--color-accent-strong)]"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             One engine, infinite realities

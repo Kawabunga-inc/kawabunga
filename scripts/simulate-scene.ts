@@ -310,6 +310,11 @@ async function main() {
     // Let the dramaturg land before the next turn so its note/arc updates
     // influence the NEXT decision deterministically.
     await driver.settleReflection();
+    // TIMED world events: the live host wakes on a timer; headless, we fire
+    // any event that has come due between scripted turns.
+    if (driver.nextWorldEventDueInMs() === 0) {
+      await driver.driveProactive(speak);
+    }
     const after = latestSnapshot?.sceneState;
     if (after?.directorNote && after.directorNote !== before?.directorNote) {
       console.log(magenta(`▸ dramaturg: ${after.directorNote}`));

@@ -48,19 +48,19 @@ const BORDER_STRONG = "rgba(255, 255, 255, 0.12)";
 const DIVIDER = "rgba(255, 255, 255, 0.06)";
 const INPUT_BG = "rgba(255, 255, 255, 0.02)";
 
-const ACCENT = "#8FD1CB";
-const ACCENT_SOFT = "rgba(140, 231, 210, 0.06)";
-const ACCENT_RING = "rgba(140, 231, 210, 0.3)";
+const ACCENT = "var(--color-accent-strong)";
+const ACCENT_SOFT = "var(--color-accent-wash)";
+const ACCENT_RING = "var(--color-accent-border)";
 
 const DANGER = "#f87171";
 const DANGER_SOFT = "rgba(248, 113, 113, 0.06)";
 const DANGER_RING = "rgba(248, 113, 113, 0.36)";
 
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--color-accent-strong)",
   event: "#60A5FA",
   concept: "#A78BFA",
-  relationship: "#FACC15",
+  relationship: "var(--color-status-draft)",
   timeline: "#2DD4BF",
   voice_identity: "#F472B6",
 };
@@ -1283,7 +1283,7 @@ function MarkdownBody({
                     color: target ? ACCENT : DANGER,
                     fontFamily: "inherit",
                     fontSize: "inherit",
-                    borderBottom: `1px dashed ${target ? "rgba(140, 231, 210, 0.5)" : "rgba(248, 113, 113, 0.5)"}`,
+                    borderBottom: `1px dashed ${target ? "color-mix(in srgb, var(--color-accent-strong) 50%, transparent)" : "rgba(248, 113, 113, 0.5)"}`,
                   }}
                   title={target ? `→ ${target.title}` : `broken wikilink: ${wiki.slug}`}
                 >
@@ -1735,7 +1735,7 @@ function SaveBar({
         padding: "0 18px",
         background: PANEL_BG,
         border: `1px solid ${ACCENT_RING}`,
-        boxShadow: "inset 0 -2px 0 rgba(140, 231, 210, 0.18)",
+        boxShadow: "inset 0 -2px 0 color-mix(in srgb, var(--color-accent-strong) 18%, transparent)",
       }}
     >
       <div
@@ -2512,7 +2512,7 @@ function TagInput({
             style={{
               border: "none",
               background: "transparent",
-              color: "rgba(140, 231, 210, 0.55)",
+              color: "color-mix(in srgb, var(--color-accent-strong) 55%, transparent)",
               cursor: "pointer",
               padding: 0,
               fontSize: "var(--font-size-base)",
@@ -2692,7 +2692,7 @@ function SaveStateCard({
         display: "flex",
         flexDirection: "column",
         border: `1px solid ${ACCENT_RING}`,
-        background: "rgba(140, 231, 210, 0.04)",
+        background: "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)",
       }}
     >
       <div
@@ -2701,7 +2701,7 @@ function SaveStateCard({
           alignItems: "center",
           gap: "var(--space-10)",
           padding: "12px 16px",
-          borderBottom: `1px solid rgba(140, 231, 210, 0.18)`,
+          borderBottom: `1px solid color-mix(in srgb, var(--color-accent-strong) 18%, transparent)`,
           color: FG,
           fontFamily: MONO,
           fontSize: "var(--font-size-sm)",
@@ -2712,7 +2712,7 @@ function SaveStateCard({
       >
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: ACCENT }} />
         <span>Save state</span>
-        <span style={{ flex: 1, height: 1, background: "rgba(140, 231, 210, 0.14)" }} />
+        <span style={{ flex: 1, height: 1, background: "var(--color-accent-fill)" }} />
         <span style={{ color: ACCENT }}>
           {pending ? "SAVING" : dirty ? "UNSAVED" : "IN SYNC"}
         </span>
@@ -2775,7 +2775,7 @@ function SaveStateCard({
           alignItems: "center",
           gap: "var(--space-10)",
           padding: "10px 16px",
-          borderTop: `1px solid rgba(140, 231, 210, 0.14)`,
+          borderTop: `1px solid var(--color-accent-fill)`,
           color: TEXT_MUTED,
           fontFamily: MONO,
           fontSize: "var(--font-size-xs)",

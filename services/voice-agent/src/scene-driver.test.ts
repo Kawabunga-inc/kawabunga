@@ -8,17 +8,29 @@ import type {
 import type {
   OrchestratorExecutorResolution,
   SceneDecisionRequest,
+  SceneJournalEntry,
   SceneSessionSnapshot,
 } from "@kawabunga/orchestration";
-import type { OrchestratorDecision, Scene, SfxCue } from "@kawabunga/types";
+import type {
+  OrchestratorDecision,
+  Scene,
+  SessionCostEntry,
+  SfxCue,
+} from "@kawabunga/types";
 
 // Kill the env-driven dramaturg BEFORE the driver module loads its flags —
 // tests that want reflection inject a fake provider via deps instead.
 vi.hoisted(() => {
   process.env.VOICE_AGENT_DRAMATURG = "0";
+  process.env.VOICE_AGENT_CASCADE_MAX = "3";
 });
 
-import { SceneDriver, type SceneSpeakInput } from "./scene-driver";
+import {
+  SceneDriver,
+  resolveDramaturgModel,
+  resolveReactionModel,
+  type SceneSpeakInput,
+} from "./scene-driver";
 
 /* ── Fixtures ─────────────────────────────────────────────────────── */
 
@@ -99,10 +111,25 @@ function fakeSpeak(replies: string[] | ((input: SceneSpeakInput) => string)) {
   return { speak, inputs };
 }
 
-const speakDecision = (speakerId: string, beat?: string): OrchestratorDecision => ({
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+const speakDecision = (
+  speakerId: string,
+  beat?: string,
+  delivery?: OrchestratorDecision["delivery"],
+): OrchestratorDecision => ({
   action: "speak",
   speakerId,
   ...(beat ? { beat } : {}),
+  ...(delivery ? { delivery } : {}),
 });
 
 /** A ChatProvider whose `complete` returns fixed text — for the dramaturg
@@ -134,7 +161,10 @@ function lastDialogue(requests: SceneDecisionRequest[]): string {
 
 describe("SceneDriver — speaker turns", () => {
   it("routes a speak decision to the chosen character and records the reply", async () => {
-    const exec = fakeExecutor([speakDecision("sarah", "Deny the laugh"), speakDecision("abraham")]);
+    const exec = fakeExecutor([
+      speakDecision("sarah", "Deny the laugh", "brief"),
+      speakDecision("abraham"),
+    ]);
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
@@ -148,6 +178,7 @@ describe("SceneDriver — speaker turns", () => {
     expect(inputs[0]!.speaker).toEqual({ slug: "sarah", name: "Sarah" });
     expect(inputs[0]!.message).toBe("Sarah, did you laugh?");
     expect(inputs[0]!.promptChunk).toContain("Direction: Deny the laugh");
+    expect(inputs[0]!.promptChunk).toContain("Delivery: brief");
 
     // The reply is in the transcript the NEXT decision sees.
     await driver.drive("And what do you say, Abraham?", speak);
@@ -259,9 +290,69 @@ describe("SceneDriver — opening", () => {
 });
 
 describe("SceneDriver — narration", () => {
+  it("denies narrator-addressed world fiat when user director powers are off", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham drops to his knees.",
+        narrationKind: "event",
+      },
+    ]);
+    const driver = SceneDriver.fromScene({ ...TENT, userDirector: false }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["Why are you commanding me to kneel?"]);
+
+    const outcome = await driver.drive("Narrator, Abraham falls to his knees.", speak);
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(narrated).toEqual([]);
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.speaker.slug).toBe("abraham");
+    expect(journal[0]!.payload).toMatchObject({
+      trigger: "user-turn",
+      recovered: "director-denied",
+      decision: { action: "speak", speakerId: "abraham" },
+    });
+  });
+
+  it("still renders the visitor's own action when director powers are off", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "You place the waterskin in Sarah's hands.",
+        narrationKind: "event",
+      },
+      speakDecision("sarah", "Accept the offered water"),
+    ]);
+    const driver = SceneDriver.fromScene({ ...TENT, userDirector: false }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    const { speak, inputs } = fakeSpeak(["Thank you."]);
+
+    await driver.drive("Narrator, I hand Sarah the waterskin.", speak);
+    expect(narrated).toEqual(["You place the waterskin in Sarah's hands."]);
+    expect(inputs[0]!.speaker.slug).toBe("sarah");
+  });
+
   it("voices a narration, then CHAINS one decision so a character reacts", async () => {
     const exec = fakeExecutor([
-      { action: "narrate", narration: "The lamp tips; oil flares on the stones." },
+      {
+        action: "narrate",
+        narration: "Abraham buckles beneath the presence within him.",
+        narrationKind: "event",
+      },
       speakDecision("sarah", "React to the sudden fire"),
     ]);
     const driver = SceneDriver.fromScene(TENT, {
@@ -269,22 +360,96 @@ describe("SceneDriver — narration", () => {
       resolveCharacter: fakeCharacters(),
     });
     const narrated: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onJournal((entry) => journal.push(entry));
     driver.onNarrate(async (text) => {
       narrated.push(text);
     });
     const { speak, inputs } = fakeSpeak(["The rugs! Stamp it out!"]);
 
-    const outcome = await driver.drive("I knock over the oil lamp.", speak);
+    const outcome = await driver.drive(
+      "Narrator, Abraham becomes overwhelmed by a presence within him.",
+      speak,
+    );
     expect(outcome).toEqual({ action: "speak", spoke: true });
-    expect(narrated).toEqual(["The lamp tips; oil flares on the stones."]);
+    expect(narrated).toEqual(["Abraham buckles beneath the presence within him."]);
     expect(exec.calls).toBe(2); // decision + one chained follow-up
     expect(inputs).toHaveLength(1);
     expect(inputs[0]!.characterId).toBe("id-sarah");
     // The speaker perceives the narration as a bracketed stage direction.
-    expect(inputs[0]!.message).toBe("[The lamp tips; oil flares on the stones.]");
+    expect(inputs[0]!.message).toBe("[Abraham buckles beneath the presence within him.]");
+    expect(journal[0]!.payload).toMatchObject({
+      trigger: "user-turn",
+      decision: { action: "narrate", narrationKind: "event" },
+    });
+    const sequentialChain = journal.find((entry) => entry.payload.trigger === "chain")!;
+    expect(sequentialChain.payload).not.toHaveProperty("narrationAudioMs");
+    expect(sequentialChain.payload).not.toHaveProperty("reactionReadyMs");
+    expect(sequentialChain.payload).not.toHaveProperty("gapMs");
 
     await driver.drive("Is everyone alright?", speak);
-    expect(lastDialogue(exec.requests)).toContain("Narrator: The lamp tips");
+    expect(lastDialogue(exec.requests)).toContain("Narrator: Abraham buckles");
+  });
+
+  it("chains a narrator-addressed declaration even when the classifier tags it answer", async () => {
+    // Observed in eval: "Narrator, as I speak, Abraham SEES a vision…" was
+    // tagged `answer` (perception verb) — the form-based override must chain.
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "A luminous spirit flickers within your chest; Abraham's breath catches.",
+        narrationKind: "answer",
+      },
+      speakDecision("abraham", "React to the vision"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    const { speak, inputs } = fakeSpeak(["What spirit is this that fills my sight?"]);
+
+    const outcome = await driver.drive(
+      "Narrator, as I speak, Abraham sees a vision of a spirit within me and becomes overwhelmed.",
+      speak,
+    );
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(narrated).toHaveLength(1);
+    expect(exec.calls).toBe(2); // narration + the chained reaction
+    expect(inputs[0]!.speaker.slug).toBe("abraham");
+  });
+
+  it("denies fiat when director powers are off even when the classifier tags it answer", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "A luminous spirit flickers within your chest.",
+        narrationKind: "answer",
+      },
+    ]);
+    const driver = SceneDriver.fromScene({ ...TENT, userDirector: false }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["I see no spirit — only a weary traveler."]);
+
+    const outcome = await driver.drive(
+      "Narrator, as I speak, Abraham sees a vision of a spirit within me and becomes overwhelmed.",
+      speak,
+    );
+    expect(outcome).toEqual({ action: "speak", spoke: true });
+    expect(narrated).toEqual([]);
+    expect(inputs[0]!.speaker.slug).toBe("abraham");
+    expect(journal[0]!.payload).toMatchObject({ recovered: "director-denied" });
   });
 
   it("bounds the chain: a chained narrate is applied but never chains again", async () => {
@@ -323,6 +488,51 @@ describe("SceneDriver — narration", () => {
     expect(outcome).toEqual({ action: "narrate", spoke: true });
     expect(exec.calls).toBe(1); // the answer is complete — no chained decision
     expect(inputs).toHaveLength(0);
+  });
+
+  it("holds when the director classifies narration as an answer", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Oaks, firelight, and a watching old man.",
+        narrationKind: "answer",
+      },
+      speakDecision("abraham", "must not run"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(async () => undefined);
+    const { speak, inputs } = fakeSpeak(["unused"]);
+
+    const outcome = await driver.drive("What happens next?", speak);
+    expect(outcome).toEqual({ action: "narrate", spoke: true });
+    expect(exec.calls).toBe(1);
+    expect(inputs).toHaveLength(0);
+  });
+
+  it("honors momentum when a classified answer does not event-chain", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Beyond the ridge, a second column of smoke rises.",
+        narrationKind: "answer",
+        momentum: true,
+      },
+      speakDecision("abraham", "Recognize the urgent signal"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["That signal is meant for us."]);
+
+    const outcome = await driver.drive("Narrator, what do I see beyond the ridge?", speak);
+    expect(outcome).toEqual({ action: "narrate", spoke: true });
+    expect(inputs.map((input) => input.speaker.slug)).toEqual(["abraham"]);
+    expect(exec.requests[1]!.messages[1]!.content).toContain("MID-CASCADE");
   });
 
   it("never leaves dead air: a chained hold after an event becomes a reaction", async () => {
@@ -450,8 +660,394 @@ describe("SceneDriver — narration", () => {
   });
 });
 
+describe("SceneDriver — irreversible consequence protocol", () => {
+  it("seeds state, forces an expansive affected reaction, cascades, and reflects off-cadence", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham falls lifeless beside the fire.",
+        narrationKind: "event",
+        weight: "irreversible",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const reflections: ChatRequestOptions[] = [];
+    const dramaturg: ChatProvider = {
+      ...fakeChatProvider(""),
+      complete: async (options: ChatRequestOptions): Promise<ChatResponse> => {
+        reflections.push(options);
+        return {
+          text: [
+            "STORY: Abraham died beside the fire as Sarah watched.",
+            "THREAD: Sarah must decide what Abraham's death asks of her.",
+            "STATE: sarah: grieving — she watched Abraham die beside their fire",
+            "STATE: abraham: peaceful — his struggle is over",
+            "STATE: visitor: guilty — they caused the blow",
+            "NOTE: Let Sarah's grief reorder every remaining intention.",
+          ].join("\n"),
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheReadTokens: 0,
+          cacheCreationTokens: 0,
+          cacheState: "off",
+          model: "fake-dramaturg",
+          latencyMs: 1,
+        };
+      },
+    } as unknown as ChatProvider;
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      dramaturgProvider: dramaturg,
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Abraham—no. Not yet."]);
+
+    const outcome = await driver.drive("I strike Abraham down.", speak);
+    await driver.settleReflection();
+
+    expect(outcome.spoke).toBe(true);
+    expect(exec.calls).toBe(2); // event + mandatory cascade check (solo reaction needs no call)
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.speaker.slug).toBe("sarah");
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
+    expect(inputs[0]!.promptChunk).toContain(
+      "Your state right now: reeling — Abraham falls lifeless beside the fire.",
+    );
+    expect(
+      snapshots.some(
+        (snapshot) =>
+          snapshot.sceneState.characterStates?.sarah ===
+          "reeling — Abraham falls lifeless beside the fire.",
+      ),
+    ).toBe(true);
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates).toEqual({
+      sarah: "grieving — she watched Abraham die beside their fire",
+    });
+    expect(reflections).toHaveLength(1); // one spoken turn, below normal cadence
+    const reflectionUser = reflections[0]!.messages[0]!.content;
+    expect(reflectionUser).toContain(
+      "An irreversible event just occurred: Abraham falls lifeless beside the fire.",
+    );
+    const firstDecision = journal.find((entry) => entry.payload.trigger === "user-turn")!;
+    expect(firstDecision.payload.decision).toMatchObject({ weight: "irreversible" });
+    const reactionDecision = journal.find((entry) => entry.payload.trigger === "chain")!;
+    expect(reactionDecision.payload).toMatchObject({
+      recovered: "consequence-protocol",
+      decision: { action: "speak", speakerId: "sarah", delivery: "expansive" },
+    });
+    const reflectionEntry = journal.find((entry) => entry.type === "scene.reflection")!;
+    expect(reflectionEntry.payload.statesChanged).toEqual([
+      { slug: "sarah", state: "grieving — she watched Abraham die beside their fire" },
+    ]);
+  });
+
+  it("arms for an exit attached to a major event", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham collapses and cannot rise.",
+        narrationKind: "event",
+        weight: "major",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Abraham!"]);
+
+    await driver.drive("The blow lands.", speak);
+
+    expect(exec.calls).toBe(2); // event + mandatory cascade check
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
+    expect(snapshots[0]!.sceneState.characterStates?.sarah).toContain(
+      "reeling — Abraham collapses and cannot rise.",
+    );
+    expect(
+      journal.find((entry) => entry.payload.trigger === "chain")?.payload.recovered,
+    ).toBe("consequence-protocol");
+  });
+
+  it("uses the death/incapacitation exit heuristic when legacy output omits weight", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham dies before Sarah can reach him.",
+        narrationKind: "event",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["No—Abraham!"]);
+
+    await driver.drive("It is done.", speak);
+
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
+    expect(snapshots[0]!.sceneState.characterStates?.sarah).toContain(
+      "reeling — Abraham dies before Sarah can reach him.",
+    );
+  });
+
+  it("does not arm for a minor walk-out", async () => {
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham steps out into the night.",
+        narrationKind: "event",
+        weight: "minor",
+        exitSlug: "abraham",
+      },
+      speakDecision("sarah", "Watch him leave.", "brief"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Let him go."]);
+
+    await driver.drive("He leaves.", speak);
+
+    expect(exec.calls).toBe(1); // the lone remaining character uses the chain fastpath
+    expect(inputs[0]!.promptChunk).not.toContain("Delivery: expansive");
+    expect(snapshots.every((snapshot) => !snapshot.sceneState.characterStates)).toBe(true);
+  });
+});
+
+describe("SceneDriver — pipelined narration reactions", () => {
+  it("generates under playback and releases audio only after narration ends", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "The lamp bursts into blue flame.", narrationKind: "event" },
+      speakDecision("sarah", "React to the impossible flame"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      reactionModel: "claude-haiku-4-5",
+    });
+    const playback = deferred();
+    const events: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onJournal((entry) => journal.push(entry));
+    driver.onNarrate(async () => {
+      events.push("narration-start");
+      await playback.promise;
+      events.push("narration-end");
+    }, { realtimePlayback: true });
+    const inputs: SceneSpeakInput[] = [];
+    const speak = async (input: SceneSpeakInput) => {
+      inputs.push(input);
+      events.push("reaction-ready");
+      input.audioGate!.onReady();
+      await input.audioGate!.waitUntilOpen;
+      input.audioGate!.onAudioStart();
+      events.push("reaction-audio");
+      return "What fire burns blue?";
+    };
+
+    const inFlight = driver.drive("I touch the lamp.", speak);
+    await vi.waitFor(() => expect(events).toContain("reaction-ready"));
+    expect(exec.calls).toBe(2);
+    expect(events).toEqual(["narration-start", "reaction-ready"]);
+    expect(inputs[0]!.model).toBe("claude-haiku-4-5");
+    expect(inputs[0]!.sceneFeatures?.reactionModel).toContain("claude-haiku-4-5");
+
+    playback.resolve(undefined);
+    await expect(inFlight).resolves.toEqual({ action: "speak", spoke: true });
+    expect(events).toEqual([
+      "narration-start",
+      "reaction-ready",
+      "narration-end",
+      "reaction-audio",
+    ]);
+    const chain = journal.find((entry) => entry.payload.trigger === "chain")!;
+    expect(chain.payload).toMatchObject({
+      narrationAudioMs: expect.any(Number),
+      reactionReadyMs: expect.any(Number),
+      gapMs: expect.any(Number),
+    });
+  });
+
+  it("waits only for residual generation when narration finishes first", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "The ridge gives way.", narrationKind: "event" },
+      speakDecision("abraham", "React to the collapse"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const playback = deferred();
+    const generation = deferred();
+    const events: string[] = [];
+    driver.onNarrate(async () => {
+      await playback.promise;
+      events.push("narration-end");
+    }, { realtimePlayback: true });
+    const speak = async (input: SceneSpeakInput) => {
+      events.push("generation-start");
+      await generation.promise;
+      events.push("reaction-ready");
+      input.audioGate!.onReady();
+      await input.audioGate!.waitUntilOpen;
+      input.audioGate!.onAudioStart();
+      events.push("reaction-audio");
+      return "Run!";
+    };
+
+    const inFlight = driver.drive("I strike the ridge.", speak);
+    await vi.waitFor(() => expect(events).toContain("generation-start"));
+    playback.resolve(undefined);
+    await vi.waitFor(() => expect(events).toContain("narration-end"));
+    expect(events).not.toContain("reaction-audio");
+    generation.resolve(undefined);
+    await inFlight;
+    expect(events).toEqual([
+      "generation-start",
+      "narration-end",
+      "reaction-ready",
+      "reaction-audio",
+    ]);
+  });
+
+  it("discards a ready reaction when the user barges in during narration", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "A blade flashes.", narrationKind: "event" },
+      speakDecision("sarah", "React"),
+      speakDecision("abraham", "Answer the new turn"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const playback = deferred();
+    const abort = new AbortController();
+    const journal: SceneJournalEntry[] = [];
+    const audio: string[] = [];
+    driver.onJournal((entry) => journal.push(entry));
+    driver.onNarrate(async () => playback.promise, { realtimePlayback: true });
+    const hiddenSpeak = async (input: SceneSpeakInput) => {
+      input.audioGate!.onReady();
+      await input.audioGate!.waitUntilOpen;
+      if (!abort.signal.aborted) {
+        input.audioGate!.onAudioStart();
+        audio.push("played");
+      }
+      return "This line must be discarded.";
+    };
+
+    const inFlight = driver.drive("I draw the blade.", hiddenSpeak, { signal: abort.signal });
+    await vi.waitFor(() => expect(exec.calls).toBe(2));
+    abort.abort();
+    driver.cancelActiveWork();
+    playback.resolve(undefined);
+    await expect(inFlight).resolves.toMatchObject({ superseded: true, spoke: true });
+    expect(audio).toEqual([]);
+    expect(journal.filter((entry) => entry.payload.trigger === "chain")).toEqual([]);
+
+    const next = fakeSpeak(["I am here."]);
+    await driver.drive("Are you there?", next.speak);
+    expect(lastDialogue(exec.requests)).not.toContain("This line must be discarded.");
+  });
+
+  it("retries sequentially after a speculative chain failure", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "Thunder splits the night.", narrationKind: "event" },
+      Promise.reject(new Error("director unavailable")),
+      speakDecision("abraham", "React after retry"),
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const playback = deferred();
+    driver.onNarrate(async () => playback.promise, { realtimePlayback: true });
+    const { speak, inputs } = fakeSpeak(["The heavens answer."]);
+
+    const inFlight = driver.drive("I call for a sign.", speak);
+    await vi.waitFor(() => expect(exec.calls).toBe(2));
+    expect(inputs).toHaveLength(0);
+    playback.resolve(undefined);
+    await expect(inFlight).resolves.toEqual({ action: "speak", spoke: true });
+    expect(exec.calls).toBe(3);
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]!.audioGate).toBeUndefined();
+  });
+
+  it("keeps ordinary reactive turns on the normal brain model", async () => {
+    const exec = fakeExecutor([speakDecision("abraham")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      reactionModel: "claude-haiku-4-5",
+    });
+    const { speak, inputs } = fakeSpeak(["Welcome."]);
+    await driver.drive("Hello.", speak);
+    expect(inputs[0]!.model).toBeUndefined();
+    expect(inputs[0]!.sceneFeatures?.reactionModel).toBeUndefined();
+  });
+});
+
 
 describe("SceneDriver — supersession", () => {
+  it("does not apply a narrated-event chain decision after supersession", async () => {
+    let releaseChain!: (decision: OrchestratorDecision) => void;
+    const pendingChain = new Promise<OrchestratorDecision>((resolve) => {
+      releaseChain = resolve;
+    });
+    const exec = fakeExecutor([
+      {
+        action: "narrate",
+        narration: "Abraham falls to his knees.",
+        narrationKind: "event",
+      },
+      pendingChain,
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => undefined);
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["This must not be heard."]);
+
+    const inFlight = driver.drive("Narrator, Abraham falls to his knees.", speak);
+    await vi.waitFor(() => expect(exec.calls).toBe(2));
+    const snapshotsBeforeCancel = snapshots.length;
+    driver.cancelActiveWork();
+    releaseChain({ ...speakDecision("sarah", "React"), exitSlug: "abraham" });
+
+    await expect(inFlight).resolves.toMatchObject({ superseded: true });
+    expect(snapshots).toHaveLength(snapshotsBeforeCancel);
+    expect(inputs).toHaveLength(0);
+    expect(journal.filter((entry) => entry.payload.trigger === "chain")).toHaveLength(0);
+  });
+
   it("a newer drive supersedes an in-flight one before its decision applies", async () => {
     let releaseFirst!: (d: OrchestratorDecision) => void;
     const first = new Promise<OrchestratorDecision>((r) => {
@@ -511,8 +1107,8 @@ describe("SceneDriver — speculation", () => {
     });
     const { speak } = fakeSpeak(["I heard no laugh."]);
 
-    driver.speculate("Sarah, did you laugh at the");
-    await driver.drive("Sarah, did you laugh at the promise?", speak);
+    driver.speculate("Sarah, did you laugh at the promise today");
+    await driver.drive("Sarah, did you laugh at the promise today?", speak);
     expect(exec.calls).toBe(1); // the speculative call was reused
   });
 
@@ -524,7 +1120,7 @@ describe("SceneDriver — speculation", () => {
     });
     const { speak, inputs } = fakeSpeak(["Welcome, traveler."]);
 
-    driver.speculate("Sarah, did you");
+    driver.speculate("Sarah, did you laugh at the promise today");
     await driver.drive("Abraham, tell me of the strangers.", speak);
     expect(exec.calls).toBe(2); // speculative + fresh final call
     expect(inputs[0]!.characterId).toBe("id-abraham");
@@ -564,8 +1160,8 @@ describe("SceneDriver — solo scenes", () => {
     });
     const { speak, inputs } = fakeSpeak(["Doubt? Yes... I know doubt."]);
 
-    driver.speculate("Do you ever doubt the promise");
-    await driver.drive("Do you ever doubt the promise you were given?", speak);
+    driver.speculate("Do you ever truly doubt the promise you received");
+    await driver.drive("Do you ever truly doubt the promise you received?", speak);
     expect(exec.calls).toBe(1);
     expect(inputs[0]!.promptChunk).toContain("Direction: Let the doubt show");
   });
@@ -578,14 +1174,37 @@ describe("SceneDriver — solo scenes", () => {
     });
     const { speak, inputs } = fakeSpeak(["unused"]);
 
-    driver.speculate("Farewell, Abraham, I must go now");
-    const outcome = await driver.drive("Farewell, Abraham, I must go now.", speak);
+    driver.speculate("Farewell, Abraham, I truly must leave this place now");
+    const outcome = await driver.drive("Farewell, Abraham, I truly must leave this place now.", speak);
     expect(outcome.action).toBe("end-scene");
     expect(inputs).toHaveLength(0);
   });
 });
 
 describe("SceneDriver — proactive turns", () => {
+  it("uses narrator initiative pacing and names a played role in proactive cues", async () => {
+    const roleScene: Scene = {
+      ...TENT,
+      initiative: "narrator",
+      userRole: "character",
+      userCharacter: { name: "Miriam", blurb: "A royal archivist." },
+    };
+    const exec = fakeExecutor([speakDecision("abraham", "Challenge the decree")]);
+    const driver = SceneDriver.fromScene(roleScene, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(["That seal proves nothing, Miriam."]);
+
+    expect(driver.pacing()).toEqual({ idleMs: 2_000 });
+    await driver.driveProactive(speak);
+    expect(inputs[0]!.promptChunk).toContain(
+      "unmarked lines are Miriam, the role the visitor plays",
+    );
+    expect(inputs[0]!.promptChunk).toContain('"you"/"your" refers to Miriam');
+    expect(SceneDriver.fromScene(TENT).pacing()).toEqual({ idleMs: 3_500 });
+  });
+
   it("respects a wait-for-user decision (hold)", async () => {
     const exec = fakeExecutor([{ action: "wait-for-user" }]);
     const driver = SceneDriver.fromScene(TENT, {
@@ -600,7 +1219,7 @@ describe("SceneDriver — proactive turns", () => {
   });
 
   it("voices a proactive follow-up with the silence framing", async () => {
-    const exec = fakeExecutor([speakDecision("abraham", "Re-engage gently")]);
+    const exec = fakeExecutor([speakDecision("abraham", "Re-engage gently", "expansive")]);
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
@@ -611,6 +1230,7 @@ describe("SceneDriver — proactive turns", () => {
     expect(spoke).toBe(true);
     expect(inputs[0]!.message).toBe("(The user has gone quiet.)");
     expect(inputs[0]!.promptChunk).toContain("Direction: Re-engage gently");
+    expect(inputs[0]!.promptChunk).toContain("Delivery: expansive");
   });
 
   it("holds instead of echoing refusal boilerplate", async () => {
@@ -626,6 +1246,51 @@ describe("SceneDriver — proactive turns", () => {
     const spoke = await driver.driveProactive(speak);
     expect(spoke).toBe(false);
     expect(exec.calls).toBe(callsBefore); // held without consulting the director
+  });
+
+  // A tick the runtime declines used to leave no trace, so a scene that kept
+  // yielding the floor read exactly like one whose narrator never woke up
+  // (session a726ec1b: 2 journalled decisions against 28 director calls).
+  it("journals a declined proactive tick with its reason", async () => {
+    const exec = fakeExecutor([speakDecision("abraham"), speakDecision("abraham")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const journal: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak } = fakeSpeak(["I'm sorry, but I can't help with that."]);
+
+    await driver.drive("Hello?", speak);
+    journal.length = 0;
+    await driver.driveProactive(speak);
+
+    const suppressed = journal.find((e) => e.type === "scene.proactive.suppressed");
+    expect(suppressed?.payload.reason).toBe("refusal-echo");
+    // No director call was made, so nothing was paid for before standing down.
+    expect(suppressed?.payload.decisionSpent).toBe(false);
+  });
+
+  it("marks a suppression that already paid for a director call", async () => {
+    // Superseded AFTER deciding: the round trip is spent, and the journal has
+    // to say so — otherwise a costly abandoned tick looks like a cheap skip.
+    const exec = fakeExecutor([speakDecision("abraham")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const journal: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak } = fakeSpeak(["unused"]);
+
+    const controller = new AbortController();
+    const pending = driver.driveProactive(speak, { signal: controller.signal });
+    controller.abort(); // the user takes the floor mid-deliberation
+    await pending;
+
+    const suppressed = journal.find((e) => e.type === "scene.proactive.suppressed");
+    expect(suppressed?.payload.reason).toBe("superseded");
+    expect(suppressed?.payload.decisionSpent).toBe(true);
   });
 });
 
@@ -736,6 +1401,38 @@ describe("SceneDriver — degraded-decision recovery", () => {
   });
 });
 
+describe("SceneDriver — cost ledger", () => {
+  it("emits the director usage returned by the provider", async () => {
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: () => ({
+        executor: {
+          provider: "cerebras",
+          model: "gpt-oss-120b",
+          execute: async (_request, opts) => {
+            opts?.onUsage?.({ inputTokens: 1_000, outputTokens: 100, cacheReadTokens: 0 });
+            return speakDecision("abraham");
+          },
+        },
+      }),
+      resolveCharacter: fakeCharacters(),
+    });
+    const costs: SessionCostEntry[] = [];
+    driver.onCost((entry) => costs.push(entry));
+
+    await driver.drive("Hello?", fakeSpeak(["Welcome."]).speak);
+
+    expect(costs).toHaveLength(1);
+    expect(costs[0]).toMatchObject({
+      category: "director_llm",
+      provider: "cerebras",
+      model: "gpt-oss-120b",
+      status: "succeeded",
+      usage: { inputTokens: 1_000, outputTokens: 100 },
+    });
+    expect(costs[0]!.amountUsd).toBeGreaterThan(0);
+  });
+});
+
 describe("SceneDriver — speculation cancellation", () => {
   /** Executor that records each call's abort signal and never resolves until released. */
   const signalRecordingExecutor = (decision: OrchestratorDecision) => {
@@ -755,18 +1452,18 @@ describe("SceneDriver — speculation cancellation", () => {
     };
   };
 
-  it("aborts the in-flight speculation when a longer partial supersedes it", async () => {
+  it("issues at most one speculative director call per user turn", async () => {
     const exec = signalRecordingExecutor(speakDecision("abraham"));
     const driver = SceneDriver.fromScene(TENT, {
       resolveExecutor: exec.resolveExecutor,
       resolveCharacter: fakeCharacters(),
     });
 
-    driver.speculate("Sarah, did you laugh");
+    driver.speculate("Sarah, did you laugh"); // not enough words yet
     driver.speculate("Sarah, did you laugh at the promise of a son");
-    expect(exec.signals).toHaveLength(2);
-    expect(exec.signals[0]?.aborted).toBe(true);
-    expect(exec.signals[1]?.aborted).toBe(false);
+    driver.speculate("Sarah, did you laugh at the promise of a son today");
+    expect(exec.signals).toHaveLength(1);
+    expect(exec.signals[0]?.aborted).toBe(false);
   });
 
   it("aborts a stale speculation on a MISS", async () => {
@@ -777,7 +1474,7 @@ describe("SceneDriver — speculation cancellation", () => {
     });
     const { speak } = fakeSpeak(["Welcome."]);
 
-    driver.speculate("Sarah, did you");
+    driver.speculate("Sarah, did you laugh at the promise today");
     await driver.drive("Abraham, tell me of the strangers.", speak);
     expect(exec.signals[0]?.aborted).toBe(true);
   });
@@ -796,6 +1493,10 @@ describe("SceneDriver — dramaturg", () => {
         reflections.push(options);
         return {
           text: [
+            "STORY: A traveler pressed Sarah about the laugh; she denied it.",
+            "THREAD: Sarah's denial has not been challenged.",
+            "WORLD: Evening deepens outside the tent.",
+            "INTENT: when the fire is mentioned: a log collapses in sparks.",
             "FACT: Sarah denied laughing at the promise.",
             "LANDED: The laugh",
             "NOTE: The laugh is named; press Abraham's trust question.",
@@ -827,6 +1528,7 @@ describe("SceneDriver — dramaturg", () => {
     await driver.drive("Sarah, I heard you laugh.", speak); // 2nd spoken turn → reflect
     await driver.settleReflection();
     expect(reflections).toHaveLength(1);
+    expect(reflections[0]?.maxTokens).toBe(2_400);
 
     await driver.drive("Abraham, do you believe her?", speak);
     const system = exec.requests[exec.requests.length - 1]!.messages[0]!.content;
@@ -840,5 +1542,565 @@ describe("SceneDriver — dramaturg", () => {
     expect(snapshots[snapshots.length - 1]!.sceneFacts).toEqual([
       "Sarah denied laughing at the promise.",
     ]);
+    // The chronicle reaches the director's next prompt and the snapshot.
+    expect(system).toContain("The chronicle - the story you are writing");
+    expect(system).toContain("So far: A traveler pressed Sarah about the laugh");
+    expect(system).toContain("- Sarah's denial has not been challenged.");
+    expect(system).toContain("- Evening deepens outside the tent.");
+    expect(system).toContain("when the fire is mentioned: a log collapses in sparks.");
+    expect(snapshots[snapshots.length - 1]!.chronicle).toEqual({
+      story: "A traveler pressed Sarah about the laugh; she denied it.",
+      threads: ["Sarah's denial has not been challenged."],
+      world: ["Evening deepens outside the tent."],
+      intents: [{ trigger: "the fire is mentioned", direction: "a log collapses in sparks." }],
+      timed: [],
+      drafts: [],
+    });
+    // The chronicler sees its own chronicle for revision on the NEXT reflection.
+    await driver.drive("And the fire?", speak); // 4th spoken turn -> reflect again
+    await driver.settleReflection();
+    expect(reflections.length).toBeGreaterThanOrEqual(2);
+    const secondReflection = reflections[reflections.length - 1]!;
+    const reflectionUser =
+      typeof secondReflection.messages[0]!.content === "string"
+        ? (secondReflection.messages[0]!.content as string)
+        : "";
+    expect(reflectionUser).toContain("Your chronicle as of the last reflection");
+    expect(reflectionUser).toContain("STORY: A traveler pressed Sarah about the laugh");
+  });
+
+  it("validates STATE slugs, journals changes, and carries state into proactive turns", async () => {
+    const exec = fakeExecutor([
+      speakDecision("abraham", "Welcome the traveler."),
+      speakDecision("sarah", "Answer without deflecting."),
+      speakDecision("sarah", "Follow the truth into the silence."),
+    ]);
+    const dramaturg = fakeChatProvider(
+      [
+        "STATE: sarah: shaken — Abraham named the laugh she denied",
+        "STATE: visitor: smug — the accusation landed",
+        "NOTE: Sarah is shaken; let her choose what honesty costs.",
+      ].join("\n"),
+    );
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      dramaturgProvider: dramaturg,
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak, inputs } = fakeSpeak(["Welcome.", "I heard him.", "And I cannot unhear it."]);
+
+    await driver.drive("Hello.", speak);
+    await driver.drive("Sarah, he named your laugh.", speak);
+    await driver.settleReflection();
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates).toEqual({
+      sarah: "shaken — Abraham named the laugh she denied",
+    });
+    expect(
+      journal.find((entry) => entry.type === "scene.reflection")?.payload.statesChanged,
+    ).toEqual([
+      { slug: "sarah", state: "shaken — Abraham named the laugh she denied" },
+    ]);
+
+    await driver.driveProactive(speak);
+    expect(exec.requests[2]!.messages[0]!.content).toContain(
+      "now: shaken — Abraham named the laugh she denied",
+    );
+    expect(inputs[2]!.promptChunk).toContain(
+      "Your state right now: shaken — Abraham named the laugh she denied. Perform from it.",
+    );
+  });
+
+  it("queues consequence reflection behind an older review without letting stale STATE win", async () => {
+    const exec = fakeExecutor([
+      speakDecision("abraham", "Welcome the traveler."),
+      speakDecision("sarah", "Answer him."),
+      {
+        action: "narrate",
+        narration: "Abraham dies beside the fire.",
+        narrationKind: "event",
+        weight: "irreversible",
+        exitSlug: "abraham",
+      },
+      { action: "wait-for-user" },
+    ]);
+    const firstReflection = deferred<ChatResponse>();
+    const reflectionRequests: ChatRequestOptions[] = [];
+    const response = (text: string): ChatResponse => ({
+      text,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      cacheState: "off",
+      model: "fake-dramaturg",
+      latencyMs: 1,
+    });
+    const dramaturg: ChatProvider = {
+      complete: async (options: ChatRequestOptions): Promise<ChatResponse> => {
+        reflectionRequests.push(options);
+        if (reflectionRequests.length === 1) return firstReflection.promise;
+        return response(
+          [
+            "THREAD: Sarah must carry what Abraham left unfinished.",
+            "STATE: sarah: grieving — Abraham died before her eyes",
+            "NOTE: Let Sarah's grief determine the scene.",
+          ].join("\n"),
+        );
+      },
+      stream: async function* () {
+        throw new Error("not used");
+      },
+    } as unknown as ChatProvider;
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      dramaturgProvider: dramaturg,
+    });
+    const snapshots: SceneSessionSnapshot[] = [];
+    driver.onState((snapshot) => snapshots.push(snapshot));
+    driver.onNarrate(() => undefined);
+    const { speak } = fakeSpeak(["Welcome.", "I hear you.", "Abraham!"]);
+
+    await driver.drive("Hello.", speak);
+    await driver.drive("Sarah?", speak); // ordinary cadence reflection starts and stalls
+    expect(reflectionRequests).toHaveLength(1);
+    await driver.drive("I strike Abraham down.", speak);
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates?.sarah).toContain(
+      "reeling — Abraham dies beside the fire.",
+    );
+
+    firstReflection.resolve(response("STATE: sarah: calm — the evening is ordinary"));
+    await vi.waitFor(() => expect(reflectionRequests).toHaveLength(2));
+    await driver.settleReflection();
+
+    expect(reflectionRequests[1]!.messages[0]!.content).toContain(
+      "An irreversible event just occurred: Abraham dies beside the fire.",
+    );
+    expect(snapshots[snapshots.length - 1]!.sceneState.characterStates).toEqual({
+      sarah: "grieving — Abraham died before her eyes",
+    });
+  });
+});
+
+describe("SceneDriver — timed world events", () => {
+  function timedDramaturg(afterSeconds: number, direction: string): ChatProvider {
+    return fakeChatProvider(
+      [`TIMED: in ~${afterSeconds}s: ${direction}`, "NOTE: Hold the tension."].join("\n"),
+    );
+  }
+
+  it("arms from the chronicle, reports due time, and renders the event on a proactive tick", async () => {
+    vi.useFakeTimers();
+    try {
+      const exec = fakeExecutor([
+        speakDecision("abraham"),
+        speakDecision("sarah"),
+        { action: "narrate", narration: "A log collapses; sparks climb the dark." },
+        speakDecision("abraham", "React to the collapsing fire"),
+      ]);
+      const driver = SceneDriver.fromScene(TENT, {
+        resolveExecutor: exec.resolveExecutor,
+        resolveCharacter: fakeCharacters(),
+        dramaturgProvider: timedDramaturg(30, "A log collapses in a burst of sparks."),
+      });
+      const armed: number[] = [];
+      driver.onWorldEvents(() => armed.push(1));
+      const narrated: string[] = [];
+      driver.onNarrate((text) => {
+        narrated.push(text);
+      });
+      const { speak, inputs } = fakeSpeak(["Welcome.", "I heard you.", "Stand back!"]);
+
+      await driver.drive("Hello?", speak);
+      await driver.drive("Sarah, did you laugh?", speak); // 2nd spoken turn → reflect
+      await driver.settleReflection();
+      expect(armed).toHaveLength(1);
+      const due = driver.nextWorldEventDueInMs();
+      expect(due).toBeGreaterThan(28_000);
+      expect(due).toBeLessThanOrEqual(30_000);
+
+      vi.advanceTimersByTime(31_000);
+      expect(driver.nextWorldEventDueInMs()).toBe(0);
+
+      // The proactive tick consumes the event; the director's prompt carries
+      // the imperative and its narrate decision is voiced.
+      const spoke = await driver.driveProactive(speak);
+      expect(spoke).toBe(true);
+      expect(narrated).toEqual(["A log collapses; sparks climb the dark."]);
+      expect(inputs[2]!.speaker.slug).toBe("abraham");
+      const userPrompt = exec.requests[2]!.messages[1]!.content;
+      expect(userPrompt).toContain("A WORLD EVENT the chronicler scheduled has come due");
+      expect(userPrompt).toContain("A log collapses in a burst of sparks.");
+      expect(exec.requests[3]!.messages[1]!.content).toContain("something just HAPPENED");
+      // Spent: no pending events remain.
+      expect(driver.nextWorldEventDueInMs()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("guarantees a due event fires even when the director holds", async () => {
+    vi.useFakeTimers();
+    try {
+      const exec = fakeExecutor([
+        speakDecision("abraham"),
+        speakDecision("sarah"),
+        { action: "wait-for-user" },
+        speakDecision("sarah", "React to the thunder"),
+      ]);
+      const driver = SceneDriver.fromScene(TENT, {
+        resolveExecutor: exec.resolveExecutor,
+        resolveCharacter: fakeCharacters(),
+        dramaturgProvider: timedDramaturg(20, "Thunder rolls far off beyond the hills."),
+      });
+      const narrated: string[] = [];
+      driver.onNarrate((text) => {
+        narrated.push(text);
+      });
+      const { speak, inputs } = fakeSpeak(["Welcome.", "I heard you.", "That was close."]);
+      await driver.drive("Hello?", speak);
+      await driver.drive("Sarah?", speak);
+      await driver.settleReflection();
+      vi.advanceTimersByTime(21_000);
+
+      const spoke = await driver.driveProactive(speak);
+      expect(spoke).toBe(true);
+      // Director said wait → the event narrates its own direction verbatim.
+      expect(narrated).toEqual(["Thunder rolls far off beyond the hills."]);
+      expect(inputs[2]!.speaker.slug).toBe("sarah");
+      expect(exec.requests[3]!.messages[1]!.content).toContain("something just HAPPENED");
+      expect(driver.nextWorldEventDueInMs()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("pipelines a due world-event reaction under its narration", async () => {
+    vi.useFakeTimers();
+    try {
+      const direction = "The eastern watchtower collapses into sparks.";
+      const exec = fakeExecutor([
+        speakDecision("abraham"),
+        speakDecision("sarah"),
+        { action: "wait-for-user" },
+        speakDecision("abraham", "React to the fallen tower"),
+      ]);
+      const driver = SceneDriver.fromScene(TENT, {
+        resolveExecutor: exec.resolveExecutor,
+        resolveCharacter: fakeCharacters(),
+        dramaturgProvider: timedDramaturg(10, direction),
+      });
+      const playback = deferred();
+      const events: string[] = [];
+      const journal: SceneJournalEntry[] = [];
+      driver.onJournal((entry) => journal.push(entry));
+      driver.onNarrate(async () => {
+        events.push("world-narration");
+        await playback.promise;
+        events.push("world-narration-end");
+      }, { realtimePlayback: true });
+      let calls = 0;
+      const speak = async (input: SceneSpeakInput) => {
+        calls += 1;
+        if (calls < 3) return calls === 1 ? "Welcome." : "I heard you.";
+        events.push("world-reaction-ready");
+        input.audioGate!.onReady();
+        await input.audioGate!.waitUntilOpen;
+        input.audioGate!.onAudioStart();
+        events.push("world-reaction-audio");
+        return "The tower!";
+      };
+
+      await driver.drive("Hello?", speak);
+      await driver.drive("Sarah?", speak);
+      await driver.settleReflection();
+      await vi.advanceTimersByTimeAsync(16_000);
+
+      const inFlight = driver.driveProactive(speak);
+      for (let i = 0; i < 12 && events.length < 2; i += 1) {
+        await Promise.resolve();
+      }
+      expect(events).toEqual(["world-narration", "world-reaction-ready"]);
+      playback.resolve(undefined);
+      await expect(inFlight).resolves.toBe(true);
+      expect(events).toEqual([
+        "world-narration",
+        "world-reaction-ready",
+        "world-narration-end",
+        "world-reaction-audio",
+      ]);
+      const chain = journal.find((entry) => entry.payload.trigger === "chain")!;
+      expect(chain.payload).toMatchObject({
+        worldEventDirective: direction,
+        narrationAudioMs: expect.any(Number),
+        reactionReadyMs: expect.any(Number),
+        gapMs: expect.any(Number),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("SceneDriver — proactive history conventions", () => {
+  it("brackets narrator turns in proactive history (referral-guard hold depends on it)", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "You yank Sarah toward the fire; she stumbles into the flames." },
+      speakDecision("sarah", "Cry out"), // chain reactor
+      speakDecision("abraham", "React to the horror"), // proactive follow-up
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => {});
+    const { speak, inputs } = fakeSpeak(["Abraham—why this fire?", "Sarah!"]);
+
+    await driver.drive("Narrator. I push Sarah into the fire.", speak);
+    await driver.driveProactive(speak);
+
+    const proactiveInput = inputs[inputs.length - 1]!;
+    expect(proactiveInput.speaker.slug).toBe("abraham");
+    const bracketed = proactiveInput.history.filter((h) => /^\[[\s\S]*\]$/.test(h.content));
+    expect(bracketed.length).toBeGreaterThanOrEqual(1);
+    expect(bracketed[0]!.content).toContain("You yank Sarah");
+    // And the visitor-attribution convention rides the directive chunk.
+    expect(proactiveInput.promptChunk).toContain('"you"/"your" refers to THE');
+  });
+});
+
+describe("SceneDriver — the scene's first move", () => {
+  it("generates the first move under opening narration and gates its audio", async () => {
+    const exec = fakeExecutor([speakDecision("abraham", "Receive the traveler")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+      reactionModel: "claude-haiku-4-5",
+    });
+    driver.recordNarration("Evening settles over Mamre.");
+    const opening = deferred<{ voiced: boolean; endedAt: number }>();
+    const events: string[] = [];
+    const journal: SceneJournalEntry[] = [];
+    driver.onJournal((entry) => journal.push(entry));
+    const speak = async (input: SceneSpeakInput) => {
+      events.push("first-move-ready");
+      expect(input.model).toBe("claude-haiku-4-5");
+      input.audioGate!.onReady();
+      await input.audioGate!.waitUntilOpen;
+      input.audioGate!.onAudioStart();
+      events.push("first-move-audio");
+      return "Peace, traveler.";
+    };
+    const startedAt = Date.now();
+
+    const inFlight = driver.driveProactive(speak, {
+      openingPlayback: { startedAt, done: opening.promise },
+    });
+    await vi.waitFor(() => expect(events).toEqual(["first-move-ready"]));
+    opening.resolve({ voiced: true, endedAt: Date.now() });
+    await expect(inFlight).resolves.toBe(true);
+    expect(events).toEqual(["first-move-ready", "first-move-audio"]);
+    expect(journal[0]!.payload).toMatchObject({
+      trigger: "scene-open",
+      narrationAudioMs: expect.any(Number),
+      reactionReadyMs: expect.any(Number),
+      gapMs: expect.any(Number),
+    });
+  });
+
+  it("uses the SCENE-OPEN framing before the visitor's first word, silence after", async () => {
+    const exec = fakeExecutor([speakDecision("abraham", "Receive the traveler")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.recordNarration("Evening comes slow to Mamre; an old man steps out to meet you.");
+    const { speak } = fakeSpeak(["Peace, traveler — sit by the fire."]);
+
+    await driver.driveProactive(speak);
+    const openPrompt = exec.requests[0]!.messages[1]!.content;
+    expect(openPrompt).toContain("The scene has just OPENED");
+    expect(openPrompt).not.toContain("gone quiet");
+
+    // After a real user turn, proactive ticks return to silence framing.
+    await driver.drive("Peace be with you.", speak);
+    await driver.driveProactive(speak);
+    const silencePrompt = exec.requests[exec.requests.length - 1]!.messages[1]!.content;
+    expect(silencePrompt).toContain("gone quiet");
+    expect(silencePrompt).not.toContain("The scene has just OPENED");
+  });
+});
+
+describe("SceneDriver — momentum cascades", () => {
+  it("adds two cascade beats when narrator initiative drives the scene", async () => {
+    const decisions = [
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "must not run"), momentum: true },
+    ];
+    const exec = fakeExecutor(decisions);
+    const driver = SceneDriver.fromScene({ ...TENT, initiative: "narrator" }, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(() => "…");
+
+    await driver.drive("Chaos!", speak);
+    // Primary + narrator initiative's CASCADE_MAX(3)+2 continuations.
+    expect(inputs).toHaveLength(6);
+    expect(exec.calls).toBe(6);
+  });
+
+  it("honors momentum on a proactive narration and keeps the cascade bounded", async () => {
+    const exec = fakeExecutor([
+      { action: "narrate", narration: "The tent pole cracks.", momentum: true },
+      { ...speakDecision("abraham", "Catch the falling roof"), momentum: true },
+      { ...speakDecision("sarah", "Pull the visitor clear"), momentum: true },
+      { ...speakDecision("abraham", "must not run"), momentum: true },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    driver.onNarrate(() => undefined);
+    const { speak, inputs } = fakeSpeak(["Move!", "This way!"]);
+
+    expect(await driver.driveProactive(speak)).toBe(true);
+    expect(inputs.map((input) => input.speaker.slug)).toEqual(["abraham", "sarah"]);
+    expect(exec.calls).toBe(3);
+  });
+
+  it("stops before the next momentum operation when the host cancels active work", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "Act now"), momentum: true },
+      { ...speakDecision("sarah", "This must never run"), momentum: true },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const inputs: string[] = [];
+    const outcome = await driver.drive("The visitor leaves.", async (input) => {
+      inputs.push(input.speaker.slug);
+      driver.cancelActiveWork();
+      return "The first line began.";
+    });
+
+    expect(outcome.superseded).toBe(true);
+    expect(inputs).toEqual(["abraham"]);
+    expect(exec.calls).toBe(1);
+  });
+
+  it("keeps advancing while decisions carry momentum, then stops when it clears", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "Dying words"), momentum: true },
+      { ...speakDecision("sarah", "Grief breaks"), momentum: true },
+      { action: "narrate", narration: "The camp wakes to the cry." }, // no momentum → cascade ends
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const narrated: string[] = [];
+    driver.onNarrate((text) => {
+      narrated.push(text);
+    });
+    const { speak, inputs } = fakeSpeak(["May the One watch over this place.", "Abraham!"]);
+
+    const outcome = await driver.drive("I strike him down.", speak);
+    expect(outcome.spoke).toBe(true);
+    // One user turn produced: abraham (primary), sarah (cascade), narration (cascade end).
+    expect(inputs.map((i) => i.speaker.slug)).toEqual(["abraham", "sarah"]);
+    expect(narrated).toEqual(["The camp wakes to the cry."]);
+    expect(exec.calls).toBe(3);
+    // The cascade steps carried the MOMENTUM marker, not a silence tick.
+    const lastUser = exec.requests[1]!.messages[1]!.content;
+    expect(lastUser).toContain("MID-CASCADE");
+  });
+
+  it("hard-caps a runaway cascade at VOICE_AGENT_CASCADE_MAX beats", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "beat"), momentum: true }, // primary
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { ...speakDecision("sarah", "beat"), momentum: true },
+      { ...speakDecision("abraham", "beat"), momentum: true },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(() => "…");
+
+    await driver.drive("Chaos!", speak);
+    // Primary + at most CASCADE_MAX(3) driver-initiated beats.
+    expect(inputs.length).toBe(4);
+  });
+
+  it("a wait-for-user mid-cascade resolves it cleanly", async () => {
+    const exec = fakeExecutor([
+      { ...speakDecision("abraham", "beat"), momentum: true },
+      { action: "wait-for-user" },
+    ]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const { speak, inputs } = fakeSpeak(["…"]);
+    const outcome = await driver.drive("Go on.", speak);
+    expect(outcome.spoke).toBe(true);
+    expect(inputs.length).toBe(1);
+    expect(exec.calls).toBe(2);
+  });
+});
+
+describe("resolveDramaturgModel", () => {
+  it("keeps the default when unset", () => {
+    expect(resolveDramaturgModel(undefined)).toBe("gpt-oss-120b");
+    expect(resolveDramaturgModel("  ")).toBe("gpt-oss-120b");
+  });
+
+  it("accepts a registry model id", () => {
+    expect(resolveDramaturgModel("claude-haiku-4-5")).toBe("claude-haiku-4-5");
+  });
+
+  it("falls back to the default on an unknown id, with a warning", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(resolveDramaturgModel("claude-sonnet-4-5-typo")).toBe("gpt-oss-120b");
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('"claude-sonnet-4-5-typo" is not in the model registry'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("resolveReactionModel", () => {
+  it("is disabled when unset and accepts registry ids", () => {
+    expect(resolveReactionModel(undefined)).toBeNull();
+    expect(resolveReactionModel("  ")).toBeNull();
+    expect(resolveReactionModel("claude-haiku-4-5")).toBe("claude-haiku-4-5");
+  });
+
+  it("warns and ignores an unknown model id", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      expect(resolveReactionModel("not-a-reaction-model")).toBeNull();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('VOICE_AGENT_REACTION_MODEL="not-a-reaction-model"'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

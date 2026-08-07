@@ -182,7 +182,7 @@ export function SoundLibraryPicker({ currentSlug, sounds, onChange }: Props) {
             gap: "var(--space-12)",
             padding: "13px 16px",
             borderRadius: "var(--radius-xl)",
-            background: current ? "rgba(140,231,210,0.04)" : "rgba(255,255,255,0.025)",
+            background: current ? "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)" : "rgba(255,255,255,0.025)",
             border: current
               ? `1px solid ${open ? "var(--accent-glow)" : "color-mix(in srgb, var(--accent-strong) 18%, transparent)"}`
               : "1px dashed rgba(255,255,255,0.14)",
@@ -235,7 +235,7 @@ export function SoundLibraryPicker({ currentSlug, sounds, onChange }: Props) {
               style={{
                 padding: "7px 14px",
                 borderRadius: "var(--radius-md)",
-                background: "rgba(140,231,210,0.06)",
+                background: "var(--color-accent-wash)",
                 border: "1px solid var(--accent-border)",
                 color: "var(--accent-strong)",
                 fontFamily: FONT_BODY,
@@ -447,7 +447,7 @@ function rowStyle(selected: boolean): React.CSSProperties {
     alignItems: "center",
     gap: "var(--space-12)",
     padding: "10px 14px",
-    background: selected ? "rgba(140,231,210,0.06)" : "transparent",
+    background: selected ? "var(--color-accent-wash)" : "transparent",
     borderBottom: "1px solid rgba(255,255,255,0.06)",
     cursor: "pointer",
   };

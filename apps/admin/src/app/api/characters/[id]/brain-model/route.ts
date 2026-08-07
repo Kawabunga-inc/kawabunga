@@ -40,7 +40,7 @@ const ALLOWED_VOICE_MODELS = new Set(
     .filter(
       (m) =>
         m.modes.includes("voice") &&
-        (m.provider === "anthropic" || m.provider === "cerebras" || m.provider === "groq"),
+        m.provider !== "openai",
     )
     .map((m) => m.id),
 );
@@ -54,7 +54,7 @@ const FallbackSchema = z.object({
   // Accepts any provider that has a chat provider wired in the engine.
   // Widen this enum + the chat-providers factory + CharacterBrainModel
   // in lockstep when a new provider lands.
-  provider: z.enum(["anthropic", "openai", "cerebras", "groq"]),
+  provider: z.enum(["anthropic", "openai", "cerebras", "groq", "xai", "gemini", "fireworks", "deepseek", "baseten"]),
   model: z.string().trim().refine((m) => ALLOWED_CHAT_MODELS.has(m), {
     message: "fallback model must be a chat-compatible registry entry",
   }),
@@ -65,17 +65,18 @@ const FallbackSchema = z.object({
 // without cacheControl/fallbacks (see CharacterBrainModel docs for why),
 // and constrained to voice-capable models.
 const VoiceOverrideSchema = z.object({
-  provider: z.enum(["anthropic", "cerebras", "groq"]).optional(),
+  provider: z.enum(["anthropic", "cerebras", "groq", "xai", "gemini", "fireworks", "deepseek", "baseten"]).optional(),
   model: z
     .string()
     .trim()
     .refine((m) => ALLOWED_VOICE_MODELS.has(m), {
-      message: "voice.model must be a voice-capable registry entry (Anthropic, Cerebras, or Groq)",
+      message: "voice.model must be a voice-capable registry entry (Anthropic, Cerebras, Groq, or xAI)",
     })
     .optional(),
   temperature: z.number().min(0).max(2).optional(),
   topP: z.number().min(0).max(1).optional(),
   maxTokens: z.number().int().min(64).max(4096).optional(),
+  reasoningEffort: z.enum(["none", "low", "medium", "high"]).optional(),
 });
 
 const BrainModelSchema = z.object({
@@ -83,7 +84,7 @@ const BrainModelSchema = z.object({
   // SDK to use from the model id via the registry; storing provider
   // explicitly is for human readability + future fallback chains, not
   // runtime dispatch.
-  provider: z.enum(["anthropic", "openai", "cerebras", "groq"]).optional(),
+  provider: z.enum(["anthropic", "openai", "cerebras", "groq", "xai", "gemini", "fireworks", "deepseek", "baseten"]).optional(),
   model: z
     .string()
     .trim()
@@ -95,6 +96,7 @@ const BrainModelSchema = z.object({
   topP: z.number().min(0).max(1).optional(),
   maxTokens: z.number().int().min(64).max(4096).optional(),
   cacheControl: z.boolean().optional(),
+  reasoningEffort: z.enum(["none", "low", "medium", "high"]).optional(),
   fallbacks: z.array(FallbackSchema).max(4).optional(),
   voice: VoiceOverrideSchema.optional(),
 });
@@ -142,12 +144,9 @@ export async function POST(
   if (parsed.data.model) {
     cleaned.model = parsed.data.model;
     const coerced = PROVIDER_BY_MODEL.get(parsed.data.model);
-    if (
-      coerced === "anthropic" ||
-      coerced === "openai" ||
-      coerced === "cerebras" ||
-      coerced === "groq"
-    ) {
+    // Any registry provider is storable; "openai" excluded from the VOICE
+    // block below only. Widen-by-exclusion so new providers don't need edits.
+    if (coerced) {
       cleaned.provider = coerced;
     } else if (parsed.data.provider) {
       cleaned.provider = parsed.data.provider;
@@ -159,6 +158,7 @@ export async function POST(
   if (typeof parsed.data.topP === "number") cleaned.topP = parsed.data.topP;
   if (typeof parsed.data.maxTokens === "number") cleaned.maxTokens = parsed.data.maxTokens;
   if (typeof parsed.data.cacheControl === "boolean") cleaned.cacheControl = parsed.data.cacheControl;
+  if (parsed.data.reasoningEffort) cleaned.reasoningEffort = parsed.data.reasoningEffort;
   if (parsed.data.fallbacks?.length) cleaned.fallbacks = parsed.data.fallbacks;
 
   // Voice override block — only persist if it has any fields. Same
@@ -170,7 +170,7 @@ export async function POST(
     if (v.model) {
       voice.model = v.model;
       const coerced = PROVIDER_BY_MODEL.get(v.model);
-      if (coerced === "anthropic" || coerced === "cerebras" || coerced === "groq") {
+      if (coerced && coerced !== "openai") {
         voice.provider = coerced;
       } else if (v.provider) {
         voice.provider = v.provider;
@@ -181,6 +181,7 @@ export async function POST(
     if (typeof v.temperature === "number") voice.temperature = v.temperature;
     if (typeof v.topP === "number") voice.topP = v.topP;
     if (typeof v.maxTokens === "number") voice.maxTokens = v.maxTokens;
+    if (v.reasoningEffort) voice.reasoningEffort = v.reasoningEffort;
     if (Object.keys(voice).length > 0) cleaned.voice = voice;
   }
 

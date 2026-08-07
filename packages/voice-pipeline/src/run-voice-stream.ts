@@ -16,10 +16,13 @@ import {
   POCKET_TTS_SAMPLE_RATE,
   type ChatSystemBlock,
   type ProviderId,
+  type StreamingTextToSpeechAdapter,
   type StreamingTtsProvider,
+  type VoiceContext,
   type VoiceForRouting,
 } from "@kawabunga/engine";
 import { curate, type Scene as CuratorScene, type SemanticSeed } from "@kawabunga/wiki-curator";
+import { SESSION_COST_EVENT_TYPE, type SessionCostEntry } from "@kawabunga/types";
 import { TraceEnvelope } from "./voice-trace";
 import { VOICE_STREAM_SSE_EVENT_NAMES } from "./voice-stream-events";
 import { buildVoicePromptPlan } from "@kawabunga/orchestration/server";
@@ -42,6 +45,11 @@ import {
 import { isAckLaneEnabled, selectVoiceAck } from "./voice-ack-lane";
 import { isStageDirection } from "./stage-direction";
 import {
+  createPerformanceVoiceRouter,
+  splitPerformanceSegments,
+  type PerformanceSegmentKind,
+} from "./performance-segments";
+import {
   containsSafetyReferral,
   inCharacterDeflectionInstruction,
   isRefusalBoilerplate,
@@ -50,7 +58,13 @@ import {
   stripReasoningPreamble,
 } from "./refusal-guard";
 import { createEmbeddingSignedUrl } from "./voice-embedding-url";
-import { estimateSessionTurnCost } from "./session-cost";
+import {
+  buildLlmSessionCostEntry,
+  buildEmbeddingSessionCostEntry,
+  buildTtsSessionCostEntry,
+  estimateSessionTurnCost,
+  resolveTtsModelId,
+} from "./session-cost";
 import { createEventQueue } from "./event-queue";
 
 export type VoiceStreamEventName = (typeof VOICE_STREAM_SSE_EVENT_NAMES)[keyof typeof VOICE_STREAM_SSE_EVENT_NAMES];
@@ -95,7 +109,12 @@ export class VoiceStreamHttpError extends Error {
  */
 
 type LlmProvider = ProviderId;
-type StreamingTtsRouting = ReturnType<typeof createStreamingTtsAdapterForVoice>;
+export type VoiceStreamTtsRouting = {
+  provider: StreamingTtsProvider;
+  adapter: StreamingTextToSpeechAdapter;
+  voiceContext: VoiceContext;
+};
+type StreamingTtsRouting = VoiceStreamTtsRouting;
 
 export type VoiceStreamBody = {
   sessionId?: string;
@@ -140,6 +159,9 @@ export type VoiceStreamBody = {
   // is free and keeps misconfiguration surfacing consistent); it's just never
   // streamed. Off by default — never affects production turns.
   textOnly?: boolean;
+  // Server-side-only secondary route for physical performance spans. Browser
+  // and admin JSON requests omit it and retain the original one-voice path.
+  narrationTts?: VoiceStreamTtsRouting;
 };
 
 /** Materials handed to a construction variant: the assembled baseline parts plus the
@@ -158,6 +180,12 @@ export type ConstructionVariantFn = (m: ConstructionMaterials) => { cached: stri
 const ANTHROPIC_DEFAULT_MODEL = "claude-haiku-4-5";
 const OPENAI_DEFAULT_MODEL = "gpt-5-nano";
 const GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b";
+const XAI_DEFAULT_MODEL = "grok-4.3";
+const GEMINI_DEFAULT_MODEL = "gemini-3.5-flash-lite";
+// Awaiting first live key + /models check - documented stable ids, unverified.
+const FIREWORKS_DEFAULT_MODEL = "accounts/fireworks/models/gpt-oss-120b";
+const DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash";
+const BASETEN_DEFAULT_MODEL = "openai/gpt-oss-120b";
 const DEFAULT_MAX_TOKENS = 1024;
 // Fallback chain when no voice is bound: the legacy hardcoded Pocket slug
 // kept the harness alive before voices were a first-class table. Once the
@@ -422,6 +450,13 @@ export async function* runVoiceStream(
     }
     const ttsVoiceContext = ttsRouting.voiceContext;
     const ttsProvider = ttsRouting.provider;
+    // `VoiceStreamBody` also crosses JSON routes. Only a real in-process
+    // server adapter (the voice agent) may activate secondary narration.
+    const narrationTts =
+      input.narrationTts &&
+      typeof input.narrationTts.adapter?.stream === "function"
+        ? input.narrationTts
+        : null;
     const ttsFallbackRouting = await resolveVoiceStreamTtsFallback({
       primaryProvider: ttsProvider,
       primaryVoiceSlug: ttsVoiceContext.slug,
@@ -434,7 +469,55 @@ export async function* runVoiceStream(
 
     const startedAt = performance.now();
     const startedAtWall = Date.now();
+    const costOperationRoot = input.turnId ?? crypto.randomUUID();
+    const recordCost = async (entry: SessionCostEntry): Promise<void> => {
+      if (!input.sessionId) return;
+      try {
+        await Promise.resolve(getSceneSessionStore().appendEvent({
+          sessionId: input.sessionId,
+          turnId: input.turnId ?? null,
+          type: SESSION_COST_EVENT_TYPE,
+          source: "billing",
+          payload: entry,
+        }));
+      } catch (error) {
+        console.error("[voice-stream] cost append failed", error);
+      }
+    };
     const serverTrace = new TraceEnvelope();
+    let embeddingAttempt = 0;
+    const embedWithLedger = async (text: string): Promise<number[] | null> => {
+      embeddingAttempt += 1;
+      const operationId = `${costOperationRoot}:embedding:${embeddingAttempt}`;
+      let usageRecorded = false;
+      try {
+        return await embedText(text, {
+          onUsage: ({ inputTokens, requests }) => {
+            usageRecorded = true;
+            void recordCost(buildEmbeddingSessionCostEntry({
+              operationId,
+              provider: "openai",
+              model: "text-embedding-3-small",
+              inputTokens,
+              requests,
+            }));
+          },
+        });
+      } catch (error) {
+        if (!usageRecorded) {
+          await recordCost(buildEmbeddingSessionCostEntry({
+            operationId,
+            provider: "openai",
+            model: "text-embedding-3-small",
+            inputTokens: 0,
+            status: "failed",
+            usageKnown: false,
+            note: error instanceof Error ? error.message : String(error),
+          }));
+        }
+        throw error;
+      }
+    };
     serverTrace.mark("server.request.received", {
       requestedProvider,
       chosenProvider: provider,
@@ -460,10 +543,90 @@ export async function* runVoiceStream(
     let ttsCursor = 0;
     let ttsChunkCount = 0;
     let drainChain: Promise<void> = Promise.resolve();
+    const performanceSegments: Array<{ kind: PerformanceSegmentKind; chars: number }> = [];
+    let activeNarrationChunk: { chunkIdx: number; kind: "ack" | "main" } | null = null;
+    const performanceVoiceRouter = createPerformanceVoiceRouter({
+      narrationAvailable: Boolean(narrationTts),
+      onNarrationFailure: (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        serverTrace.mark("server.tts.narration_fallback", {
+          chunkIdx: activeNarrationChunk?.chunkIdx ?? null,
+          kind: activeNarrationChunk?.kind ?? "main",
+          fromProvider: narrationTts?.provider ?? null,
+          fromVoice: narrationTts?.voiceContext.slug ?? null,
+          toProvider: ttsProvider,
+          toVoice: ttsVoiceContext.slug,
+          reason: message,
+        });
+        console.warn(
+          `[voice-stream] narration TTS failed (${message}) — using the character voice for remaining performance segments`,
+        );
+      },
+    });
     let ackText: string | null = null;
     let cachedAckAudio: CachedVoiceAckAudio | null = null;
     let mainTokenGateOpen = true;
     const queuedMainTokenDeltas: string[] = [];
+    const ttsUsage = new Map<
+      string,
+      { provider: string; model: string | null; characters: number; audioSamples: number }
+    >();
+    let ttsCostPersisted = false;
+    let turnTerminalPersisted = false;
+    const finalizeNonCompletedTurn = async (
+      status: "aborted" | "failed",
+      note?: string,
+    ): Promise<void> => {
+      if (turnTerminalPersisted || !input.sessionId || !input.turnId) return;
+      try {
+        await getSceneSessionStore().upsertTurn({
+          id: input.turnId,
+          sessionId: input.sessionId,
+          inputMode: "voice",
+          speakerSlug: character.slug,
+          userText: message,
+          ...(replyText ? { assistantText: replyText } : {}),
+          provider,
+          model: modelId,
+          status,
+          startedAt: new Date(startedAtWall).toISOString(),
+          completedAt: new Date().toISOString(),
+          trace: serverTrace.toJSON(),
+          metadata: {
+            source: "character-sandbox",
+            ...(performanceSegments.length > 0 ? { segments: performanceSegments } : {}),
+            ...(note ? { terminalReason: note } : {}),
+          },
+        });
+        turnTerminalPersisted = true;
+      } catch (turnErr) {
+        console.error(`[voice-stream] upsertTurn (${status}) failed`, turnErr);
+      }
+    };
+    const persistTtsCosts = async (
+      status: "succeeded" | "failed" | "cancelled" = "succeeded",
+      note?: string,
+    ): Promise<void> => {
+      if (ttsCostPersisted) return;
+      ttsCostPersisted = true;
+      await Promise.all(
+        [...ttsUsage.values()].map((usage, index) =>
+          recordCost(
+            buildTtsSessionCostEntry({
+              operationId: `${costOperationRoot}:tts:${usage.provider}:${usage.model ?? "default"}:${index}`,
+              provider: usage.provider,
+              model: usage.model,
+              characters: usage.characters,
+              audioDurationMs: Math.round(
+                (usage.audioSamples / POCKET_TTS_SAMPLE_RATE) * 1000,
+              ),
+              status,
+              note,
+            }),
+          ),
+        ),
+      );
+    };
 
     const emitMainTokenDelta = (delta: string) => {
       if (!mainTokenGateOpen) {
@@ -669,10 +832,10 @@ export async function* runVoiceStream(
                   message: bgeErr instanceof Error ? bgeErr.message : String(bgeErr),
                 });
                 usedBge = false;
-                queryEmbedding = await embedText(embedQuery);
+                queryEmbedding = await embedWithLedger(embedQuery);
               }
             } else {
-              queryEmbedding = await embedText(embedQuery);
+              queryEmbedding = await embedWithLedger(embedQuery);
             }
             // Split the retrieval span: embed (Move 01's target) vs search.
             serverTrace.mark("server.retrieval.embedded", {
@@ -1002,13 +1165,27 @@ export async function* runVoiceStream(
         chunkIdx: number,
         chunkText: string,
         kind: "ack" | "main",
+        voice: "character" | "narration" = "character",
       ): Promise<void> => {
         if (signal.aborted) return;
         const drainWithRouting = async (
           routing: StreamingTtsRouting,
-          attempt: "primary" | "fallback",
+          attempt: "primary" | "fallback" | "narration",
         ) => {
           let openedTraced = false;
+          let attemptSamples = 0;
+          const model = resolveTtsModelId(
+            routing.provider,
+            routing.voiceContext.providerConfig,
+          );
+          const key = `${routing.provider}:${model ?? "default"}`;
+          const previous = ttsUsage.get(key);
+          ttsUsage.set(key, {
+            provider: routing.provider,
+            model,
+            characters: (previous?.characters ?? 0) + chunkText.length,
+            audioSamples: previous?.audioSamples ?? 0,
+          });
           for await (const frame of routing.adapter.stream({
             text: chunkText,
             voice: routing.voiceContext,
@@ -1026,6 +1203,7 @@ export async function* runVoiceStream(
             }
             if (frame.type === "audio") {
               totalSamples += frame.samples;
+              attemptSamples += frame.samples;
               if (kind === "ack" && ackFirstAudioAt === null) {
                 ackFirstAudioAt = performance.now();
                 serverTrace.mark("server.ack.tts.first-audio", {
@@ -1066,47 +1244,118 @@ export async function* runVoiceStream(
             provider: routing.provider,
             attempt,
           });
-        };
-
-        try {
-          await drainWithRouting(ttsRouting!, "primary");
-        } catch (primaryErr) {
-          if (!ttsFallbackRouting || signal.aborted) throw primaryErr;
-          const message =
-            primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
-          serverTrace.mark("server.tts.fallback", {
-            chunkIdx,
-            kind,
-            fromProvider: ttsProvider,
-            toProvider: ttsFallbackRouting.provider,
-            toVoice: ttsFallbackRouting.voiceContext.slug,
-            reason: message,
-          });
-          if (input.sessionId) {
-            await getSceneSessionStore().appendEvent({
-              sessionId: input.sessionId,
-              turnId: input.turnId ?? null,
-              type: "tts.provider_fallback",
-              source: "system",
-              payload: {
-                chunkIdx,
-                fromProvider: ttsProvider,
-                fromVoice: ttsVoiceContext.slug,
-                toProvider: ttsFallbackRouting.provider,
-                toVoice: ttsFallbackRouting.voiceContext.slug,
-                reason: message,
-              },
-            }).catch((eventErr) => {
-              console.error("[voice-stream] fallback event failed", eventErr);
+          if (!signal.aborted) {
+            const current = ttsUsage.get(key)!;
+            ttsUsage.set(key, {
+              provider: routing.provider,
+              model,
+              characters: current.characters,
+              audioSamples: current.audioSamples + attemptSamples,
             });
           }
-          await drainWithRouting(ttsFallbackRouting, "fallback");
+        };
+
+        const drainWithCharacterVoice = async (): Promise<void> => {
+          try {
+            await drainWithRouting(ttsRouting!, "primary");
+          } catch (primaryErr) {
+            if (!ttsFallbackRouting || signal.aborted) throw primaryErr;
+            const message =
+              primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+            serverTrace.mark("server.tts.fallback", {
+              chunkIdx,
+              kind,
+              fromProvider: ttsProvider,
+              toProvider: ttsFallbackRouting.provider,
+              toVoice: ttsFallbackRouting.voiceContext.slug,
+              reason: message,
+            });
+            if (input.sessionId) {
+              await getSceneSessionStore().appendEvent({
+                sessionId: input.sessionId,
+                turnId: input.turnId ?? null,
+                type: "tts.provider_fallback",
+                source: "system",
+                payload: {
+                  chunkIdx,
+                  fromProvider: ttsProvider,
+                  fromVoice: ttsVoiceContext.slug,
+                  toProvider: ttsFallbackRouting.provider,
+                  toVoice: ttsFallbackRouting.voiceContext.slug,
+                  reason: message,
+                },
+              }).catch((eventErr) => {
+                console.error("[voice-stream] fallback event failed", eventErr);
+              });
+            }
+            await drainWithRouting(ttsFallbackRouting, "fallback");
+          }
+        };
+
+        if (voice === "character") {
+          await drainWithCharacterVoice();
+          return;
         }
+
+        activeNarrationChunk = { chunkIdx, kind };
+        await performanceVoiceRouter.drain(
+          "stage",
+          {
+            character: drainWithCharacterVoice,
+            narration: async () => {
+              if (!narrationTts) return drainWithCharacterVoice();
+              try {
+                await drainWithRouting(narrationTts, "narration");
+              } catch (error) {
+                if (signal.aborted) return;
+                throw error;
+              }
+            },
+          },
+        );
+        activeNarrationChunk = null;
       };
 
       const dispatchTtsChunk = (text: string): void => {
         const trimmed = text.trim();
         if (!trimmed) return;
+        // Preserve the original hot path exactly when no secondary voice is
+        // available (including browser/admin requests and text-only runs).
+        if (narrationTts && !input.textOnly) {
+          for (const segment of splitPerformanceSegments(trimmed, character.title)) {
+            performanceSegments.push({ kind: segment.kind, chars: segment.text.length });
+            if (segment.kind === "meta") {
+              ttsChunkCount += 1;
+              serverTrace.mark("server.tts.chunk.skipped_stage_direction", {
+                chars: segment.text.length,
+                text: segment.text.slice(0, 80),
+              });
+              continue;
+            }
+            const chunkIdx = ttsChunkCount++;
+            const segmentVoice = segment.kind === "stage" ? "narration" : "character";
+            if (chunkIdx === 0) {
+              const firstRouting = segmentVoice === "narration" ? narrationTts : ttsRouting;
+              serverTrace.mark("server.tts.fetch.requested", {
+                provider: firstRouting.provider,
+                voice: firstRouting.voiceContext.slug,
+                firstChunkChars: segment.text.length,
+              });
+            }
+            serverTrace.mark("server.tts.chunk.dispatched", {
+              chunkIdx,
+              kind: "main",
+              segmentKind: segment.kind,
+              chars: segment.text.length,
+            });
+            drainChain = drainChain.then(() =>
+              drainOneChunk(chunkIdx, segment.text, "main", segmentVoice));
+          }
+          return;
+        }
+        for (const segment of splitPerformanceSegments(trimmed, character.title)) {
+          performanceSegments.push({ kind: segment.kind, chars: segment.text.length });
+        }
         // Stage-direction guard: never voice a chunk that is purely a
         // parenthesized/bracketed aside (the proactive path's "(No reply
         // needed)" was reaching ElevenLabs and being spoken aloud). Counted
@@ -1352,9 +1601,20 @@ export async function* runVoiceStream(
               maxTokens,
               temperature: voiceCfg?.temperature ?? character.brainModel?.temperature,
               topP: voiceCfg?.topP ?? character.brainModel?.topP,
+              reasoningEffort:
+                voiceCfg?.reasoningEffort ?? character.brainModel?.reasoningEffort,
               signal: AbortSignal.any([signal, attemptAbort.signal]),
               onToken,
             }));
+            await recordCost(
+              buildLlmSessionCostEntry({
+                operationId: `${costOperationRoot}:character_llm:${roll}:${attempt}`,
+                category: "character_llm",
+                provider,
+                model: modelId,
+                usage: { inputTokens, outputTokens },
+              }),
+            );
             chosenProvider = provider;
             serverTrace.mark("server.llm.succeeded", {
               provider,
@@ -1364,6 +1624,20 @@ export async function* runVoiceStream(
             });
             break;
           } catch (providerErr) {
+            await recordCost(
+              buildLlmSessionCostEntry({
+                operationId: `${costOperationRoot}:character_llm:${roll}:${attempt}`,
+                category: "character_llm",
+                provider,
+                model: modelId,
+                status: signal.aborted || attemptAbort.signal.aborted ? "cancelled" : "failed",
+                usage: {},
+                usageKnown: false,
+                note: providerErr instanceof Error ? providerErr.message : String(providerErr),
+              }),
+            ).catch((costErr) => {
+              console.error("[voice-stream] character cost append failed", costErr);
+            });
             // The guard aborted this roll on purpose — hand control to the
             // re-roll logic below instead of the failure path.
             if (rerollRequested && !signal.aborted) break;
@@ -1493,11 +1767,13 @@ export async function* runVoiceStream(
       // browser. Errors from any chunk surface here. On success, the
       // browser has already received every audio frame.
       await drainChain;
+      await persistTtsCosts();
       releaseMainTokenGate();
 
       serverTrace.mark("server.tts.done", {
         audioSamples: totalSamples,
         chunks: ttsChunkCount,
+        segments: performanceSegments,
       });
       const deliveredAckText = ackFirstAudioAt !== null ? ackText : null;
       const assistantText = [deliveredAckText, replyText].filter(Boolean).join(" ").trim();
@@ -1538,6 +1814,7 @@ export async function* runVoiceStream(
             ackFirstAudioMs,
             brainFirstTokenMs,
             ackAudioCacheHit: Boolean(cachedAckAudio),
+            segments: performanceSegments,
             serverTrace: serverTrace.toJSON(),
           },
         });
@@ -1589,8 +1866,10 @@ export async function* runVoiceStream(
                 ackFirstAudioMs,
                 brainFirstTokenMs,
                 ackAudioCacheHit: Boolean(cachedAckAudio),
+                segments: performanceSegments,
               },
             });
+            turnTerminalPersisted = true;
           } catch (turnErr) {
             console.error("[voice-stream] upsertTurn (complete) failed", turnErr);
           }
@@ -1645,6 +1924,7 @@ export async function* runVoiceStream(
         ackFirstAudioMs,
         brainFirstTokenMs,
         ackAudioCacheHit: Boolean(cachedAckAudio),
+        segments: performanceSegments,
         estimatedCostUsd: estimateSessionTurnCost(modelId, {
           inputTokens,
           outputTokens,
@@ -1653,6 +1933,8 @@ export async function* runVoiceStream(
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
+      await persistTtsCosts(signal.aborted ? "cancelled" : "failed", msg);
+      await finalizeNonCompletedTurn(signal.aborted ? "aborted" : "failed", msg);
       serverTrace.mark("server.error", { message: msg });
       if (input.sessionId) {
         await getSceneSessionStore().appendEvent({
@@ -1668,6 +1950,9 @@ export async function* runVoiceStream(
       }
       sendEvent(VOICE_STREAM_SSE_EVENT_NAMES.error, { message: msg });
     } finally {
+      if (signal.aborted) {
+        await finalizeNonCompletedTurn("aborted", "request aborted");
+      }
       // Cancel any in-flight adapter.stream() reads — relevant when a
       // chunk's drain threw and later chunks are still mid-iteration.
       // On success this is a no-op since every chunk has already drained.
@@ -1796,7 +2081,8 @@ function normalizeStreamingTtsProvider(value?: string | null): StreamingTtsProvi
     normalized === "pocket_tts" ||
     normalized === "elevenlabs" ||
     normalized === "openai" ||
-    normalized === "cartesia"
+    normalized === "cartesia" ||
+    normalized === "fish_audio"
   ) {
     return normalized;
   }
@@ -1813,6 +2099,7 @@ async function streamFromCharacterModel(opts: {
   maxTokens: number;
   temperature?: number;
   topP?: number;
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   signal: AbortSignal;
   onToken: (delta: string) => void;
 }): Promise<{ inputTokens: number; outputTokens: number }> {
@@ -1837,6 +2124,7 @@ async function streamFromCharacterModel(opts: {
       signal: opts.signal,
       ...(typeof opts.temperature === "number" ? { temperature: opts.temperature } : {}),
       ...(typeof opts.topP === "number" ? { topP: opts.topP } : {}),
+      ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
     },
     (ev) => {
       if (ev.type === "token") {
@@ -1873,7 +2161,12 @@ function normalizeProvider(value?: string | null): ProviderId | null {
     normalized === "anthropic" ||
     normalized === "openai" ||
     normalized === "cerebras" ||
-    normalized === "groq"
+    normalized === "groq" ||
+    normalized === "xai" ||
+    normalized === "gemini" ||
+    normalized === "fireworks" ||
+    normalized === "deepseek" ||
+    normalized === "baseten"
   ) {
     return normalized;
   }
@@ -1888,6 +2181,16 @@ function defaultVoiceModelForProvider(provider: ProviderId): string {
       return OPENAI_DEFAULT_MODEL;
     case "groq":
       return GROQ_DEFAULT_MODEL;
+    case "xai":
+      return XAI_DEFAULT_MODEL;
+    case "gemini":
+      return GEMINI_DEFAULT_MODEL;
+    case "fireworks":
+      return FIREWORKS_DEFAULT_MODEL;
+    case "deepseek":
+      return DEEPSEEK_DEFAULT_MODEL;
+    case "baseten":
+      return BASETEN_DEFAULT_MODEL;
     case "cerebras":
       return DEFAULT_VOICE_MODEL;
   }
@@ -1911,6 +2214,26 @@ function missingProviderKeyReason(provider: ProviderId): string | null {
       return process.env.GROQ_API_KEY?.trim()
         ? null
         : "GROQ_API_KEY is not configured.";
+    case "xai":
+      return process.env.XAI_API_KEY?.trim()
+        ? null
+        : "XAI_API_KEY is not configured.";
+    case "gemini":
+      return process.env.GEMINI_API_KEY?.trim()
+        ? null
+        : "GEMINI_API_KEY is not configured.";
+    case "fireworks":
+      return process.env.FIREWORKS_API_KEY?.trim()
+        ? null
+        : "FIREWORKS_API_KEY is not configured.";
+    case "deepseek":
+      return process.env.DEEPSEEK_API_KEY?.trim()
+        ? null
+        : "DEEPSEEK_API_KEY is not configured.";
+    case "baseten":
+      return process.env.BASETEN_API_KEY?.trim()
+        ? null
+        : "BASETEN_API_KEY is not configured.";
   }
 }
 

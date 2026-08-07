@@ -1,5 +1,5 @@
 const featureColors: Record<string, string> = {
-  "1": "#8B5CF6",
+  "1": "var(--color-event-violet)",
   "2": "#C8875A",
   "3": "#E8A838",
   "4": "#4ECDC4",

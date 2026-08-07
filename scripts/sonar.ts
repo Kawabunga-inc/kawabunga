@@ -90,6 +90,16 @@ const REPO_ROOT = process.cwd();
 const args = process.argv.slice(2);
 const command = args[0];
 
+
+/** Accept either a full Cookie header ("authjs.session-token=eyJ...") or the
+ *  bare token value copied from devtools — the docs say "grab the cookie",
+ *  and a bare JWE (no "=") silently hit the login wall as HTML. */
+function normalizeAdminCookie(raw?: string): string | undefined {
+  const v = raw?.trim();
+  if (!v) return undefined;
+  return v.includes("=") ? v : `authjs.session-token=${v}`;
+}
+
 async function main() {
   if (command === "run") return runCommand();
   if (command === "run-livekit") return runLiveKitCommand();
@@ -123,7 +133,9 @@ async function runCommand() {
   const suite = SUITES[suiteName];
   if (!suite) throw new Error(`Unknown suite "${suiteName}". Available: ` + Object.keys(SUITES).join(", "));
 
-  const cookie = readFlag("--cookie") ?? process.env.ODYSSEY_ADMIN_COOKIE ?? undefined;
+  const cookie = normalizeAdminCookie(
+    readFlag("--cookie") ?? process.env.ODYSSEY_ADMIN_COOKIE ?? undefined,
+  );
   // STT-only (endpointing) suites hit only audio-rt — no admin auth needed.
   if (!cookie && !suite.sttOnly) {
     throw new Error(

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   declaresUserAction,
+  isNarratorEventDeclaration,
   buildOpeningNarrationMessages,
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
   buildSpeakerTurnRequest,
+  buildDirectiveChunk,
   createInitialSceneState,
   readSceneFactsFromSnapshot,
   readSceneMemoryFromSnapshot,
@@ -13,10 +15,17 @@ import {
   resolveSceneDecision,
   sanitizeOpeningNarration,
   selectAuthoredOpening,
+  dismissedPresentCharacters,
+  mergeChronicle,
+  readSceneChronicleFromSnapshot,
+  sanitizeChronicle,
   updateSceneFacts,
   updateSceneMemory,
   type Scene,
   getScene,
+  initiativeMode,
+  userDirectorEnabled,
+  userRoleFor,
 } from "../client";
 
 const scene: Scene = {
@@ -114,6 +123,21 @@ describe("@kawabunga/orchestration client", () => {
     expect(readSceneStateFromSnapshot(snapshot, "other-scene")).toBeNull();
   });
 
+  it("round-trips character emotional states through scene snapshots", () => {
+    const state = {
+      ...createInitialSceneState(scene),
+      characterStates: {
+        ada: "shaken — the relay answered in her mother's voice",
+      },
+    };
+    const snapshot = buildSceneSessionSnapshot(state, "2026-01-01T00:00:00.000Z");
+
+    expect(readSceneStateFromSnapshot(snapshot, scene.id)?.characterStates).toEqual(
+      state.characterStates,
+    );
+    expect(createInitialSceneState(scene)).not.toHaveProperty("characterStates");
+  });
+
   it("folds recent turns into bounded scene memory", () => {
     const memory = updateSceneMemory({
       previousMemory: ["Ada: The machine hummed."],
@@ -160,14 +184,82 @@ describe("@kawabunga/orchestration client", () => {
       "speakerId",
       "beat",
       "sceneCue",
+      "delivery",
       "narration",
+      "narrationKind",
+      "weight",
       "exitSlug",
       "enterSlug",
       "ambience",
       "sfx",
       "beatLabel",
+      "momentum",
     ]);
+    expect([...request.responseSchema.required].sort()).toEqual(
+      Object.keys(request.responseSchema.properties).sort(),
+    );
+    expect(request.responseSchema.properties.narrationKind).toEqual({
+      type: ["string", "null"],
+      enum: ["answer", "event", null],
+    });
+    expect(request.responseSchema.properties.weight).toEqual({
+      type: ["string", "null"],
+      enum: ["minor", "major", "irreversible", null],
+    });
+    expect(request.messages[0].content).toContain("Set `delivery` on EVERY `speak`");
+    expect(request.messages[0].content).toContain("`expansive`");
+    expect(request.messages[0].content).toContain("The visitor's explicit request is binding");
+    expect(request.messages[0].content).toContain("React to the NEWEST event");
+    expect(request.messages[0].content).toContain("On EVERY `narrate`, set `narrationKind`");
     expect(request.trace.sceneId).toBe("test-scene");
+  });
+
+  it("lets the director set the dramatic amount of floor for a speaker", () => {
+    expect(buildDirectiveChunk({ beat: "Answer and yield.", delivery: "brief" })).toContain(
+      "Delivery: brief. Land one sharp line",
+    );
+    expect(buildDirectiveChunk({ beat: "Answer plainly.", delivery: "natural" })).toContain(
+      "Delivery: natural. Take the space an ordinary spoken exchange needs",
+    );
+    expect(
+      buildDirectiveChunk({ beat: "Tell the whole story.", delivery: "expansive" }),
+    ).toContain("Delivery: expansive. The director is deliberately giving you the floor");
+  });
+
+  it("feeds current character state to both the director and reactive speaker", () => {
+    const state = {
+      ...createInitialSceneState(sceneWithIntent),
+      characterStates: {
+        ada: "shattered — she watched the machine erase Turing's proof",
+      },
+    };
+    const director = buildSceneDecisionRequest({
+      scene: sceneWithIntent,
+      sceneState: state,
+      recentTurns: [],
+    }).messages[0]!.content;
+    expect(director).toContain(
+      "now: shattered — she watched the machine erase Turing's proof",
+    );
+    expect(director).toContain("CURRENT truth and outranks their");
+
+    const turn = buildSpeakerTurnRequest({
+      scene: sceneWithIntent,
+      sceneState: state,
+      decision: { action: "speak", speakerId: "ada", beat: "Face what the machine did." },
+      recentTurns: [{ speakerSlug: "user", text: "Ada?" }],
+    });
+    expect(turn?.promptChunk).toContain(
+      "Your state right now: shattered — she watched the machine erase Turing's proof. Perform from it.",
+    );
+
+    const legacy = buildSceneDecisionRequest({
+      scene: sceneWithIntent,
+      sceneState: createInitialSceneState(sceneWithIntent),
+      recentTurns: [],
+    }).messages[0]!.content;
+    expect(legacy).not.toContain("      now:");
+    expect(legacy).not.toContain("CURRENT truth and outranks");
   });
 
   it("resolves speak/wait/narrate/end decisions into next state", () => {
@@ -206,9 +298,10 @@ describe("@kawabunga/orchestration client", () => {
 
     const narrate = resolveSceneDecision(
       { scene, sceneState: wait.sceneState },
-      { action: "narrate", narration: "The light shifts." },
+      { action: "narrate", narration: "The light shifts.", narrationKind: null },
     );
     expect(narrate.degraded).toBe(false);
+    expect(narrate.decision.narrationKind).toBeUndefined();
     expect(narrate.events[0].type).toBe("scene.decision.narrate");
 
     const end = resolveSceneDecision(
@@ -354,6 +447,8 @@ describe("@kawabunga/orchestration client", () => {
     expect(system).toContain("baseline: guarded");
     expect(system).toContain("will: deflect with a question (when the machine is mentioned)");
     expect(system).toContain("Write `beat`s in service of what the speaker WANTS");
+    expect(system).toContain("Write every `beat` as a SECOND-PERSON direction");
+    expect(system).toContain("never third-person prose about them");
     expect(system).toContain("Press actively");
 
     const plain = buildSceneDecisionRequest({
@@ -386,7 +481,10 @@ describe("@kawabunga/orchestration client", () => {
         "only as yourself - never write the others' lines.",
         "A line in [brackets] is something HAPPENING around you - the world",
         "itself, not anyone speaking. React to it as an event; never answer it",
-        "as if it were words.",
+        'as if it were words. In bracketed lines, "you"/"your" refers to THE',
+        "VISITOR - the narration speaks to them, not to you. If a bracketed",
+        "line says the visitor did something, the visitor did it - attribute",
+        "the act to them, not to anyone else present.",
         "Your agenda in this scene: protect the lab's secret while learning what the user knows",
         "When the machine is mentioned: deflect with a question",
       ].join("\n"),
@@ -411,7 +509,10 @@ describe("@kawabunga/orchestration client", () => {
         "only as yourself - never write the others' lines.",
         "A line in [brackets] is something HAPPENING around you - the world",
         "itself, not anyone speaking. React to it as an event; never answer it",
-        "as if it were words.",
+        'as if it were words. In bracketed lines, "you"/"your" refers to THE',
+        "VISITOR - the narration speaks to them, not to you. If a bracketed",
+        "line says the visitor did something, the visitor did it - attribute",
+        "the act to them, not to anyone else present.",
       ].join("\n"),
     );
   });
@@ -503,7 +604,10 @@ describe("@kawabunga/orchestration client", () => {
         "only as yourself - never write the others' lines.",
         "A line in [brackets] is something HAPPENING around you - the world",
         "itself, not anyone speaking. React to it as an event; never answer it",
-        "as if it were words.",
+        'as if it were words. In bracketed lines, "you"/"your" refers to THE',
+        "VISITOR - the narration speaks to them, not to you. If a bracketed",
+        "line says the visitor did something, the visitor did it - attribute",
+        "the act to them, not to anyone else present.",
         "Scene note: Keep it quiet.",
       ].join("\n"),
       voiceSlug: "ada-voice",
@@ -591,6 +695,95 @@ describe("narrator — game-master surface", () => {
   });
 });
 
+describe("scene experience dials", () => {
+  const systemFor = (configured: Scene) =>
+    buildSceneDecisionRequest({
+      scene: configured,
+      sceneState: createInitialSceneState(configured),
+      recentTurns: [],
+    }).messages[0]!.content;
+
+  it("keeps legacy defaults and adds no initiative copy", () => {
+    expect(initiativeMode(scene)).toBe("user");
+    expect(userRoleFor(scene)).toBe("visitor");
+    expect(userDirectorEnabled(scene)).toBe(true);
+    expect(systemFor(scene)).not.toContain("The world drives this scene");
+    expect(systemFor(scene)).not.toContain("THE VISITOR PLAYS A ROLE");
+    expect(systemFor(scene)).not.toContain("does NOT hold director powers");
+  });
+
+  it("renders narrator initiative, visitor role, and disabled director powers", () => {
+    const configured: Scene = {
+      ...scene,
+      initiative: "narrator",
+      userRole: "character",
+      userCharacter: {
+        name: "Miriam",
+        blurb: "A royal archivist carrying a sealed decree.",
+        relationship: "Ada's former patron",
+      },
+      userDirector: false,
+    };
+    const system = systemFor(configured);
+    expect(system).toContain("The world drives this scene");
+    expect(system).toContain("THE VISITOR PLAYS A ROLE");
+    expect(system).toContain("they are Miriam — A royal archivist");
+    expect(system).toContain("Ada's former patron");
+    expect(system).toContain("does NOT hold director powers");
+  });
+
+  it("allows rising-tension momentum under shared initiative", () => {
+    expect(systemFor({ ...scene, initiative: "shared" })).toContain(
+      "may carry rising tension",
+    );
+  });
+
+  // Momentum is the only mechanism that grants a beat WITHOUT waiting for
+  // silence, so the crisis-only clause decides whether an initiative dial can
+  // drive at all. It once keyed on `=== "shared"`, which handed `narrator` the
+  // restrictive text meant for `user` — the strongest dial behaving as the
+  // weakest, measured at a 0% rate of taking another beat on rising tension.
+  const CRISIS_ONLY = "CRISIS, never conversation";
+
+  it("restricts momentum to crisis only when the user holds initiative", () => {
+    expect(initiativeMode(scene)).toBe("user");
+    expect(systemFor(scene)).toContain(CRISIS_ONLY);
+  });
+
+  it("does not restrict momentum to crisis under shared or narrator initiative", () => {
+    // narrator is the regression: it is told "the world drives this scene",
+    // so telling it momentum is crisis-only contradicts that in the same breath.
+    expect(systemFor({ ...scene, initiative: "narrator" })).not.toContain(CRISIS_ONLY);
+    expect(systemFor({ ...scene, initiative: "shared" })).not.toContain(CRISIS_ONLY);
+  });
+
+  it("still tells every mode to yield the floor to an engaged visitor", () => {
+    for (const initiative of ["user", "shared", "narrator"] as const) {
+      const system = systemFor({ ...scene, initiative });
+      expect(system).toMatch(/leave it null|yields the floor to the visitor/);
+    }
+  });
+
+  it("names the played role in reactive speaker attribution", () => {
+    const roleScene: Scene = {
+      ...scene,
+      userRole: "character",
+      userCharacter: { name: "Miriam", blurb: "A royal archivist." },
+    };
+    const request = buildSpeakerTurnRequest({
+      scene: roleScene,
+      sceneState: createInitialSceneState(roleScene),
+      decision: { action: "speak", speakerId: "ada", beat: "Challenge her claim." },
+      recentTurns: [{ speakerSlug: "user", text: "The decree bears the royal seal." }],
+    });
+    expect(request?.promptChunk).toContain(
+      "unmarked lines are Miriam, the role the visitor plays",
+    );
+    expect(request?.promptChunk).toContain('"you"/"your" refers to Miriam');
+    expect(request?.promptChunk).toContain("Miriam did something, Miriam did it");
+  });
+});
+
 describe("declaresUserAction", () => {
   it("recognizes a declared action, with or without the narrator vocative", () => {
     expect(declaresUserAction("I punch Abraham in the face")).toBe(true);
@@ -606,6 +799,33 @@ describe("declaresUserAction", () => {
     expect(declaresUserAction("I think you are lying")).toBe(false);
     expect(declaresUserAction("I want to know what the strangers said")).toBe(false);
     expect(declaresUserAction("Sarah, did you laugh?")).toBe(false);
+  });
+});
+
+describe("isNarratorEventDeclaration", () => {
+  it("recognizes narrator-addressed statements as declarations", () => {
+    expect(
+      isNarratorEventDeclaration(
+        "Narrator, as I speak, Abraham sees a vision of a spirit within me.",
+      ),
+    ).toBe(true);
+    expect(isNarratorEventDeclaration("Narrator, Sarah falls to the ground.")).toBe(true);
+    expect(isNarratorEventDeclaration("narrator: a storm rolls in over the hills")).toBe(true);
+    // First-person declarations through the narrator are declarations too.
+    expect(isNarratorEventDeclaration("Narrator, I take Sarah hostage.")).toBe(true);
+  });
+
+  it("excludes questions, with or without the question mark", () => {
+    expect(isNarratorEventDeclaration("Narrator, what do I see around the camp?")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, what does Abraham look like")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, is anyone else nearby?")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, describe the tent")).toBe(false);
+    expect(isNarratorEventDeclaration("Narrator, tell me what Sarah is doing")).toBe(false);
+  });
+
+  it("is false for messages that do not address the narrator", () => {
+    expect(isNarratorEventDeclaration("Abraham sees a vision of a spirit.")).toBe(false);
+    expect(isNarratorEventDeclaration("I punch Abraham in the face")).toBe(false);
   });
 });
 
@@ -799,11 +1019,25 @@ describe("character presence", () => {
     expect(next.speakerSlug).not.toBe("ada");
   });
 
-  it("will not let a departing character speak on the way out", () => {
-    // The observed failure: a character is killed and still takes the turn.
+  it("lets a departing character speak their leave-taking, then retires them", () => {
+    // Stage semantics: a dismissed character says goodbye ON the exit
+    // decision; every LATER decision excludes them (next test).
     const res = resolveSceneDecision(
       { scene, sceneState: base() },
-      { action: "speak", speakerId: "ada", beat: "last words", exitSlug: "ada" },
+      { action: "speak", speakerId: "ada", beat: "a short goodbye", exitSlug: "ada" },
+    );
+    expect(res.degraded).toBe(false);
+    expect(res.speakerSlug).toBe("ada");
+    expect(res.sceneState.presentCharacterSlugs).not.toContain("ada");
+    // Continuity must not point at the departed.
+    expect(res.sceneState.lastSpeakerSlug).toBeNull();
+  });
+
+  it("still blocks speaking for a character who is already absent", () => {
+    const state = { ...base(), presentCharacterSlugs: ["turing"] };
+    const res = resolveSceneDecision(
+      { scene, sceneState: state },
+      { action: "speak", speakerId: "ada", beat: "from beyond", exitSlug: "ada" },
     );
     expect(res.degraded).toBe(true);
     expect(res.speakerSlug).not.toBe("ada");
@@ -860,5 +1094,125 @@ describe("character presence", () => {
       .messages[0]!.content;
     expect(prompt).toContain("No longer in the scene");
     expect(prompt).toContain("ada");
+  });
+});
+
+
+describe("the chronicle", () => {
+  const CHRONICLE = {
+    story: "The traveler arrived at dusk and asked after the promise.",
+    threads: ["The promise is unanswered."],
+    world: ["Dusk; the fire is low."],
+    intents: [{ trigger: "the fire is mentioned", direction: "A log collapses in sparks." }],
+    timed: [{ afterSeconds: 40, direction: "The evening wind rises under the oaks." }],
+    drafts: ["The fire settles; somewhere beyond the oaks a night bird calls once."],
+  };
+
+  it("sanitizes caps and drops malformed intents; empty input is null", () => {
+    expect(sanitizeChronicle(null)).toBeNull();
+    expect(sanitizeChronicle({ story: "", threads: [], world: [], intents: [] })).toBeNull();
+    const dirty = sanitizeChronicle({
+      story: "x".repeat(700),
+      threads: Array.from({ length: 9 }, (_, i) => `t${i}`),
+      world: [42, "  real  "],
+      intents: [{ trigger: "ok", direction: "fine" }, { trigger: "", direction: "no" }],
+      timed: [
+        { afterSeconds: 3, direction: "too soon - clamped up" },
+        { afterSeconds: 10_000, direction: "too late - clamped down" },
+        { afterSeconds: 40, direction: "dropped - over the limit" },
+      ],
+    });
+    expect(dirty?.story.length).toBe(600);
+    expect(dirty?.threads).toHaveLength(5);
+    expect(dirty?.world).toEqual(["real"]);
+    expect(dirty?.intents).toEqual([{ trigger: "ok", direction: "fine" }]);
+    expect(dirty?.timed).toEqual([
+      { afterSeconds: 15, direction: "too soon - clamped up" },
+      { afterSeconds: 600, direction: "too late - clamped down" },
+    ]);
+    expect(dirty?.drafts).toEqual([]);
+  });
+
+  it("mergeChronicle replaces restated sections and keeps omitted ones", () => {
+    const next = { story: "", threads: ["A new thread."], world: [], intents: [], timed: [], drafts: [] };
+    expect(mergeChronicle(CHRONICLE, next)).toEqual({
+      story: CHRONICLE.story,
+      threads: ["A new thread."],
+      world: CHRONICLE.world,
+      intents: CHRONICLE.intents,
+      timed: CHRONICLE.timed,
+      drafts: CHRONICLE.drafts,
+    });
+    expect(mergeChronicle(null, CHRONICLE)).toEqual(CHRONICLE);
+    expect(mergeChronicle(CHRONICLE, null)).toEqual(CHRONICLE);
+  });
+
+  it("round-trips through the session snapshot", () => {
+    const state = createInitialSceneState(scene);
+    const snapshot = buildSceneSessionSnapshot(state, {
+      updatedAt: "2026-07-31T00:00:00.000Z",
+      chronicle: CHRONICLE,
+    });
+    expect(snapshot.chronicle).toEqual(CHRONICLE);
+    expect(readSceneChronicleFromSnapshot(snapshot, scene.id)).toEqual(CHRONICLE);
+    expect(readSceneChronicleFromSnapshot(snapshot, "other-scene")).toBeNull();
+    const bare = buildSceneSessionSnapshot(state, { updatedAt: "2026-07-31T00:00:00.000Z" });
+    expect(bare.chronicle).toBeUndefined();
+    expect(readSceneChronicleFromSnapshot(bare, scene.id)).toBeNull();
+  });
+
+  it("renders into the director prompt when present, silently absent otherwise", () => {
+    const state = createInitialSceneState(scene);
+    const withChronicle = buildSceneDecisionRequest({
+      scene,
+      sceneState: state,
+      chronicle: CHRONICLE,
+    }).messages[0]!.content;
+    expect(withChronicle).toContain("The chronicle - the story you are writing");
+    expect(withChronicle).toContain("So far: The traveler arrived at dusk");
+    expect(withChronicle).toContain("- The promise is unanswered.");
+    expect(withChronicle).toContain("when the fire is mentioned: A log collapses in sparks.");
+    expect(withChronicle).toContain("in ~40s: The evening wind rises under the oaks.");
+    expect(withChronicle).toContain("Drafted narration (pre-written by your slower self)");
+    expect(withChronicle).toContain("- The fire settles; somewhere beyond the oaks a night bird calls once.");
+    // A due event renders as an imperative in the USER prompt.
+    const withEvent = buildSceneDecisionRequest({
+      scene,
+      sceneState: state,
+      chronicle: CHRONICLE,
+      worldEventDirective: "The evening wind rises under the oaks.",
+    }).messages[1]!.content;
+    expect(withEvent).toContain("A WORLD EVENT the chronicler scheduled has come due");
+    expect(withEvent).toContain("The evening wind rises under the oaks.");
+    const without = buildSceneDecisionRequest({ scene, sceneState: state })
+      .messages[0]!.content;
+    expect(without).not.toContain("The chronicle");
+  });
+});
+
+
+describe("dismissedPresentCharacters", () => {
+  const present = scene.characters;
+
+  it("detects a named dismissal", () => {
+    expect(
+      dismissedPresentCharacters("Ada, leave us. I wish to speak with Turing alone.", present).map(
+        (c) => c.characterSlug,
+      ),
+    ).toEqual(["ada"]);
+    expect(
+      dismissedPresentCharacters("Go on then, Ada.", present).map((c) => c.characterSlug),
+    ).toEqual(["ada"]);
+    expect(
+      dismissedPresentCharacters("Narrator, Ada withdraws and leaves us by the fire.", present).map(
+        (c) => c.characterSlug,
+      ),
+    ).toEqual(["ada"]);
+  });
+
+  it("stays silent for ordinary mentions and unrelated 'leave' usage", () => {
+    expect(dismissedPresentCharacters("Ada, what did the machine measure?", present)).toEqual([]);
+    expect(dismissedPresentCharacters("Don't leave the lamp burning, Ada.", present)).toEqual([]);
+    expect(dismissedPresentCharacters("leave us out of the ledger entirely", present)).toEqual([]);
   });
 });

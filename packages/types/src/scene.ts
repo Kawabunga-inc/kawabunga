@@ -141,6 +141,22 @@ export const sceneSchema = z.object({
   // How hard the director presses toward goals. Absent = balanced (the
   // current default behavior).
   drive: z.enum(["gentle", "balanced", "insistent"]).optional(),
+  // Who originates the next beat between the visitor's turns. Absent = user:
+  // the visitor paces the story and proactive ticks only fill silence.
+  initiative: z.enum(["user", "shared", "narrator"]).optional(),
+  // Who the visitor is in the fiction. Absent = a real visitor; character
+  // means they play the authored role described by userCharacter.
+  userRole: z.enum(["visitor", "character"]).optional(),
+  userCharacter: z
+    .object({
+      name: z.string(),
+      blurb: z.string(),
+      relationship: z.string().optional(),
+    })
+    .optional(),
+  // Whether narrator-addressed third-person declarations can author events.
+  // Absent = true, preserving the current behavior.
+  userDirector: z.boolean().optional(),
   // True when this is a character's canonical solo scene (auto-provisioned;
   // definition.soloCharacterId set) — the character-sandbox floor. The driver
   // uses it to preserve sandbox behaviors (e.g. no stale Direction line on
@@ -161,6 +177,54 @@ export type Scene = z.infer<typeof sceneSchema>;
 // scene_nodes / scene_edges tables; the tables are the source of truth
 // for indexed lookup, the JSON snapshot is for fast reads.
 
+// ── Stage (overhead canvas) ──────────────────────────────────────────
+//
+// Every scene shares one world space: meters, origin at center, +x right,
+// +y up. Small scenes simply occupy a small region of it. Positions are
+// stored on scene_nodes.position in these units; anything outside the
+// world bounds is treated as unplaced (which also neutralizes legacy
+// React-Flow pixel coordinates without a data migration).
+
+export const STAGE_WORLD = {
+  widthM: 96,
+  heightM: 64,
+  defaultViewWidthM: 24,
+  defaultViewHeightM: 16,
+  defaultSnapM: 0.5,
+  defaultGridM: 1,
+} as const;
+
+export const stagePositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  z: z.number().optional(),
+  rotation: z.number().optional(),
+});
+
+export const stageConfigSchema = z.object({
+  groundColor: z.string().nullable().default(null),
+  // Art-style preset driving generated artifact sprites ("painterly",
+  // "pixel"). null = footprints only, no generated art.
+  artStyle: z.string().nullable().default(null),
+  // Scene-level art direction seeded into every artifact sprite prompt
+  // ("dusty golden hour, Bronze Age Canaan"). Rides alongside the style
+  // preset's clause.
+  styleDirection: z.string().nullable().default(null),
+  // Generated terrain plates covering the full world rect, keyed by art
+  // style (like artifact renditions). Terrain only — artifacts layer
+  // above with alpha, so placements stay live.
+  backgrounds: z.record(z.string(), z.string()).nullable().default(null),
+  snapM: z.number().positive().nullable().default(null),
+  viewport: z
+    .object({ cx: z.number(), cy: z.number(), zoom: z.number().positive() })
+    .nullable()
+    .default(null),
+  spawn: z.object({ x: z.number(), y: z.number() }).nullable().default(null),
+});
+
+export type StagePosition = z.infer<typeof stagePositionSchema>;
+export type StageConfig = z.infer<typeof stageConfigSchema>;
+
 export const sceneDefinitionNodeSchema = z.object({
   id: z.string().min(1),
   kind: z.string().min(1),
@@ -168,7 +232,7 @@ export const sceneDefinitionNodeSchema = z.object({
   label: z.string().min(1),
   summary: z.string().nullable().optional(),
   data: z.record(z.string(), z.unknown()).default({}),
-  position: z.object({ x: z.number(), y: z.number() }).nullable().optional(),
+  position: stagePositionSchema.nullable().optional(),
 });
 
 export const sceneDefinitionEdgeSchema = z.object({
@@ -194,6 +258,21 @@ export const sceneDefinitionSchema = z.object({
   // Authored intention on the scene root (see sceneSchema.objective/drive).
   objective: z.string().nullable().default(null),
   drive: z.enum(["gentle", "balanced", "insistent"]).nullable().default(null),
+  initiative: z.enum(["user", "shared", "narrator"]).nullable().default(null),
+  userRole: z.enum(["visitor", "character"]).nullable().default(null),
+  userCharacter: z
+    .object({
+      name: z.string(),
+      blurb: z.string(),
+      relationship: z.string().optional(),
+    })
+    .nullable()
+    .default(null),
+  userDirector: z.boolean().nullable().default(null),
+  // Overhead-canvas stage settings (ground color, snap, saved viewport,
+  // spawn point). Nullable default keeps pre-stage definitions parsing
+  // unchanged; merge-patched via updateSceneConfig like everything else.
+  stage: stageConfigSchema.nullable().default(null),
   // Solo scene marker: the character this scene is the canonical one-actor
   // scene FOR (auto-provisioned by getOrCreateSoloScene). A character session
   // IS this scene — editing it (horizon, arc, audio nodes) configures the
@@ -240,6 +319,10 @@ export const sceneStateSchema = z.object({
   // progress. The fast per-turn director reads it as its own memory.
   // Latest wins; carried forward by decision application until replaced.
   directorNote: z.string().min(1).max(400).optional(),
+  // The chronicler's current emotional truth for each character. Unlike the
+  // authored baseline, this evolves as the live story changes and persists
+  // after the triggering dialogue scrolls out of the recent-turn window.
+  characterStates: z.record(z.string(), z.string().max(200)).optional(),
   // Labels of arc beats the dramaturg has judged LANDED (subset of
   // Scene.arc labels, in arc order). Spread-carried like directorNote.
   arcLanded: z.array(z.string()).optional(),
@@ -275,6 +358,11 @@ export const sfxCueSchema = z.object({
   at: z.enum(["now", "with-speaker"]),
 });
 
+// The director chooses how much floor the character gets for this move. This
+// is dramatic intent, not a transport token limit: the character still writes
+// the words and the voice pipeline keeps only a generous runaway ceiling.
+export const orchestratorDeliverySchema = z.enum(["brief", "natural", "expansive"]);
+
 export const orchestratorDecisionSchema = z.object({
   action: orchestratorActionSchema,
 
@@ -288,11 +376,22 @@ export const orchestratorDecisionSchema = z.object({
   // Optional scene-level note appended to the speaker's promptChunk.
   // Use sparingly — costs LLM prompt tokens on the downstream turn.
   sceneCue: z.string().optional(),
+  // `brief` lands a sharp line, `natural` is an ordinary exchange, and
+  // `expansive` deliberately gives the speaker room for a story, explanation,
+  // confession, or major revelation.
+  delivery: orchestratorDeliverySchema.optional(),
 
   // ── For action="narrate" ───────────────────────────────────────
   // Narrator's literal lines — these go straight to TTS, not through
   // a character LLM. Keep short (≤2 sentences).
   narration: z.string().optional(),
+  // Whether the narration merely answers a question about the world or
+  // renders something happening that needs an immediate character reaction.
+  narrationKind: z.enum(["answer", "event"]).nullable().optional(),
+  // Dramatic magnitude. The runtime only arms consequence handling when the
+  // director explicitly marks a major/irreversible event (or an exit clearly
+  // describes death/incapacitation), so legacy output degrades unchanged.
+  weight: z.enum(["minor", "major", "irreversible"]).nullable().optional(),
 
   // ── Presence (always optional) ─────────────────────────────────
   // A character who has LEFT the scene or can no longer take part — walked
@@ -305,6 +404,13 @@ export const orchestratorDecisionSchema = z.object({
   // Must be on the scene's authored roster; unknown slugs are ignored.
   enterSlug: z.string().nullable().optional(),
 
+  // ── Momentum (always optional) ─────────────────────────────────
+  // TRUE = the moment is UNRESOLVED and the next beat must follow
+  // immediately, without waiting for the user (a blow just landed, a death
+  // is unanswered, a hold is still held). The driver keeps the cascade
+  // going — bounded, and always superseded the instant the user speaks.
+  momentum: z.boolean().nullable().optional(),
+
   // ── Audio bed (always optional) ────────────────────────────────
   ambience: z.string().nullable().optional(),
   sfx: z.array(sfxCueSchema).optional(),
@@ -316,6 +422,7 @@ export const orchestratorDecisionSchema = z.object({
 });
 
 export type OrchestratorAction = z.infer<typeof orchestratorActionSchema>;
+export type OrchestratorDelivery = z.infer<typeof orchestratorDeliverySchema>;
 export type SfxCue = z.infer<typeof sfxCueSchema>;
 export type OrchestratorDecision = z.infer<typeof orchestratorDecisionSchema>;
 
@@ -335,12 +442,16 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     "speakerId",
     "beat",
     "sceneCue",
+    "delivery",
     "narration",
+    "narrationKind",
+    "weight",
     "exitSlug",
     "enterSlug",
     "ambience",
     "sfx",
     "beatLabel",
+    "momentum",
   ],
   properties: {
     action: {
@@ -350,7 +461,16 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
     speakerId: { type: ["string", "null"] },
     beat: { type: ["string", "null"] },
     sceneCue: { type: ["string", "null"] },
+    delivery: { type: ["string", "null"], enum: ["brief", "natural", "expansive", null] },
     narration: { type: ["string", "null"] },
+    narrationKind: {
+      type: ["string", "null"],
+      enum: ["answer", "event", null],
+    },
+    weight: {
+      type: ["string", "null"],
+      enum: ["minor", "major", "irreversible", null],
+    },
     exitSlug: { type: ["string", "null"] },
     enterSlug: { type: ["string", "null"] },
     ambience: { type: ["string", "null"] },
@@ -367,5 +487,6 @@ export const ORCHESTRATOR_JSON_SCHEMA = {
       },
     },
     beatLabel: { type: ["string", "null"] },
+    momentum: { type: ["boolean", "null"] },
   },
 } as const;

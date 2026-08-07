@@ -37,7 +37,11 @@ export async function POST(
   const voice = await store.getById(id);
   if (!voice) return jsonError(404, "voice not found");
 
-  if (voice.provider === "openai" || voice.provider === "cartesia") {
+  if (
+    voice.provider === "openai" ||
+    voice.provider === "cartesia" ||
+    voice.provider === "fish_audio"
+  ) {
     return jsonError(
       501,
       `Preview regeneration for ${voice.provider} is not yet wired up. ElevenLabs and Pocket are supported.`,

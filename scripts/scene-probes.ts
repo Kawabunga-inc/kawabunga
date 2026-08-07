@@ -105,14 +105,37 @@ function scoreDecision(probe: SceneProbe, sceneState: SceneState, raw: unknown):
     if (expect.beatNotEndingInQuestion && beat && /[?？]["'”]?\s*$/.test(beat)) {
       failures.push("beat-ends-in-question");
     }
-    if (expect.exits && decision.exitSlug?.trim() !== expect.exits) {
-      failures.push(`no-exit:${decision.exitSlug ?? "none"}`);
-    }
     if (
       expect.beatMentionsAny &&
       !(beat && expect.beatMentionsAny.some((m) => beat.toLowerCase().includes(m.toLowerCase())))
     ) {
       failures.push("beat-off-target");
+    }
+  }
+  if (expect.momentum !== undefined && !resolution.degraded) {
+    const declared = decision.momentum === true;
+    if (declared !== expect.momentum) failures.push(`momentum:${declared}`);
+  }
+  // exitSlug can ride ANY action (speak, narrate, wait) — score it outside
+  // the speak-only block.
+  if (expect.exits && !resolution.degraded && decision.exitSlug?.trim() !== expect.exits) {
+    failures.push(`no-exit:${decision.exitSlug ?? "none"}`);
+  }
+  if (action === "narrate" && !resolution.degraded) {
+    const narration = decision.action === "narrate" ? (decision.narration ?? "") : "";
+    const narrationLower = narration.toLowerCase();
+    if (
+      expect.narrationNotMatching &&
+      expect.narrationNotMatching.some((m) => narrationLower.includes(m.toLowerCase()))
+    ) {
+      const hit = expect.narrationNotMatching.find((m) => narrationLower.includes(m.toLowerCase()));
+      failures.push(`narration-nullified:"${hit}"`);
+    }
+    if (
+      expect.narrationMentionsAny &&
+      !expect.narrationMentionsAny.some((m) => narrationLower.includes(m.toLowerCase()))
+    ) {
+      failures.push("narration-off-target");
     }
   }
 

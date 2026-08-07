@@ -15,11 +15,11 @@ const T = {
 };
 
 /** Tier color — matches the Paper design.
- * T1 = phosphor (existing app uses #8FD1CB as accent-strong, very close to
- * the design's #8DFCCB). T2 = amber. SM = violet. Test = neutral. */
+ * T1 = phosphor via the Ocean accent token. T2 = amber. SM = violet.
+ * Test = neutral. */
 function tierColor(tier: LayerTier): string {
   switch (tier) {
-    case "t1": return "rgba(140,231,210,0.85)";
+    case "t1": return "color-mix(in srgb, var(--color-accent-strong) 85%, transparent)";
     case "t2": return "rgba(255,184,112,0.80)";
     case "sm": return "rgba(179,136,255,0.80)";
     case "test": return "rgba(255,255,255,0.45)";
@@ -274,7 +274,7 @@ function LayerRow({
         gap: "var(--space-10)",
         padding: active ? "8px 12px 8px 10px" : "8px 12px",
         borderRadius: "var(--radius-xs)",
-        background: active ? "rgba(140,231,210,0.08)" : "transparent",
+        background: active ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "transparent",
         // All four sides explicit — no `border` shorthand. The shorthand
         // would conflict with `borderLeft` on re-render (React warns) and
         // can produce styling bugs when the active state toggles.

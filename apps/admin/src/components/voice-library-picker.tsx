@@ -464,7 +464,7 @@ function UnboundCard({ onClick }: { onClick: () => void }) {
         style={{
           padding: "7px 14px",
           borderRadius: "var(--radius-md)",
-          background: "rgba(140,231,210,0.06)",
+          background: "var(--color-accent-wash)",
           border: "1px solid var(--accent-border)",
           color: "var(--accent-strong)",
           fontFamily: FONT_BODY,
@@ -522,7 +522,7 @@ function BoundCard({
         gap: "var(--space-14)",
         padding: "14px 16px",
         borderRadius: "var(--radius-xl)",
-        background: "rgba(140,231,210,0.04)",
+        background: "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)",
         border: `1px solid ${
           focused
             ? "var(--accent-glow)"
@@ -805,7 +805,7 @@ function SentinelRow({
         alignItems: "center",
         gap: "var(--space-12)",
         padding: "10px 14px",
-        background: selected ? "rgba(140,231,210,0.06)" : "transparent",
+        background: selected ? "var(--color-accent-wash)" : "transparent",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         cursor: "pointer",
       }}
@@ -887,7 +887,7 @@ function VoiceRow({
         alignItems: "center",
         gap: "var(--space-12)",
         padding: "10px 14px",
-        background: selected ? "rgba(140,231,210,0.06)" : "transparent",
+        background: selected ? "var(--color-accent-wash)" : "transparent",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         cursor: "pointer",
       }}

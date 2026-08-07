@@ -1,21 +1,33 @@
 /**
- * The dramaturg — the slow half of the two-tier orchestration.
+ * The CHRONICLER — the authorial faculty of the Narrator (the unified
+ * scene orchestrator; see index.ts for the architecture).
  *
  * The per-turn director is fast, strict-schema, and latency-critical; it
- * pursues authored goals but has no memory of PROGRESS toward them. The
- * dramaturg runs ASYNC off the voice hot path (fire-and-forget after
- * turns complete), reviews the scene with a stronger model and a
- * free-form prompt, and writes one short director's note into
- * `SceneState.directorNote` — which the fast director reads on its next
- * decision as its own earlier reflection. Thinking at write time, cheap
- * reads.
+ * performs. The chronicler runs ASYNC off the voice hot path
+ * (fire-and-forget after turns complete), reviews the scene with a
+ * stronger model, and WRITES THE STORY: the chronicle (story-so-far,
+ * open threads, world state, prepared intentions — see SceneChronicle),
+ * plus the legacy reflection outputs (director's note, durable facts,
+ * arc landings, roster truth). The fast director reads all of it on its
+ * next decision. Thinking at write time, cheap reads — authorship and
+ * latency stop competing because they happen at different times.
+ *
+ * (Code identifiers keep the original "dramaturg" name for continuity —
+ * the dramaturg IS the chronicler.)
  *
  * This module is the PURE half (prompt building + output sanitization) so
  * it unit-tests without a network; the SceneDriver owns the ChatProvider
  * call, cadence, and state write.
  */
 import type { Scene, SceneState } from "@kawabunga/types";
-import { buildArcBlock, type SceneTurnForPlanning } from "./client";
+import {
+  buildArcBlock,
+  initiativeMode,
+  sanitizeChronicle,
+  userRoleFor,
+  type SceneChronicle,
+  type SceneTurnForPlanning,
+} from "./client";
 
 const NOTE_MAX_CHARS = 300;
 
@@ -31,8 +43,14 @@ export function buildDramaturgMessages(input: {
   previousNote?: string;
   /** Durable facts already extracted — shown so the dramaturg doesn't repeat them. */
   sceneFacts?: string[];
+  /** The current chronicle — shown so each reflection REVISES the story
+   *  rather than restarting it. */
+  chronicle?: SceneChronicle | null;
+  /** An irreversible event the runtime needs this reflection to metabolize. */
+  pendingConsequence?: string;
 }): DramaturgRequest {
   const { scene, sceneState, recentTurns, previousNote, sceneFacts } = input;
+  const chronicle = sanitizeChronicle(input.chronicle ?? null);
 
   const cast = scene.characters
     .filter((c) => sceneState.presentCharacterSlugs.includes(c.characterSlug))
@@ -53,11 +71,61 @@ export function buildDramaturgMessages(input: {
     : "  (no dialogue yet)";
 
   const system = [
-    "You are the DRAMATURG reviewing a live improvised voice scene between",
-    "authored characters and one real user. You do NOT write dialogue and you",
-    "do NOT pick speakers — a separate turn director does that, fast, every",
-    "turn. Your job is the longer view: reflect on how the scene is actually",
-    "going against its authored intentions.",
+    "You are the CHRONICLER of a live improvised voice scene between authored",
+    "characters and one real user. You do NOT write dialogue and you do NOT",
+    "pick speakers — a separate turn director does that, fast, every turn.",
+    "You WRITE THE STORY: you keep the chronicle the director performs from,",
+    "and you reflect on how the scene is going against its authored",
+    "intentions. The director only sees the last few turns; everything else",
+    "reaches it through what you write here.",
+    "",
+    "THE VISITOR IS A CO-AUTHOR. The authored objective and arc are a default",
+    "trajectory, not a leash. When the live story departs from them, follow what",
+    "is actually happening: revise intents and threads to serve the live story,",
+    "and drop or rewrite anything the visitor's improvisation has overtaken.",
+    ...(initiativeMode(scene) === "narrator"
+      ? [
+          "",
+          "FORWARD AUTHORSHIP IS REQUIRED. Every reflection MUST leave the director",
+          "something to fire next: at least one INTENT with a near trigger or one",
+          "TIMED event within ~60-120s. You are writing what happens next, not only",
+          "recording what has happened.",
+        ]
+      : []),
+    "",
+    "THE CHRONICLE — restate ALL FOUR sections on every reflection (they",
+    "replace what you wrote last time; carry forward what still holds):",
+    "STORY: the story so far in 2-4 sentences of past-tense prose - what has",
+    "  actually happened, as a storyteller would tell it. Not a summary of",
+    "  the dialogue; the shape of the scene.",
+    "THREAD: one open narrative thread (0-5 lines - a promise unkept, a",
+    "  question dodged, an object introduced, a tension unresolved). These",
+    "  are what you owe the audience; the director weaves them back in.",
+    "  Drop a thread once it resolves; restate the ones still open.",
+    "WORLD: one line of world state (0-3 lines - time of day, weather, what",
+    "  an off-stage character is doing). True even while nobody mentions it;",
+    "  advance it slowly so the world visibly lives.",
+    "INTENT: when <trigger>: <direction> (0-3 lines). A beat you have",
+    "  PREPARED for the director: fire <direction> when <trigger> is live in",
+    "  the dialogue or in a lull. Make triggers concrete ('the traveler",
+    "  mentions the child again') and directions active. This is how the",
+    "  world originates events instead of only reacting.",
+    "  A direction can only move a CHARACTER (name them) or the narrator's",
+    "  world - NEVER the visitor. The visitor is a real person; nothing you",
+    "  write can steer them. 'The traveler turns to Sarah' is wasted ink;",
+    "  'Sarah calls out from the tent flap to the traveler' is a beat.",
+    "DRAFT: <narration passage> (0-2 lines, each 1-2 sentences). Polished",
+    "  narration you PRE-WRITE for a moment you see coming - sensory, present",
+    "  tense, spoken aloud. When the turn director narrates and your draft",
+    "  fits, it voices your words instead of improvising. Write for the",
+    "  moments your threads and intents are steering toward; replace drafts",
+    "  that no longer fit.",
+    "TIMED: in ~<seconds>s: <direction> (0-2 lines, 15-600s). A world event",
+    "  on a CLOCK instead of a trigger - the fire collapsing, a distant cry,",
+    "  someone returning from the dark. The runtime fires it in a lull when",
+    "  its time comes. Use it to make the world act on its own; same rule:",
+    "  it moves a character or the world, never the visitor. Restate a",
+    "  pending event to keep it; drop it once it has happened.",
     "",
     "Write ONE short director's note (at most 2 sentences, under",
     `${NOTE_MAX_CHARS} characters) addressed to the turn director:`,
@@ -87,6 +155,15 @@ export function buildDramaturgMessages(input: {
     "view and misses; you read the whole scene. Only for characters who truly",
     "cannot continue — never for someone merely silent, sulking, or offstage",
     "for a moment.",
+    "",
+    "You also maintain each present character's CURRENT emotional state. Emit",
+    "`STATE: <slug>: <one line>` (0-N lines), one per present character whose",
+    "state has meaningfully changed from their authored baseline or must be",
+    "carried forward. Use present tense and include the concrete cause",
+    "(`shattered — she watched Abraham fall`). Restate a state to keep it;",
+    "revise it as it evolves (shock → grief → resolve); omit it only when the",
+    "character has genuinely settled back to baseline. Never emit STATE for the",
+    "visitor. Use the exact cast slug and keep the state to one short line.",
     ...(scene.arc?.length
       ? [
           "",
@@ -123,8 +200,27 @@ export function buildDramaturgMessages(input: {
     "",
     "Cast and authored intentions:",
     cast,
+    ...(userRoleFor(scene) === "character" && scene.userCharacter
+      ? [
+          `- Visitor role: ${scene.userCharacter.name} — ${scene.userCharacter.blurb}${scene.userCharacter.relationship ? ` (${scene.userCharacter.relationship})` : ""}.`,
+          `  Attribute the user's words and deeds to ${scene.userCharacter.name} in STORY and FACT lines.`,
+        ]
+      : []),
     ...(sceneFacts?.length
       ? ["", "Established facts so far (do not repeat these):", ...sceneFacts.map((f) => `  - ${f}`)]
+      : []),
+    ...(chronicle
+      ? [
+          "",
+          "Your chronicle as of the last reflection (revise it - restate what",
+          "holds, drop what resolved, add what changed):",
+          ...(chronicle.story ? [`  STORY: ${chronicle.story}`] : []),
+          ...chronicle.threads.map((t) => `  THREAD: ${t}`),
+          ...chronicle.world.map((w) => `  WORLD: ${w}`),
+          ...chronicle.intents.map((i) => `  INTENT: when ${i.trigger}: ${i.direction}`),
+          ...chronicle.timed.map((t) => `  TIMED: in ~${t.afterSeconds}s: ${t.direction}`),
+          ...chronicle.drafts.map((d) => `  DRAFT: ${d}`),
+        ]
       : []),
     "",
     `Current situation: ${sceneState.beat}`,
@@ -134,8 +230,19 @@ export function buildDramaturgMessages(input: {
     ...(previousNote
       ? ["", `Your previous note: ${previousNote}`, "Revise or replace it in light of the dialogue above."]
       : []),
+    ...(input.pendingConsequence
+      ? [
+          "",
+          `An irreversible event just occurred: ${input.pendingConsequence}`,
+          "Your reflection MUST set STATE for every affected character, open a",
+          "THREAD for what this loss demands, and revise or drop every INTENT the",
+          "event invalidated.",
+        ]
+      : []),
     "",
-    scene.arc?.length ? "Your reply (LANDED lines if any, then NOTE):" : "Your note:",
+    scene.arc?.length
+      ? "Your reply (STORY/THREAD/WORLD/INTENT lines, LANDED lines if any, then NOTE):"
+      : "Your reply (STORY/THREAD/WORLD/INTENT lines, then NOTE):",
   ].join("\n");
 
   return { system, user };
@@ -154,12 +261,65 @@ export function parseDramaturgReflection(raw: string): {
   landed: string[];
   facts: string[];
   gone: string[];
+  states: Array<{ slug: string; state: string }>;
+  /** Chronicle sections found in the reflection, or null when the model
+   *  emitted none (legacy format / truncated reply) — the caller keeps the
+   *  previous chronicle in that case. Sections are wholesale restatements. */
+  chronicle: SceneChronicle | null;
 } {
   const landed: string[] = [];
   const facts: string[] = [];
   const gone: string[] = [];
+  const states: Array<{ slug: string; state: string }> = [];
   const noteLines: string[] = [];
+  let story = "";
+  const threads: string[] = [];
+  const world: string[] = [];
+  const intents: Array<{ trigger: string; direction: string }> = [];
+  const timed: Array<{ afterSeconds: number; direction: string }> = [];
+  const drafts: string[] = [];
   for (const line of raw.split("\n")) {
+    const storyMatch = line.match(/^\s*story\s*:\s*(.+?)\s*$/i);
+    if (storyMatch) {
+      // Multiple STORY lines: join — models sometimes wrap the prose.
+      story = story ? `${story} ${storyMatch[1]!}` : storyMatch[1]!;
+      continue;
+    }
+    const threadMatch = line.match(/^\s*thread\s*:\s*(.+?)\s*$/i);
+    if (threadMatch) {
+      threads.push(threadMatch[1]!);
+      continue;
+    }
+    const worldMatch = line.match(/^\s*world\s*:\s*(.+?)\s*$/i);
+    if (worldMatch) {
+      world.push(worldMatch[1]!);
+      continue;
+    }
+    // INTENT: when <trigger>: <direction>  (also tolerates "->" and "-")
+    const intentMatch = line.match(
+      /^\s*intent\s*:\s*when\s+(.+?)\s*(?:->|:|—|-)\s+(.+?)\s*$/i,
+    );
+    if (intentMatch) {
+      intents.push({ trigger: intentMatch[1]!, direction: intentMatch[2]! });
+      continue;
+    }
+    // An INTENT line that didn't parse (missing "when") is dropped rather
+    // than leaking into the note.
+    if (/^\s*intent\s*:/i.test(line)) continue;
+    // TIMED: in ~40s: <direction>  (tolerates "in 40 s", "~40s", "40s")
+    const timedMatch = line.match(
+      /^\s*timed\s*:\s*(?:in\s+)?~?\s*(\d+)\s*s(?:ec(?:onds)?)?\s*(?:->|:|—|-)\s+(.+?)\s*$/i,
+    );
+    if (timedMatch) {
+      timed.push({ afterSeconds: Number(timedMatch[1]!), direction: timedMatch[2]! });
+      continue;
+    }
+    if (/^\s*timed\s*:/i.test(line)) continue;
+    const draftMatch = line.match(/^\s*draft\s*:\s*(.+?)\s*$/i);
+    if (draftMatch) {
+      drafts.push(draftMatch[1]!);
+      continue;
+    }
     const landedMatch = line.match(/^\s*landed\s*:\s*(.+?)\s*$/i);
     if (landedMatch) {
       landed.push(landedMatch[1]!);
@@ -179,9 +339,25 @@ export function parseDramaturgReflection(raw: string): {
       gone.push(goneMatch[1]!.trim());
       continue;
     }
+    const stateMatch = line.match(/^\s*state\s*:\s*([^:]+?)\s*:\s*(.+?)\s*$/i);
+    if (stateMatch) {
+      const slug = stateMatch[1]!.trim();
+      const state = stateMatch[2]!.replace(/\s+/g, " ").trim().slice(0, 200);
+      if (slug && state) states.push({ slug, state });
+      continue;
+    }
+    // Malformed STATE output is metadata, never part of the director note.
+    if (/^\s*state\s*:/i.test(line)) continue;
     noteLines.push(line);
   }
-  return { note: sanitizeDramaturgNote(noteLines.join("\n")), landed, facts, gone };
+  return {
+    note: sanitizeDramaturgNote(noteLines.join("\n")),
+    landed,
+    facts,
+    gone,
+    states,
+    chronicle: sanitizeChronicle({ story, threads, world, intents, timed, drafts }),
+  };
 }
 
 /**

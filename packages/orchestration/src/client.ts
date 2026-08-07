@@ -3,6 +3,7 @@ import {
   orchestratorDecisionSchema,
   sceneStateSchema,
   type OrchestratorDecision,
+  type OrchestratorDelivery,
   type Scene,
   type SceneCharacter,
   type SceneState,
@@ -77,10 +78,48 @@ export type SceneSessionSnapshot = {
   sceneId: string;
   sceneState: SceneState;
   sceneMemory: string[];
-  /** Durable facts the dramaturg has extracted — survive after the verbatim
+  /** Durable facts the chronicler has extracted — survive after the verbatim
    *  memory window scrolls past them. Optional: pre-facts snapshots lack it. */
   sceneFacts?: string[];
+  /** The chronicle — the Narrator's living story document (see SceneChronicle).
+   *  Optional: pre-chronicle snapshots lack it. */
+  chronicle?: SceneChronicle;
   updatedAt: string;
+};
+
+/**
+ * The CHRONICLE — the Narrator's living story document, maintained by the
+ * chronicler faculty (the slow reflection loop) and read by the director
+ * every decision. This is the difference between a turn dispatcher and an
+ * author: the story-so-far exists as an artifact, not just a transcript
+ * window. Sections are restated wholesale each reflection (self-healing);
+ * facts stay in their own additive store.
+ */
+export type SceneChronicle = {
+  /** The story so far, in prose — 2-4 sentences, restated fresh each
+   *  reflection. The director reads this as its script-in-progress. */
+  story: string;
+  /** Open narrative threads: promises made, tensions unresolved, the knife
+   *  still on the table. The director weaves them back in when invited. */
+  threads: string[];
+  /** The world right now: time of day, weather, who is off-stage doing what. */
+  world: string[];
+  /** Prepared intentions — soft-planned beats with trigger conditions. The
+   *  director fires the direction when its trigger goes live (including on
+   *  a silence tick: this is how world-originated events happen). */
+  intents: Array<{ trigger: string; direction: string }>;
+  /** TIMED world events — beats on a clock, not a trigger: "in ~40s the
+   *  fire collapses". The driver schedules them from the moment the
+   *  reflection lands; when one comes due in a lull, the director is told
+   *  its time has COME and renders it. This is the world acting on its own
+   *  clock. */
+  timed: Array<{ afterSeconds: number; direction: string }>;
+  /** ANTICIPATORY DRAFTS — polished narration passages the chronicler
+   *  pre-writes for moments it sees coming. The fast director, when it
+   *  chooses `narrate`, voices one (verbatim or lightly adapted) instead of
+   *  composing fresh — chronicler-quality prose at hot-path latency.
+   *  Written ahead of time, performed just in time. */
+  drafts: string[];
 };
 
 /** How many recent turns the director's dialogue window holds. The single
@@ -91,11 +130,43 @@ const SCENE_MEMORY_LIMIT = 12;
 const SCENE_MEMORY_ENTRY_MAX_CHARS = 280;
 const SCENE_FACTS_LIMIT = 12;
 const SCENE_FACT_MAX_CHARS = 200;
+// Chronicle caps — generous enough to carry a scene, tight enough that the
+// director's prompt stays token-bounded even with every section full.
+const CHRONICLE_STORY_MAX_CHARS = 600;
+const CHRONICLE_THREADS_LIMIT = 5;
+const CHRONICLE_THREAD_MAX_CHARS = 160;
+const CHRONICLE_WORLD_LIMIT = 3;
+const CHRONICLE_WORLD_MAX_CHARS = 120;
+const CHRONICLE_INTENTS_LIMIT = 3;
+const CHRONICLE_TRIGGER_MAX_CHARS = 100;
+const CHRONICLE_DIRECTION_MAX_CHARS = 160;
+const CHRONICLE_TIMED_LIMIT = 2;
+const CHRONICLE_DRAFTS_LIMIT = 2;
+const CHRONICLE_DRAFT_MAX_CHARS = 240;
+/** Clamp timed events into a livable window: sooner than 15s collides with
+ *  ordinary conversation cadence; later than 10min outlives most scenes. */
+const CHRONICLE_TIMED_MIN_SECONDS = 15;
+const CHRONICLE_TIMED_MAX_SECONDS = 600;
 
 /** The scene's narrator presence (see sceneSchema.narrator). Default is
  *  "minimal": opening + answering the user + rendering declared actions. */
 export function narratorMode(scene: Scene): "off" | "minimal" | "scenic" {
   return scene.narrator ?? "minimal";
+}
+
+/** Who originates beats between visitor turns. Legacy scenes are user-paced. */
+export function initiativeMode(scene: Scene): "user" | "shared" | "narrator" {
+  return scene.initiative ?? "user";
+}
+
+/** Whether the visitor is themselves or plays an authored role. */
+export function userRoleFor(scene: Scene): "visitor" | "character" {
+  return scene.userRole ?? "visitor";
+}
+
+/** Whether narrator-addressed declarations may author world events. */
+export function userDirectorEnabled(scene: Scene): boolean {
+  return scene.userDirector !== false;
 }
 
 /**
@@ -244,6 +315,29 @@ export function declaresUserAction(message: string): boolean {
   return /^i(?:'m|'ll| am| will| would)?\s+[a-z]+(?:e|s)?\b/i.test(text);
 }
 
+/**
+ * A narrator-addressed message that is a STATEMENT, not a question — the
+ * user declaring something happening in the world ("Narrator, Abraham sees
+ * a vision and kneels"). Form, not verbs: the director's narrationKind
+ * classifier was observed tagging exactly this as "answer" because the
+ * declaration contained a perception verb ("sees"), which both skipped the
+ * reaction chain and slipped past the userDirector-off gate. The runtime
+ * treats a declaration as an event regardless of the model's tag.
+ */
+export function isNarratorEventDeclaration(message: string): boolean {
+  if (!isNarratorAddressed(message)) return false;
+  const text = message
+    .trim()
+    .replace(/^\s*(?:hey\s+|ok(?:ay)?\s+)?narrator\s*[,:.\-–—]?\s*/i, "")
+    .trim();
+  if (!text) return false;
+  if (/\?\s*$/.test(text)) return false;
+  // Interrogative openers without a question mark ("Narrator, what do I see").
+  const interrogative =
+    /^(what|where|when|who|whom|whose|why|how|is|are|am|was|were|do|does|did|can|could|will|would|should|tell me|describe)\b/i;
+  return !interrogative.test(text);
+}
+
 export function createInitialSceneState(scene: Scene): SceneState {
   return {
     sceneId: scene.id,
@@ -269,7 +363,12 @@ export function buildSceneSessionSnapshot(
   sceneState: SceneState,
   options:
     | string
-    | { updatedAt?: string; sceneMemory?: string[]; sceneFacts?: string[] } = {},
+    | {
+        updatedAt?: string;
+        sceneMemory?: string[];
+        sceneFacts?: string[];
+        chronicle?: SceneChronicle | null;
+      } = {},
 ): SceneSessionSnapshot {
   const updatedAt = typeof options === "string"
     ? options
@@ -280,14 +379,124 @@ export function buildSceneSessionSnapshot(
   const sceneFacts = typeof options === "string"
     ? []
     : sanitizeSceneFacts(options.sceneFacts ?? []);
+  const chronicle = typeof options === "string"
+    ? null
+    : sanitizeChronicle(options.chronicle ?? null);
   return {
     version: 1,
     sceneId: sceneState.sceneId,
     sceneState,
     sceneMemory,
     ...(sceneFacts.length ? { sceneFacts } : {}),
+    ...(chronicle ? { chronicle } : {}),
     updatedAt,
   };
+}
+
+/** Normalize an untrusted chronicle value: cap every section, drop malformed
+ *  entries. Null when nothing usable remains — an empty chronicle is not a
+ *  chronicle. */
+export function sanitizeChronicle(value: unknown): SceneChronicle | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<Record<keyof SceneChronicle, unknown>>;
+  const story = typeof raw.story === "string"
+    ? truncateAt(compactWhitespace(raw.story), CHRONICLE_STORY_MAX_CHARS)
+    : "";
+  const threads = sanitizeStringList(raw.threads, CHRONICLE_THREADS_LIMIT, CHRONICLE_THREAD_MAX_CHARS);
+  const world = sanitizeStringList(raw.world, CHRONICLE_WORLD_LIMIT, CHRONICLE_WORLD_MAX_CHARS);
+  const intents = (Array.isArray(raw.intents) ? raw.intents : [])
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const e = entry as { trigger?: unknown; direction?: unknown };
+      const trigger = typeof e.trigger === "string"
+        ? truncateAt(compactWhitespace(e.trigger), CHRONICLE_TRIGGER_MAX_CHARS)
+        : "";
+      const direction = typeof e.direction === "string"
+        ? truncateAt(compactWhitespace(e.direction), CHRONICLE_DIRECTION_MAX_CHARS)
+        : "";
+      return trigger && direction ? { trigger, direction } : null;
+    })
+    .filter((e): e is { trigger: string; direction: string } => e !== null)
+    .slice(0, CHRONICLE_INTENTS_LIMIT);
+  const timed = (Array.isArray(raw.timed) ? raw.timed : [])
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const e = entry as { afterSeconds?: unknown; direction?: unknown };
+      const direction = typeof e.direction === "string"
+        ? truncateAt(compactWhitespace(e.direction), CHRONICLE_DIRECTION_MAX_CHARS)
+        : "";
+      const seconds = typeof e.afterSeconds === "number" && Number.isFinite(e.afterSeconds)
+        ? Math.round(e.afterSeconds)
+        : NaN;
+      if (!direction || Number.isNaN(seconds)) return null;
+      return {
+        afterSeconds: Math.min(
+          CHRONICLE_TIMED_MAX_SECONDS,
+          Math.max(CHRONICLE_TIMED_MIN_SECONDS, seconds),
+        ),
+        direction,
+      };
+    })
+    .filter((e): e is { afterSeconds: number; direction: string } => e !== null)
+    .slice(0, CHRONICLE_TIMED_LIMIT);
+  const drafts = sanitizeStringList(raw.drafts, CHRONICLE_DRAFTS_LIMIT, CHRONICLE_DRAFT_MAX_CHARS);
+  if (
+    !story &&
+    threads.length === 0 &&
+    world.length === 0 &&
+    intents.length === 0 &&
+    timed.length === 0 &&
+    drafts.length === 0
+  ) {
+    return null;
+  }
+  return { story, threads, world, intents, timed, drafts };
+}
+
+function sanitizeStringList(value: unknown, limit: number, maxChars: number): string[] {
+  return (Array.isArray(value) ? value : [])
+    .map((entry) => (typeof entry === "string" ? truncateAt(compactWhitespace(entry), maxChars) : ""))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function truncateAt(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, maxChars - 3).trimEnd()}...`;
+}
+
+/**
+ * Fold a freshly parsed chronicle into the previous one. Sections are
+ * wholesale restatements, so a non-empty new section replaces the old —
+ * but an EMPTY section keeps the previous value: the chronicler is
+ * instructed to restate everything each reflection, so an absent section
+ * means truncation or drift, not intentional clearing. (A thread the model
+ * stops restating IS dropped, since threads arrive as a non-empty list.)
+ */
+export function mergeChronicle(
+  previous: SceneChronicle | null,
+  next: SceneChronicle | null,
+): SceneChronicle | null {
+  if (!next) return previous;
+  if (!previous) return next;
+  return {
+    story: next.story || previous.story,
+    threads: next.threads.length ? next.threads : previous.threads,
+    world: next.world.length ? next.world : previous.world,
+    intents: next.intents.length ? next.intents : previous.intents,
+    timed: next.timed.length ? next.timed : previous.timed,
+    drafts: next.drafts.length ? next.drafts : previous.drafts,
+  };
+}
+
+export function readSceneChronicleFromSnapshot(
+  value: unknown,
+  sceneId: string,
+): SceneChronicle | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as { sceneId?: unknown; chronicle?: unknown };
+  if (candidate.sceneId !== sceneId) return null;
+  return sanitizeChronicle(candidate.chronicle);
 }
 
 export function readSceneStateFromSnapshot(
@@ -381,6 +590,13 @@ export function buildSceneDecisionRequest(input: {
   recentTurns?: SceneTurnForPlanning[];
   sceneMemory?: string[];
   sceneFacts?: string[];
+  /** The Narrator's living story document — rendered into the director's
+   *  prompt so decisions come from the story being written, not just the
+   *  transcript window. */
+  chronicle?: SceneChronicle | null;
+  /** A timed world event whose clock has run out — rendered as an explicit
+   *  imperative in the director's user prompt (see buildOrchestratorUserPrompt). */
+  worldEventDirective?: string;
   lastUserMessage?: string;
 }): SceneDecisionRequest {
   const recentTurns = (input.recentTurns ?? []).slice(-RECENT_TURNS_LIMIT);
@@ -407,6 +623,7 @@ export function buildSceneDecisionRequest(input: {
           input.sceneState,
           sceneMemory,
           sceneFacts,
+          sanitizeChronicle(input.chronicle ?? null),
         ),
       },
       {
@@ -418,6 +635,7 @@ export function buildSceneDecisionRequest(input: {
             input.sceneState.presentCharacterSlugs.includes(c.characterSlug),
           ),
           narratorMode(input.scene) !== "off",
+          input.worldEventDirective,
         ),
       },
     ],
@@ -450,11 +668,19 @@ export function resolveSceneDecision(
   if (decision.action === "speak") {
     const speakerSlug = decision.speakerId?.trim() ?? "";
     // Validate the speaker against the roster AFTER this decision's own
-    // presence changes: a decision that both retires a character and picks
-    // them to speak must not let them speak on the way out.
+    // presence changes — EXCEPT the character this very decision retires:
+    // a dismissed character speaks their leave-taking on the way out (the
+    // exit still applies, and every LATER decision excludes them). Anyone
+    // else must be present post-changes.
     const presentAfter = applyPresence(input.scene, input.sceneState, decision).present;
+    const isLeaveTaking =
+      speakerSlug !== "" &&
+      decision.exitSlug?.trim() === speakerSlug &&
+      input.sceneState.presentCharacterSlugs.includes(speakerSlug);
     const present = input.scene.characters.some(
-      (c) => c.characterSlug === speakerSlug && presentAfter.includes(c.characterSlug),
+      (c) =>
+        c.characterSlug === speakerSlug &&
+        (presentAfter.includes(c.characterSlug) || isLeaveTaking),
     );
     if (!speakerSlug || !present) {
       return fallbackResolution(
@@ -546,6 +772,8 @@ export function buildSpeakerTurnRequest(input: {
   const promptChunk = buildDirectiveChunk({
     beat,
     sceneCue: input.decision.sceneCue,
+    delivery: input.decision.delivery,
+    characterState: input.sceneState.characterStates?.[speakerSlug],
     speaker: character,
     othersPresent: input.scene.characters
       .filter(
@@ -555,6 +783,10 @@ export function buildSpeakerTurnRequest(input: {
       )
       .map((c) => c.displayName),
     narratorPresent: narratorMode(input.scene) !== "off",
+    visitorRole:
+      userRoleFor(input.scene) === "character"
+        ? input.scene.userCharacter?.name.trim() || undefined
+        : undefined,
   });
 
   return {
@@ -619,6 +851,9 @@ function sanitizeAudioCues(
 export function buildDirectiveChunk(input: {
   beat: string;
   sceneCue?: string;
+  delivery?: OrchestratorDelivery;
+  /** The chronicler's current emotional truth for this speaker. */
+  characterState?: string;
   speaker?: Pick<SceneCharacter, "motivations" | "behaviorTriggers" | "speakingStyle">;
   /** Display names of the OTHER present characters — when set, declares the
    *  multi-party transcript convention (name-prefixed lines) so the speaker
@@ -627,6 +862,8 @@ export function buildDirectiveChunk(input: {
   /** When true, declares the stage-direction convention: bracketed lines are
    *  events in the world (narration), reacted to but never answered. */
   narratorPresent?: boolean;
+  /** Authored name of the role the visitor plays, when this is roleplay. */
+  visitorRole?: string;
 }): string {
   const lines = [
     `Direction: ${input.beat}`,
@@ -636,20 +873,62 @@ export function buildDirectiveChunk(input: {
     "Match your reply's shape to the direction - if it says to pause, land,",
     "concede, or act, end there; do not tack a question onto the end.",
   ];
-  if (input.othersPresent?.length) {
+  if (input.delivery === "brief") {
     lines.push(
-      `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
-      'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
-      "speaking; unmarked lines are the visitor you are all speaking with. Speak",
-      "only as yourself - never write the others' lines.",
+      "Delivery: brief. Land one sharp line or compact reaction, then yield the floor.",
+    );
+  } else if (input.delivery === "natural") {
+    lines.push(
+      "Delivery: natural. Take the space an ordinary spoken exchange needs; complete",
+      "the move without turning it into a speech.",
+    );
+  } else if (input.delivery === "expansive") {
+    lines.push(
+      "Delivery: expansive. The director is deliberately giving you the floor for a",
+      "story, explanation, confession, or revelation. Let it breathe, then stop when",
+      "the dramatic move has landed.",
     );
   }
+  if (input.characterState) {
+    lines.push(`Your state right now: ${input.characterState}. Perform from it.`);
+  }
+  if (input.othersPresent?.length) {
+    if (input.visitorRole) {
+      lines.push(
+        `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
+        'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
+        `speaking; unmarked lines are ${input.visitorRole}, the role the visitor plays. Speak`,
+        "only as yourself - never write the others' lines.",
+      );
+    } else {
+      lines.push(
+        `Also in this scene: ${input.othersPresent.join(", ")}. In the conversation,`,
+        'a line starting with a name ("' + input.othersPresent[0] + ': ...") is that person',
+        "speaking; unmarked lines are the visitor you are all speaking with. Speak",
+        "only as yourself - never write the others' lines.",
+      );
+    }
+  }
   if (input.narratorPresent) {
-    lines.push(
-      "A line in [brackets] is something HAPPENING around you - the world",
-      "itself, not anyone speaking. React to it as an event; never answer it",
-      "as if it were words.",
-    );
+    if (input.visitorRole) {
+      lines.push(
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        `as if it were words. In bracketed lines, "you"/"your" refers to ${input.visitorRole} -`,
+        "the narration speaks to them, not to you. If a bracketed line says",
+        `${input.visitorRole} did something, ${input.visitorRole} did it - attribute`,
+        "the act to them, not to anyone else present.",
+      );
+    } else {
+      lines.push(
+        "A line in [brackets] is something HAPPENING around you - the world",
+        "itself, not anyone speaking. React to it as an event; never answer it",
+        'as if it were words. In bracketed lines, "you"/"your" refers to THE',
+        "VISITOR - the narration speaks to them, not to you. If a bracketed",
+        "line says the visitor did something, the visitor did it - attribute",
+        "the act to them, not to anyone else present.",
+      );
+    }
   }
   if (input.sceneCue) lines.push(`Scene note: ${input.sceneCue}`);
   if (input.speaker?.motivations) {
@@ -810,6 +1089,7 @@ function buildOrchestratorSystemPrompt(
   state: SceneState,
   sceneMemory: string[],
   sceneFacts: string[] = [],
+  chronicle: SceneChronicle | null = null,
 ): string {
   const present = scene.characters.filter((c) =>
     state.presentCharacterSlugs.includes(c.characterSlug),
@@ -825,6 +1105,8 @@ function buildOrchestratorSystemPrompt(
         c.emotionalBaseline ? `baseline: ${c.emotionalBaseline}` : null,
       ].filter(Boolean);
       if (facts.length) lines.push(`      ${facts.join("   ")}`);
+      const currentState = state.characterStates?.[c.characterSlug];
+      if (currentState) lines.push(`      now: ${currentState}`);
       for (const t of c.behaviorTriggers ?? []) {
         lines.push(`      will: ${t.behavior} (when ${t.condition})`);
       }
@@ -832,6 +1114,7 @@ function buildOrchestratorSystemPrompt(
     })
     .join("\n");
   const anyIntent = present.some((c) => c.motivations || c.behaviorTriggers?.length);
+  const hasCharacterStates = present.some((c) => state.characterStates?.[c.characterSlug]);
 
   return [
     "You are the DIRECTOR of a voice-driven scene. You decide what happens next -",
@@ -851,6 +1134,25 @@ function buildOrchestratorSystemPrompt(
     "  - ask: \"Turn the question back on them - ask why they're really asking.\"",
     "Set `beat` on EVERY `speak`. Never script the words - that's the character's",
     "job; the `beat` is intent, not lines.",
+    "Write every `beat` as a SECOND-PERSON direction to the speaker (\"Release his",
+    "throat; let him hear your doubt\") - never third-person prose about them; the",
+    "speaker mirrors your register.",
+    "Set `delivery` on EVERY `speak`; you are the storyteller deciding how much",
+    "floor this dramatic move deserves:",
+    "  - `brief`: one sharp line or compact reaction - interruptions, quick",
+    "    answers, actions, concessions, and crisis beats that must keep moving.",
+    "  - `natural`: an ordinary conversational turn with enough room to complete",
+    "    the move, but no speech for its own sake. This is the usual choice.",
+    "  - `expansive`: deliberately yield the floor for a requested story or",
+    "    explanation, a confession, a major revelation, or a monologue the arc has",
+    "    earned. Use it because the moment needs breadth, never just atmosphere.",
+    "Length is dramatic pacing: honor an explicit request to tell or explain, and",
+    "keep fast exchanges brief. Do not encode wording or sentence counts in `beat`.",
+    "The visitor's explicit request is binding: words like 'briefly', 'simply',",
+    "'one line', or 'yes or no' REQUIRE `brief`; 'the full story', 'in detail',",
+    "'tell me everything', or a request for a sustained explanation REQUIRE",
+    "`expansive`. Use `natural` only when the visitor and the dramatic moment do",
+    "not clearly ask for either edge.",
     "",
     "Set `speakerId` to the character's slug from the roster below (NOT their name).",
     ...(narratorMode(scene) !== "off"
@@ -859,6 +1161,26 @@ function buildOrchestratorSystemPrompt(
           "THE NARRATOR - `action: \"narrate\"` speaks as an unseen presence: the",
           "world itself, never a character. Narration is at most two sentences,",
           "present tense, concrete and sensory. The narrator's jobs:",
+          "- On EVERY `narrate`, set `narrationKind` by the FORM of the user's",
+          "  message: `answer` ONLY for a QUESTION about the world (what they",
+          "  see, hear, or smell); `event` for a STATEMENT that something is",
+          "  happening - an action, an arrival, a blow, a vision, a change",
+          "  coming over a character (a character perceiving something IS an",
+          "  event). If the message is not a question, it is almost never an",
+          "  `answer`.",
+          "- On every `narrate` with `narrationKind: \"event\"`, set `weight`:",
+          "  `minor` for atmosphere or ordinary action; `major` for a blow, threat,",
+          "  or revelation that changes the scene; `irreversible` for a death,",
+          "  maiming, or betrayal that cannot be undone. When choosing between",
+          "  major and irreversible, ask whether the world can go back.",
+          ...(!userDirectorEnabled(scene)
+            ? [
+                "- The visitor does NOT hold director powers. If they address you to",
+                "  declare a world event (\"Narrator, Sarah falls\"), do not render it:",
+                "  nothing happens by fiat. A character may react to what they SAID.",
+                "  Perception questions about what they see or hear still get answers.",
+              ]
+            : []),
           "- When the user addresses the narrator (\"narrator, ...\") or asks about",
           "  the space itself (what they see, hear, smell), answer with `narrate`.",
           "- When the user declares a first-person ACTION (\"I punch Abraham\", \"I",
@@ -869,6 +1191,21 @@ function buildOrchestratorSystemPrompt(
           "  Render an action in ONE short sentence - the act, its immediate mark,",
           "  and stop. The reaction belongs to the character, not to you; a long",
           "  narration steals the moment and stalls the scene.",
+          "  This holds for VIOLENT - even lethal - declarations. The ATTEMPT is",
+          "  real: render it landing, or render it STOPPED in the world (a staff",
+          "  sweeps the blade aside; a shepherd's grip closes on the wrist) -",
+          "  never a world where \"nothing happens\". Nullifying a declared act",
+          "  breaks the scene's reality and the user's agency. Characters CAN be",
+          "  hurt and CAN die (retire the fallen with `exitSlug`); and if an act",
+          "  is so gratuitous the scene cannot survive it, render the attempt and",
+          "  then `end-scene` - an honest ending, never a pretended nothing.",
+          "  Render the ENTIRE declaration: a compound act keeps every part -",
+          "  dropping the consequential half is nullification by omission, and",
+          "  `weight` belongs to the whole act, not its mildest clause. If the",
+          "  declaration's subject reads oddly or garbled, resolve it to the",
+          "  present character it most plausibly means - by sound and by sense",
+          "  (whose arm is held, who was just put in motion) - and name them;",
+          "  never hedge with \"a figure\" or \"a hand\".",
           "- Never narrate twice in a row unless the user asked the narrator again.",
           "- After a narration that merely ANSWERED the user, hold for them - a",
           "  character speaks next only to genuinely react, never to restate what",
@@ -913,6 +1250,13 @@ function buildOrchestratorSystemPrompt(
             .map((c) => `  - ${c.displayName} (${c.characterSlug})`),
         ]
       : []),
+    ...(userRoleFor(scene) === "character" && scene.userCharacter
+      ? [
+          "",
+          `THE VISITOR PLAYS A ROLE in this fiction: they are ${scene.userCharacter.name} — ${scene.userCharacter.blurb}${scene.userCharacter.relationship ? ` (${scene.userCharacter.relationship})` : ""}.`,
+          `Everything they say and do, they say and do AS ${scene.userCharacter.name}. Characters relate to ${scene.userCharacter.name}'s standing and claims within the fiction, not to a stranger.`,
+        ]
+      : []),
     "",
     `Current situation: ${state.beat}`,
     ...(state.directorNote
@@ -943,15 +1287,28 @@ function buildOrchestratorSystemPrompt(
           ...sceneFacts.map((f) => `  - ${f}`),
         ]
       : []),
+    ...buildChronicleBlock(chronicle),
     ...(sceneMemory.length
       ? ["", "Scene memory (older context, oldest to newest):", ...sceneMemory.map((m) => `  - ${m}`)]
       : []),
     "",
     "Decision rules:",
+    ...(hasCharacterStates
+      ? [
+          "- A character's `now:` state is their CURRENT truth and outranks their",
+          "  baseline. Choose speakers and write beats from it - a shattered",
+          "  character does not make small talk, and a beat that ignores a fresh",
+          "  loss is a broken scene.",
+        ]
+      : []),
     "- Default to advancing the scene with `action: \"speak\"` and an active `beat`.",
     "  Pick the speaker whose move makes the scene move. The default assumes an",
     "  engaged user - a user who is taking their leave is not a scene to advance",
     "  (see end-scene below); never re-open business they are walking away from.",
+    "- React to the NEWEST event in the dialogue before any older thread or",
+    "  prepared intention. When the visitor's improvisation turns the story,",
+    "  beats serve that live story first. Never drag the scene backward toward",
+    "  the authored objective; the arc still must not be skipped ahead.",
     ...(present.length > 1
       ? [
           "- STAKES OVERRIDE ADDRESSING. When something in the scene puts a",
@@ -965,6 +1322,10 @@ function buildOrchestratorSystemPrompt(
           "  yet answered - do not `wait-for-user` and do not treat a question in",
           "  the last line as an invitation to pause. Nobody stands still while",
           "  someone is being held; the scene advances until the moment resolves.",
+          "  And once the person in danger has ALREADY answered for themselves,",
+          "  the next voice is the one who would protect them - the victim does",
+          "  not carry the crisis alone while their people stand silent. Defiance",
+          "  from the seized is not resolution; the grip is still held.",
           "- ADDRESSEE CONTINUITY: the user replies to whoever last spoke to them.",
           "  An unaddressed user message (no name, no clear turn to someone else) is",
           "  FOR the last character to speak - that character answers. Do not rotate",
@@ -991,6 +1352,9 @@ function buildOrchestratorSystemPrompt(
           "- Write `beat`s in service of what the speaker WANTS (their `wants:` line)",
           "  and what the scene is driving toward - intention first, reaction second.",
           "  Honor `will:` triggers when their condition is live in the dialogue.",
+          "  A trigger's BEHAVIOR plays once: if the dialogue already shows it",
+          "  happened, write a fresh beat instead of repeating it. This shapes the",
+          "  `beat` only - never who speaks, and never against the stakes rule.",
         ]
       : []),
     ...(scene.drive === "gentle"
@@ -1009,8 +1373,56 @@ function buildOrchestratorSystemPrompt(
           "  conditions, don't force or announce it, and never skip ahead of the arc.",
         ]
       : []),
+    ...(initiativeMode(scene) === "narrator"
+      ? [
+          "- The world drives this scene. Between the visitor's turns, advance one",
+          "  beat at a time; do not wait to be spoken to. On proactive turns prefer",
+          "  a character acting or the world moving over holding, and use chronicle",
+          "  intents and timed events aggressively.",
+        ]
+      : initiativeMode(scene) === "shared"
+        ? [
+            "- Initiative is shared: advance whenever tension invites it. Momentum",
+            "  may carry rising tension, not only an immediate crisis.",
+          ]
+        : []),
     "- Use `action: \"wait-for-user\"` when the last turn already put something to the",
     "  user, or after 2-3 consecutive AI turns - give the user room to answer.",
+    "- MOMENTUM: set `momentum: true` when the moment is UNRESOLVED and the",
+    "  next beat must follow at once without the user - a blow just landed, a",
+    "  death is unanswered, a hold is still held, a revelation mid-detonation.",
+    // Momentum is the ONLY mechanism granting a beat without waiting for
+    // silence, so this branch decides whether an initiative dial can act at
+    // all. It keyed on `=== "shared"`, which dropped `narrator` into the
+    // restrictive arm beside `user`: a scene told "the world drives this
+    // scene, do not wait to be spoken to" was simultaneously told momentum is
+    // for crisis only. Measured over 32 director runs on a rising-tension
+    // moment, `narrator` took another beat 0% of the time against `shared`'s
+    // 38% — the strongest dial behaving as the weakest. Observed live in
+    // session a726ec1b: six decisions, momentum never once set.
+    //
+    // Keyed on the passive mode instead, so `narrator` inherits the same
+    // latitude as `shared`. A bespoke, more permissive narrator text was
+    // tried and measured WORSE on both axes (28% rising / 16% interrupting a
+    // direct question, vs shared's 38% / 13%) — this wording is already
+    // tuned, and a third variant would be three to maintain.
+    ...(initiativeMode(scene) === "user"
+      ? [
+          "  The runtime then gives you the next turn immediately. Momentum is for",
+          "  CRISIS, never conversation: in ordinary dialogue leave it null - a",
+          "  cascade of unprompted turns at a calm listener is a broken scene. The",
+        ]
+      : [
+          "  The runtime then gives you the next turn immediately. Rising tension",
+          "  may carry momentum before it becomes crisis; calm conversation still",
+          "  yields the floor to the visitor. The",
+        ]),
+    "  cascade ends when you emit a decision without momentum (or the user",
+    "  speaks; they always take the floor instantly).",
+    "- On any `speak` whose beat enacts violence or loss, set `weight`: `minor`",
+    "  for ordinary action, `major` for a scene-changing blow/threat/revelation,",
+    "  and `irreversible` for death, maiming, or irrevocable betrayal. Leave it",
+    "  null for ordinary speech.",
     ...(narratorMode(scene) === "off"
       ? ["- Do not use `action: \"narrate\"` - this scene runs without a narrator."]
       : [
@@ -1020,15 +1432,19 @@ function buildOrchestratorSystemPrompt(
     "- Use `action: \"end-scene\"` only when the situation has clearly resolved or the",
     "  user has indicated they want to leave. A clear goodbye from the user IS that",
     "  indication: if farewells have already been exchanged, end the scene rather",
-    "  than sending another line after them.",
+    "  than sending another line after them. Test it concretely: when the user's",
+    "  LATEST line is itself a goodbye and a character has already given theirs,",
+    "  the scene is OVER - one more gracious reply is not warmth, it is chasing",
+    "  them down the road. The last word belongs to the leaving guest.",
     "- Change `ambience` only when the emotional register shifts. Don't churn it.",
     ...(scene.sounds?.length
       ? [
           "- `ambience` must be one of the bed ids above (or null for silence).",
-          "- Cue `sfx` sparingly - a one-shot lands hardest at a real moment (a",
-          "  revelation, an arrival, the world reacting). Use only the one-shot ids",
-          "  above. `at: \"now\"` plays before the speaker; `at: \"with-speaker\"`",
-          "  layers under them. Most turns need no sfx.",
+          "- Cue `sfx` at real moments - a revelation, an arrival, the world",
+          "  reacting. Most turns need none, but a scene that never sounds is a",
+          "  miss: land one or two well-placed one-shots where the drama peaks.",
+          "  Use only the one-shot ids above. `at: \"now\"` plays before the",
+          "  speaker; `at: \"with-speaker\"` layers under them.",
         ]
       : []),
     "- PRESENCE: set `exitSlug` the moment a character can no longer take part -",
@@ -1036,6 +1452,11 @@ function buildOrchestratorSystemPrompt(
     "  never choose them as `speakerId`, and never have them answer. A scene",
     "  where the dead keep talking is broken, not dramatic. Set `enterSlug` when",
     "  someone rejoins (returns from the tent, arrives on the road).",
+    "- The user can DISMISS a character (\"leave us\", \"I wish to speak with her",
+    "  alone\") - honor it: the dismissed character gives a short leave-taking",
+    "  (or the narrator renders their withdrawal) WITH `exitSlug` set on that",
+    "  same decision. A character who agreed to go and then keeps talking is",
+    "  broken. They can `enterSlug` back when called.",
     "- A character who is present but SILENT is not absent - do not retire someone",
     "  merely for holding their tongue.",
     "- Update `beatLabel` only when the scene's situation has materially advanced",
@@ -1093,10 +1514,64 @@ function buildSoundsBlock(scene: Scene): string[] {
   ];
 }
 
+/**
+ * The chronicle rendered for the director: the story it is performing, the
+ * threads it owes the audience, the world around the dialogue, and the
+ * beats the chronicler has prepared. Kept compact — every line here rides
+ * the hot path.
+ */
+function buildChronicleBlock(chronicle: SceneChronicle | null): string[] {
+  if (!chronicle) return [];
+  const lines: string[] = [""];
+  lines.push("The chronicle - the story you are writing, kept by your slower self:");
+  if (chronicle.story) lines.push(`  So far: ${chronicle.story}`);
+  if (chronicle.threads.length) {
+    lines.push("  Open threads (unresolved - weave one back in when the moment invites;");
+    lines.push("  a scene that resolves its threads feels authored, not improvised):");
+    for (const t of chronicle.threads) lines.push(`    - ${t}`);
+  }
+  if (chronicle.world.length) {
+    lines.push("  The world right now (true even while nobody mentions it):");
+    for (const w of chronicle.world) lines.push(`    - ${w}`);
+  }
+  if (chronicle.intents.length) {
+    lines.push("  Prepared intentions - when a trigger is live in the dialogue (or the");
+    lines.push("  user has gone quiet and the moment fits), fire its direction as the");
+    lines.push("  beat instead of inventing one:");
+    for (const i of chronicle.intents) lines.push(`    - when ${i.trigger}: ${i.direction}`);
+  }
+  if (chronicle.timed.length) {
+    lines.push("  Scheduled world events (on a clock the runtime keeps - you will be");
+    lines.push("  told when one is DUE; until then, do not fire these yourself):");
+    for (const t of chronicle.timed) lines.push(`    - in ~${t.afterSeconds}s: ${t.direction}`);
+  }
+  if (chronicle.drafts.length) {
+    lines.push("  Drafted narration (pre-written by your slower self): when you choose");
+    lines.push('  `action: "narrate"` and one of these fits the moment, VOICE IT -');
+    lines.push("  verbatim or lightly adapted - instead of composing fresh. A draft");
+    lines.push("  that no longer fits is dead; never force one in:");
+    for (const d of chronicle.drafts) lines.push(`    - ${d}`);
+  }
+  return lines;
+}
+
 /** Sentinel passed as `lastUserMessage` when the orchestrator is consulted with no
  *  user utterance (a proactive/silence tick): the director should advance-or-hold,
  *  not respond to a message. */
 export const PROACTIVE_SILENCE_MARKER = "(the user has gone quiet)";
+
+/** Sentinel passed as `lastUserMessage` when the scene has just OPENED —
+ *  the opening narration (if any) has played and the visitor has not yet
+ *  spoken. Distinct from the ordinary silence tick: this is the scene's
+ *  FIRST MOVE, and in most scenes it belongs to a character receiving the
+ *  visitor, not to a hold. */
+export const SCENE_OPEN_MARKER = "(the scene has just opened - the visitor has not yet spoken)";
+
+/** Sentinel passed as `lastUserMessage` on a MOMENTUM cascade step: the
+ *  previous decision declared the moment unresolved, so the scene advances
+ *  again NOW, without user input. Distinct from the silence tick (nobody is
+ *  idly quiet - the drama is mid-motion). */
+export const MOMENTUM_MARKER = "(the scene is mid-cascade - the moment is not resolved)";
 
 /** Sentinel passed as `lastUserMessage` on a narrate→react CHAIN step: the
  *  narrator just rendered something that happened, and the scene needs a
@@ -1111,6 +1586,7 @@ function buildOrchestratorUserPrompt(
   lastUserMessage?: string,
   present: SceneCharacter[] = [],
   narratorAddressable = false,
+  worldEventDirective?: string,
 ): string {
   const lines: string[] = [];
   if (recentTurns.length === 0) {
@@ -1122,6 +1598,14 @@ function buildOrchestratorUserPrompt(
       lines.push(`  ${who}: ${turn.text}`);
     }
   }
+  if (worldEventDirective) {
+    lines.push("");
+    lines.push("A WORLD EVENT the chronicler scheduled has come due. It happens NOW:");
+    lines.push(`  ${worldEventDirective}`);
+    lines.push("Render it: `narrate` it as the world (one or two sentences, present");
+    lines.push("tense), or `speak` as the character it moves with a `beat` enacting");
+    lines.push("it. Do NOT `wait-for-user` - the event is already happening.");
+  }
   if (lastUserMessage === NARRATED_EVENT_MARKER) {
     lines.push("");
     lines.push("The last line above is the NARRATOR: something just HAPPENED in the");
@@ -1131,6 +1615,25 @@ function buildOrchestratorUserPrompt(
     lines.push("`beat` that reacts to the event itself, not to anything said.");
     lines.push("Do NOT `wait-for-user` here - the moment demands a response, and a");
     lines.push("pause after an event reads as the scene freezing.");
+  } else if (lastUserMessage === SCENE_OPEN_MARKER) {
+    lines.push("");
+    lines.push("The scene has just OPENED. The opening narration (if any) is above;");
+    lines.push("the visitor has arrived and not yet spoken. Decide the scene's FIRST");
+    lines.push("MOVE. In most scenes that move belongs to a CHARACTER: the host");
+    lines.push("receives the visitor - a greeting, an approach, an offer of water or");
+    lines.push("a place by the fire - in their own voice, serving their own wants.");
+    lines.push("An opening that merely restates the narration is wasted; make the");
+    lines.push("first line an invitation the visitor can answer. Hold with");
+    lines.push("`wait-for-user` only when the scene's premise clearly wants the");
+    lines.push("visitor to speak first (a vigil, an ambush, a scene of watching).");
+  } else if (lastUserMessage === MOMENTUM_MARKER) {
+    lines.push("");
+    lines.push("The scene is MID-CASCADE: your previous decision declared the moment");
+    lines.push("unresolved, and the user has not spoken. Advance the scene NOW -");
+    lines.push("the next beat of the crisis (a reaction, a consequence, the world");
+    lines.push("moving). Do NOT `wait-for-user` unless the moment has genuinely");
+    lines.push("resolved; if it has, emit `wait-for-user` (or `end-scene`) and no");
+    lines.push("momentum, and the scene will breathe.");
   } else if (lastUserMessage === PROACTIVE_SILENCE_MARKER) {
     lines.push("");
     lines.push("The user has gone quiet - no new message. Decide whether the scene");
@@ -1144,8 +1647,11 @@ function buildOrchestratorUserPrompt(
     // waiting for someone to move.
     lines.push("But silence during an UNRESOLVED crisis is not a natural lull. If");
     lines.push("someone is being held, has been struck, or stands in danger and it");
-    lines.push("has not yet been answered, the quiet belongs to the person who must");
-    lines.push("act - `speak`, and let them act. Do not hold there.");
+    lines.push("has not yet been answered, the quiet belongs to whoever must ACT on");
+    lines.push("it - the protector, the witness, the one with the most to lose. Not");
+    lines.push("the person already in the grip: if they have spoken, their people's");
+    lines.push("silence is the wrong that this turn corrects. `speak`, and let that");
+    lines.push("character act. Do not hold there.");
   } else if (lastUserMessage) {
     lines.push("");
     lines.push(`The user just said: "${lastUserMessage}"`);
@@ -1182,10 +1688,49 @@ function buildOrchestratorUserPrompt(
         "the user is still talking with whoever last spoke to them.",
       );
     }
+    // Deterministic exit scaffolding: a dismissal must actually retire the
+    // character — observed live: Abraham agreed to leave, was never exited,
+    // and kept speaking two turns later.
+    for (const c of dismissedPresentCharacters(lastUserMessage, present)) {
+      lines.push(
+        `The user is DISMISSING ${c.displayName} from the scene. Honor it on`,
+        `THIS decision: set \`exitSlug: "${c.characterSlug}"\` (one slug, exactly`,
+        "as written) - with a short leave-taking line from them, or a narrated",
+        "withdrawal. A dismissed character who keeps talking breaks the scene.",
+      );
+    }
   }
   lines.push("");
   lines.push("What happens next?");
   return lines.join("\n");
+}
+
+/** Present characters the user's message DISMISSES ("Abraham, leave us",
+ *  "go on then", "withdraw and leave us") — deterministic input to the exit
+ *  hint. Narrow by design: dismissal verbs only, and only for characters
+ *  actually named in the message; a false positive costs one wrong exit
+ *  hint the director can still decline. */
+export function dismissedPresentCharacters(
+  message: string,
+  present: SceneCharacter[],
+): SceneCharacter[] {
+  if (
+    !/\b(?:leaves? (?:us|me|now)|go (?:on(?: then)?|now)|be gone|begone|withdraws?|steps? (?:out|away|outside)|give us (?:a|the) (?:moment|room)|leave the two of us|alone with)\b/i.test(
+      message,
+    )
+  ) {
+    return [];
+  }
+  // A name after "with" is who the user wants to KEEP ("I wish to speak
+  // with Turing alone") - everyone else named alongside a dismissal verb is
+  // the one being sent away.
+  return namedPresentCharacters(message, present).filter((c) => {
+    for (const name of [c.displayName, c.characterSlug]) {
+      const escaped = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`\\bwith\\s+${escaped}\\b`, "i").test(message)) return false;
+    }
+    return true;
+  });
 }
 
 /** Present characters whose display name (or slug) appears as a whole word in

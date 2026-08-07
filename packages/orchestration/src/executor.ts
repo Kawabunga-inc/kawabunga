@@ -1,3 +1,4 @@
+import { modelMetaFor } from "@kawabunga/engine";
 import type { SceneDecisionRequest } from "./client";
 import type { OrchestratorDecision } from "@kawabunga/types";
 
@@ -14,8 +15,14 @@ export type OrchestratorExecutor = {
   model: string;
   execute(
     request: SceneDecisionRequest,
-    opts?: { signal?: AbortSignal },
+    opts?: { signal?: AbortSignal; onUsage?: (usage: OrchestratorUsage) => void },
   ): Promise<OrchestratorDecision>;
+};
+
+export type OrchestratorUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
 };
 
 export type OrchestratorExecutorResolution = {
@@ -25,6 +32,11 @@ export type OrchestratorExecutorResolution = {
 
 export type OrchestratorExecutorConfig = {
   provider?: string | null;
+  /** Registry model id override (env: ORCHESTRATOR_MODEL) — the director A/B
+   *  knob. The registry supplies the provider, so one knob swaps both; it
+   *  outranks ORCHESTRATOR_PROVIDER and the per-provider model vars. Invalid
+   *  values are dropped with a one-time warning, never fatal. */
+  model?: string | null;
   cerebrasApiKey?: string | null;
   cerebrasModel?: string | null;
   groqApiKey?: string | null;
@@ -54,6 +66,26 @@ export function resolveOrchestratorExecutor(
     config.cerebrasApiKey ?? process.env.CEREBRAS_API_KEY,
   );
   const groqApiKey = normalizeString(config.groqApiKey ?? process.env.GROQ_API_KEY);
+
+  // Model override first: a valid ORCHESTRATOR_MODEL picks provider AND model
+  // in one move. When its provider's key is missing, fall through to the
+  // normal resolution below — a bad override must not take the director down.
+  const override = resolveDirectorModelOverride(
+    config.model ?? process.env.ORCHESTRATOR_MODEL,
+  );
+  if (override) {
+    const resolution =
+      override.provider === "cerebras"
+        ? resolveCerebrasExecutor({ apiKey: cerebrasApiKey, model: override.id, fetchImpl })
+        : resolveGroqExecutor({ apiKey: groqApiKey, model: override.id, fetchImpl });
+    if (resolution.executor) return resolution;
+    if (!warnedOverrideKeyMissing.has(override.id)) {
+      warnedOverrideKeyMissing.add(override.id);
+      console.warn(
+        `[orchestrator] model override "${override.id}" needs a ${providerLabel(override.provider)} key (${resolution.reason}) — falling back to default resolution`,
+      );
+    }
+  }
 
   if (provider === "cerebras") {
     return resolveCerebrasExecutor({
@@ -99,6 +131,53 @@ export function resolveOrchestratorExecutor(
     reason:
       "No orchestrator provider key configured. Set CEREBRAS_API_KEY or GROQ_API_KEY.",
   };
+}
+
+type DirectorModelOverride = { id: string; provider: OrchestratorProvider };
+
+// Once-per-value memos: resolveOrchestratorExecutor runs on EVERY director
+// decision (SceneDriver#decide, the orchestrate route), so an invalid override
+// must warn once, not per turn. Bounded — env values are few.
+const overrideMemo = new Map<string, DirectorModelOverride | null>();
+const warnedOverrideKeyMissing = new Set<string>();
+
+/**
+ * Validate a director model override against the model registry. The director
+ * needs an OpenAI-compatible endpoint speaking strict `response_format:
+ * json_schema`, which this executor only wires for Cerebras and Groq — a
+ * registry model served elsewhere is dropped with a warning, as is an id the
+ * registry doesn't know (it would 400/404 on every decision otherwise).
+ *
+ * Deliberately NOT gated on the registry's `structuredOutput` capability flag:
+ * it under-reports response_format support (Cerebras gpt-oss-120b is flagged
+ * false yet has run the strict-schema director in production since day one),
+ * and a real incompatibility surfaces per-turn through the executor's own
+ * error path, where the driver degrades gracefully.
+ */
+function resolveDirectorModelOverride(
+  raw?: string | null,
+): DirectorModelOverride | null {
+  const id = normalizeString(raw);
+  if (!id) return null;
+  const memoized = overrideMemo.get(id);
+  if (memoized !== undefined) return memoized;
+
+  let resolved: DirectorModelOverride | null = null;
+  const meta = modelMetaFor(id);
+  if (!meta) {
+    console.warn(
+      `[orchestrator] ORCHESTRATOR_MODEL="${id}" is not in the model registry — override IGNORED (director keeps its default resolution)`,
+    );
+  } else if (meta.provider !== "cerebras" && meta.provider !== "groq") {
+    console.warn(
+      `[orchestrator] ORCHESTRATOR_MODEL="${id}" is served by "${meta.provider}", but the director only speaks the Cerebras/Groq strict-json_schema endpoints — override IGNORED`,
+    );
+  } else {
+    console.log(`[orchestrator] director model override: ${id} (${meta.provider})`);
+    resolved = { id, provider: meta.provider };
+  }
+  overrideMemo.set(id, resolved);
+  return resolved;
 }
 
 function resolveCerebrasExecutor(opts: {
@@ -162,6 +241,7 @@ function createOpenAiCompatibleExecutor(opts: {
         request,
         fetchImpl: opts.fetchImpl,
         signal: executeOpts?.signal,
+        onUsage: executeOpts?.onUsage,
       }),
   };
 }
@@ -174,6 +254,7 @@ async function callOpenAiCompatibleOrchestrator(opts: {
   request: SceneDecisionRequest;
   fetchImpl: typeof fetch;
   signal?: AbortSignal;
+  onUsage?: (usage: OrchestratorUsage) => void;
 }): Promise<OrchestratorDecision> {
   // Hung-provider backstop + caller cancellation (e.g. a superseded
   // speculation) in one signal.
@@ -210,7 +291,19 @@ async function callOpenAiCompatibleOrchestrator(opts: {
 
   const payload = (await resp.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
   };
+  if (payload.usage) {
+    opts.onUsage?.({
+      inputTokens: payload.usage.prompt_tokens ?? 0,
+      outputTokens: payload.usage.completion_tokens ?? 0,
+      cacheReadTokens: payload.usage.prompt_tokens_details?.cached_tokens ?? 0,
+    });
+  }
   const content = payload.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error(`${providerLabel(opts.provider)} returned an empty completion.`);

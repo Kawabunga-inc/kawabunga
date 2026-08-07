@@ -15,7 +15,7 @@ describe("model registry provider routing", () => {
     const previous = process.env.GROQ_API_KEY;
     process.env.GROQ_API_KEY = "test-groq-key";
     try {
-      expect(getChatProviderForModel("openai/gpt-oss-20b").id).toBe("groq");
+      expect(getChatProviderForModel("openai/gpt-oss-120b").id).toBe("groq");
     } finally {
       if (previous === undefined) {
         delete process.env.GROQ_API_KEY;

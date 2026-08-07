@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { VoiceProvider } from "@kawabunga/db";
+import { formatCreditRate, voiceCapability } from "@kawabunga/engine";
 
 /* ── Tokens ─────────────────────────────────────────────────── */
 
@@ -27,6 +28,17 @@ type ProviderMeta = {
   docsUrl?: string;
 };
 
+/** Price shown on a picker tile. Derived from the capability registry — the
+ *  same source the library card reads — so the two can never drift apart.
+ *  Providers we don't price (self-hosted Pocket) say so in words. */
+function pricingLabel(provider: VoiceProvider): string {
+  const { creditsPerThousandChars } = voiceCapability(provider);
+  if (creditsPerThousandChars == null) {
+    return provider === "pocket_tts" ? "Free" : "Unpriced";
+  }
+  return formatCreditRate(creditsPerThousandChars);
+}
+
 const PROVIDER_META: Record<VoiceProvider, ProviderMeta> = {
   pocket_tts: {
     title: "Pocket TTS",
@@ -37,23 +49,30 @@ const PROVIDER_META: Record<VoiceProvider, ProviderMeta> = {
   elevenlabs: {
     title: "ElevenLabs",
     blurb: "Cloud-hosted. Preset library + voice cloning.",
-    pricing: "~$0.18 / 1k chars",
+    pricing: pricingLabel("elevenlabs"),
     modelHint: "Flash v2.5",
     docsUrl: "https://elevenlabs.io/docs",
   },
   openai: {
     title: "OpenAI",
     blurb: "Six preset voices. No clone.",
-    pricing: "~$0.15 / 1k chars",
+    pricing: pricingLabel("openai"),
     modelHint: "gpt-4o-mini-tts",
     docsUrl: "https://platform.openai.com/docs/guides/text-to-speech",
   },
   cartesia: {
     title: "Cartesia",
     blurb: "Lowest-latency cloud TTS. Preset library.",
-    pricing: "~$0.10 / 1k chars",
+    pricing: pricingLabel("cartesia"),
     modelHint: "Sonic 2",
     docsUrl: "https://docs.cartesia.ai/",
+  },
+  fish_audio: {
+    title: "Fish Audio",
+    blurb: "The cheap tier — a third the price, ~250ms slower.",
+    pricing: pricingLabel("fish_audio"),
+    modelHint: "S2.1 Pro",
+    docsUrl: "https://docs.fish.audio/",
   },
 };
 
@@ -61,6 +80,7 @@ const PROVIDER_META: Record<VoiceProvider, ProviderMeta> = {
  * free path), then hosted in ascending price order. */
 const PROVIDER_ORDER: VoiceProvider[] = [
   "pocket_tts",
+  "fish_audio",
   "elevenlabs",
   "openai",
   "cartesia",
@@ -75,6 +95,7 @@ const PROVIDER_ENV_KEY: Record<VoiceProvider, string | null> = {
   elevenlabs: "ELEVENLABS_API_KEY",
   openai: "OPENAI_API_KEY",
   cartesia: "CARTESIA_API_KEY",
+  fish_audio: "FISH_AUDIO_API_KEY",
 };
 
 /** Module-scoped cache. `configured` is purely an env-var check on

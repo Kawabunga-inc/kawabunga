@@ -180,6 +180,9 @@ export {
   eventDataSchema,
   ambienceDataSchema,
   audioDataSchema,
+  artifactDataSchema,
+  zoneDataSchema,
+  stagePositionSchema,
 } from "./scene-graph-store";
 export type {
   SceneGraphStore,
@@ -194,7 +197,20 @@ export type {
   CharacterNodeData,
   AmbienceNodeData,
   AudioNodeData,
+  ArtifactNodeData,
+  ZoneNodeData,
+  StageNodePosition,
 } from "./scene-graph-store";
+
+export { getArtifactAssetStore } from "./artifact-asset-store";
+export type {
+  ArtifactAssetStore,
+  ArtifactAssetRecord,
+  ArtifactAssetSource,
+  CreateArtifactAssetInput,
+  UpdateArtifactAssetInput,
+  ListArtifactAssetsOptions,
+} from "./artifact-asset-store";
 
 export { getSceneStore } from "./scene-store";
 export type {
@@ -217,6 +233,7 @@ export type {
   CreateSceneSessionInput,
   UpsertSceneSessionTurnInput,
   AppendSceneSessionEventInput,
+  InitializeSceneSessionSceneInput,
   UpdateSceneSessionSceneInput,
   AddSceneSessionAudioArtifactInput,
 } from "./scene-session-store";

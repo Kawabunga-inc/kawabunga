@@ -456,8 +456,8 @@ function SaveBar({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: isDirty ? "rgba(140,231,210,0.14)" : "var(--control-bg)",
-          border: `1px solid ${isDirty ? "rgba(140,231,210,0.4)" : "var(--control-border)"}`,
+          background: isDirty ? "var(--color-accent-fill)" : "var(--control-bg)",
+          border: `1px solid ${isDirty ? "var(--color-accent-glow)" : "var(--control-border)"}`,
           color: isDirty ? "var(--accent-strong)" : "var(--text-tertiary)",
           borderRadius: "var(--radius-xs)",
           cursor: isDirty && save.status !== "saving" ? "pointer" : "default",
@@ -497,7 +497,7 @@ function Card({
   children: React.ReactNode;
 }) {
   const borderMap = {
-    phosphor: "rgba(140,231,210,0.18)",
+    phosphor: "color-mix(in srgb, var(--color-accent-strong) 18%, transparent)",
     violet: "rgba(179,136,255,0.20)",
     muted: "var(--border-subtle)",
   };
@@ -589,8 +589,8 @@ function TonePalette({ selected, onChange }: { selected: string[]; onChange: (v:
               disabled={disabled}
               style={{
                 padding: "6px 10px",
-                background: active ? "rgba(140,231,210,0.12)" : "transparent",
-                border: `1px solid ${active ? "rgba(140,231,210,0.4)" : "var(--control-border)"}`,
+                background: active ? "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)" : "transparent",
+                border: `1px solid ${active ? "var(--color-accent-glow)" : "var(--control-border)"}`,
                 borderRadius: "var(--radius-xs)",
                 fontFamily: T.fontMono,
                 fontSize: "var(--font-size-sm)",
@@ -663,8 +663,8 @@ function TonePillCount({ count }: { count: number }) {
         fontFamily: T.fontMono,
         fontSize: "var(--font-size-xs)",
         padding: "5px 10px",
-        background: count >= 4 ? "rgba(255,184,112,0.08)" : "rgba(140,231,210,0.06)",
-        border: `1px solid ${count >= 4 ? "rgba(255,184,112,0.25)" : "rgba(140,231,210,0.20)"}`,
+        background: count >= 4 ? "rgba(255,184,112,0.08)" : "var(--color-accent-wash)",
+        border: `1px solid ${count >= 4 ? "rgba(255,184,112,0.25)" : "color-mix(in srgb, var(--color-accent-strong) 20%, transparent)"}`,
         borderRadius: "var(--radius-xs)",
         color: count >= 4 ? "rgba(255,184,112,0.95)" : "var(--accent-strong)",
       }}
@@ -683,7 +683,7 @@ function DecisionSpectrum() {
         style={{
           height: 4,
           background:
-            "linear-gradient(90deg, rgba(248,113,113,0.4), rgba(255,184,112,0.4), rgba(140,231,210,0.4), rgba(248,113,113,0.4))",
+            "linear-gradient(90deg, rgba(248,113,113,0.4), rgba(255,184,112,0.4), var(--color-accent-glow), rgba(248,113,113,0.4))",
           borderRadius: "var(--radius-2xs)",
         }}
       />
@@ -728,8 +728,8 @@ function BrevitySegmented({
             style={{
               flex: 1,
               padding: "12px 10px",
-              background: active ? "rgba(140,231,210,0.1)" : "var(--control-bg)",
-              border: `1px solid ${active ? "rgba(140,231,210,0.35)" : "var(--control-border)"}`,
+              background: active ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "var(--control-bg)",
+              border: `1px solid ${active ? "color-mix(in srgb, var(--color-accent-strong) 35%, transparent)" : "var(--control-border)"}`,
               borderRadius: "var(--radius-sm)",
               display: "flex",
               flexDirection: "column",
@@ -826,7 +826,7 @@ function RegisterPad({
               height: 18,
               borderRadius: "50%",
               background: "var(--accent-strong)",
-              boxShadow: "0 0 0 6px rgba(140,231,210,0.15), 0 0 24px rgba(140,231,210,0.4)",
+              boxShadow: "0 0 0 6px color-mix(in srgb, var(--color-accent-strong) 15%, transparent), 0 0 24px var(--color-accent-glow)",
               pointerEvents: "none",
             }}
           />
@@ -1135,8 +1135,8 @@ function VoiceTemplatesCard({
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: open ? "rgba(140,231,210,0.1)" : "var(--control-bg)",
-            border: `1px solid ${open ? "rgba(140,231,210,0.3)" : "var(--control-border)"}`,
+            background: open ? "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)" : "var(--control-bg)",
+            border: `1px solid ${open ? "var(--color-accent-border)" : "var(--control-border)"}`,
             color: open ? "var(--accent-strong)" : "var(--text-secondary)",
             borderRadius: "var(--radius-xs)",
             cursor: "pointer",
@@ -1228,8 +1228,8 @@ function VoiceTemplateRow({
           fontSize: "var(--font-size-xs)",
           letterSpacing: "0.1em",
           textTransform: "uppercase",
-          background: "rgba(140,231,210,0.1)",
-          border: "1px solid rgba(140,231,210,0.3)",
+          background: "color-mix(in srgb, var(--color-accent-strong) 10%, transparent)",
+          border: "1px solid var(--color-accent-border)",
           color: "var(--accent-strong)",
           borderRadius: "var(--radius-xs)",
           cursor: "pointer",
@@ -1396,8 +1396,8 @@ function L03SpokenPreview({ character }: { character: HarnessCharacter }) {
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: "rgba(140,231,210,0.14)",
-            border: "1px solid rgba(140,231,210,0.4)",
+            background: "var(--color-accent-fill)",
+            border: "1px solid var(--color-accent-glow)",
             color: "var(--accent-strong)",
             borderRadius: "var(--radius-sm)",
             cursor: "pointer",
@@ -1505,8 +1505,8 @@ function SampleRow({
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: playback.kind === "loading" ? "rgba(140,231,210,0.06)" : "rgba(140,231,210,0.14)",
-            border: "1px solid rgba(140,231,210,0.4)",
+            background: playback.kind === "loading" ? "var(--color-accent-wash)" : "var(--color-accent-fill)",
+            border: "1px solid var(--color-accent-glow)",
             color: "var(--accent-strong)",
             borderRadius: "var(--radius-xs)",
             cursor: playback.kind === "loading" || !sample.text.trim() ? "default" : "pointer",
@@ -1918,8 +1918,8 @@ function L03History({ character }: { character: HarnessCharacter }) {
               key={entry.voiceStyleHash}
               style={{
                 padding: "14px 18px",
-                background: entry.isCurrent ? "rgba(140,231,210,0.04)" : "var(--material-card)",
-                border: `1px solid ${entry.isCurrent ? "rgba(140,231,210,0.25)" : "var(--border-subtle)"}`,
+                background: entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 4%, transparent)" : "var(--material-card)",
+                border: `1px solid ${entry.isCurrent ? "color-mix(in srgb, var(--color-accent-strong) 25%, transparent)" : "var(--border-subtle)"}`,
                 borderRadius: "var(--radius-md)",
                 display: "flex",
                 gap: "var(--space-16)",
@@ -1938,7 +1938,7 @@ function L03History({ character }: { character: HarnessCharacter }) {
                         fontSize: "var(--font-size-2xs)",
                         padding: "1px 6px",
                         borderRadius: "var(--radius-xs)",
-                        background: "rgba(140,231,210,0.12)",
+                        background: "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)",
                         color: "var(--accent-strong)",
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -2142,7 +2142,7 @@ function SpokenPreviewCard({
       style={{
         padding: "var(--space-24)",
         background: "var(--material-card)",
-        border: "1px solid rgba(140,231,210,0.18)",
+        border: "1px solid color-mix(in srgb, var(--color-accent-strong) 18%, transparent)",
         borderRadius: "var(--radius-md)",
         display: "flex",
         flexDirection: "column",
@@ -2205,8 +2205,8 @@ function SpokenPreviewCard({
             fontSize: "var(--font-size-xs)",
             letterSpacing: "0.1em",
             textTransform: "uppercase",
-            background: "rgba(140,231,210,0.14)",
-            border: "1px solid rgba(140,231,210,0.4)",
+            background: "var(--color-accent-fill)",
+            border: "1px solid var(--color-accent-glow)",
             color: "var(--accent-strong)",
             borderRadius: "var(--radius-sm)",
             cursor: state.kind === "loading" ? "wait" : "pointer",

@@ -158,7 +158,7 @@ export function EraEditor({ eras, onChange, eventCountByEra, dense }: Props) {
               placeholder="era-key"
               style={{
                 ...textInput,
-                fontFamily: T.fontMono, color: "#8FD1CB",
+                fontFamily: T.fontMono, color: "var(--color-accent-strong)",
                 flex: "1 1 0", minWidth: 0,
               }}
             />

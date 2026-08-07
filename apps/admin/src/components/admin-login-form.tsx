@@ -121,7 +121,7 @@ export function AdminLoginForm({ variant = "floating" }: AdminLoginFormProps) {
           style={{
             ...inputStyle,
             borderColor: error
-              ? "var(--status-error, #FCA5A5)"
+              ? "var(--color-status-error)"
               : "var(--control-border)",
           }}
         />
@@ -142,7 +142,7 @@ export function AdminLoginForm({ variant = "floating" }: AdminLoginFormProps) {
           style={{
             ...inputStyle,
             borderColor: error
-              ? "var(--status-error, #FCA5A5)"
+              ? "var(--color-status-error)"
               : "var(--control-border)",
           }}
         />
@@ -152,7 +152,7 @@ export function AdminLoginForm({ variant = "floating" }: AdminLoginFormProps) {
         <p
           role="alert"
           style={{
-            color: "#fca5a5",
+            color: "var(--color-status-error)",
             fontSize: "0.78rem",
             margin: "-0.25rem 0 0",
             textAlign: "center",
@@ -172,7 +172,7 @@ export function AdminLoginForm({ variant = "floating" }: AdminLoginFormProps) {
           borderRadius: "var(--radius-button, 12px)",
           border: "1px solid var(--emissive-mint)",
           background: "var(--emissive-mint)",
-          color: "var(--accent-on, #0A0F12)",
+          color: "var(--color-accent-on)",
           fontSize: "var(--font-size-base)",
           fontWeight: 700,
           cursor: loading ? "wait" : "pointer",

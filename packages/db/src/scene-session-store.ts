@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, like, ne, sql } from "drizzle-orm";
 import { getDb } from "./client";
 import { retryRead } from "./retry";
 import {
@@ -183,6 +183,12 @@ export type UpdateSceneSessionSceneInput = {
   currentScene: unknown;
 };
 
+export type InitializeSceneSessionSceneInput = {
+  sessionId: string;
+  initialScene: unknown;
+  currentScene: unknown;
+};
+
 export type AddSceneSessionAudioArtifactInput = {
   id?: string;
   sessionId: string;
@@ -202,8 +208,35 @@ export interface SceneSessionStore {
   endSession(id: string, status?: string, metadata?: JsonRecord): Promise<void>;
   getSession(id: string): Promise<SceneSessionRecord | null>;
   listSessions(limit?: number): Promise<SceneSessionRecord[]>;
+  /** Sessions owned by one visitor, newest activity first. */
+  listSessionsForUser(userId: string, limit?: number): Promise<SceneSessionRecord[]>;
   listSessionSummaries(limit?: number): Promise<SceneSessionSummaryRecord[]>;
+  /** Sessions of one scene, newest-active first — the scene rollup's list. */
+  listSessionsForScene(sceneId: string, limit?: number): Promise<SceneSessionRecord[]>;
+  /** Events across many sessions (optionally filtered by a type prefix,
+   *  e.g. "scene.") so the scene rollup computes journal health stats
+   *  without an N+1 query per session. */
+  listEventsForSessions(
+    sessionIds: string[],
+    typePrefix?: string,
+  ): Promise<SceneSessionEventRecord[]>;
+  /** Turns across many sessions — the rollup's latency + status source. */
+  listTurnsForSessions(sessionIds: string[]): Promise<SceneSessionTurnRecord[]>;
+  /** Incremental live-feed rows. Turns are cursored on updatedAt because
+   *  streaming rows mutate in place and must be emitted again on completion. */
+  listTurnsUpdatedSince(
+    sessionId: string,
+    sinceIso: string,
+    limit?: number,
+  ): Promise<SceneSessionTurnRecord[]>;
+  /** Incremental append-only event rows, strictly newer than the cursor. */
+  listEventsSince(
+    sessionId: string,
+    sinceIso: string,
+    limit?: number,
+  ): Promise<SceneSessionEventRecord[]>;
   getSessionDetail(id: string): Promise<SceneSessionDetailRecord | null>;
+  initializeSceneState(input: InitializeSceneSessionSceneInput): Promise<void>;
   updateCurrentScene(input: UpdateSceneSessionSceneInput): Promise<void>;
   recordContextBuild(input: RecordContextBuildInput): Promise<void>;
   upsertTurn(input: UpsertSceneSessionTurnInput): Promise<void>;
@@ -216,8 +249,8 @@ export interface SceneSessionStore {
 type MemoryState = {
   sessions: Map<string, SceneSessionRecord>;
   contexts: RecordContextBuildInput[];
-  turns: Map<string, UpsertSceneSessionTurnInput>;
-  events: AppendSceneSessionEventInput[];
+  turns: Map<string, SceneSessionTurnRecord>;
+  events: SceneSessionEventRecord[];
   audioArtifacts: SceneSessionAudioArtifactRecord[];
 };
 
@@ -230,8 +263,8 @@ const memory =
   (globalStore.__odysseySceneSessionStore = {
     sessions: new Map(),
     contexts: [] as RecordContextBuildInput[],
-    turns: new Map(),
-    events: [] as AppendSceneSessionEventInput[],
+    turns: new Map<string, SceneSessionTurnRecord>(),
+    events: [] as SceneSessionEventRecord[],
     audioArtifacts: [] as SceneSessionAudioArtifactRecord[],
   });
 
@@ -400,6 +433,12 @@ function memoryStore(): SceneSessionStore {
         .sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))
         .slice(0, limit);
     },
+    async listSessionsForUser(userId, limit = 50) {
+      return Array.from(memory.sessions.values())
+        .filter((session) => session.userId === userId)
+        .sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))
+        .slice(0, limit);
+    },
     async listSessionSummaries(limit = 50) {
       const sessions = await this.listSessions(limit);
       const turns = Array.from(memory.turns.values());
@@ -410,6 +449,48 @@ function memoryStore(): SceneSessionStore {
         turnCount: turns.filter((row) => row.sessionId === session.id).length,
         eventCount: memory.events.filter((row) => row.sessionId === session.id).length,
       }));
+    },
+    async listSessionsForScene(sceneId, limit = 50) {
+      return Array.from(memory.sessions.values())
+        .filter((session) => session.sceneId === sceneId)
+        .sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt))
+        .slice(0, limit);
+    },
+    async listEventsForSessions(sessionIds, typePrefix) {
+      const ids = new Set(sessionIds);
+      return memory.events
+        .filter(
+          (row) =>
+            ids.has(row.sessionId) && (!typePrefix || row.type.startsWith(typePrefix)),
+        )
+        .sort(
+          (a, b) =>
+            a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+        );
+    },
+    async listTurnsForSessions(sessionIds) {
+      const ids = new Set(sessionIds);
+      return Array.from(memory.turns.values())
+        .filter((row) => ids.has(row.sessionId))
+        .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+    },
+    async listTurnsUpdatedSince(sessionId, sinceIso, limit = 200) {
+      return Array.from(memory.turns.values())
+        .filter((row) => row.sessionId === sessionId && row.updatedAt > sinceIso)
+        .sort(
+          (a, b) =>
+            a.updatedAt.localeCompare(b.updatedAt) || a.id.localeCompare(b.id),
+        )
+        .slice(0, limit);
+    },
+    async listEventsSince(sessionId, sinceIso, limit = 500) {
+      return memory.events
+        .filter((row) => row.sessionId === sessionId && row.createdAt > sinceIso)
+        .sort(
+          (a, b) =>
+            a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+        )
+        .slice(0, limit);
     },
     async getSessionDetail(id) {
       const session = memory.sessions.get(id);
@@ -441,37 +522,13 @@ function memoryStore(): SceneSessionStore {
           })),
         turns: Array.from(memory.turns.values())
           .filter((row) => row.sessionId === id)
-          .map((row) => ({
-            id: row.id,
-            sessionId: row.sessionId,
-            turnIndex: row.turnIndex,
-            inputMode: row.inputMode,
-            userText: row.userText,
-            assistantText: row.assistantText,
-            provider: row.provider,
-            model: row.model,
-            status: row.status,
-            startedAt: row.startedAt ?? now,
-            completedAt: row.completedAt,
-            tokenUsage: row.tokenUsage ?? {},
-            audioMetrics: row.audioMetrics ?? {},
-            latencySummary: row.latencySummary ?? {},
-            trace: row.trace ?? {},
-            metadata: row.metadata ?? {},
-            createdAt: now,
-            updatedAt: now,
-          })),
+          .sort((a, b) => a.startedAt.localeCompare(b.startedAt)),
         events: memory.events
           .filter((row) => row.sessionId === id)
-          .map((row) => ({
-            id: row.id ?? "",
-            sessionId: row.sessionId,
-            turnId: row.turnId,
-            type: row.type,
-            source: row.source,
-            payload: row.payload ?? {},
-            createdAt: row.createdAt ?? now,
-          })),
+          .sort(
+            (a, b) =>
+              a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+          ),
         audioArtifacts: memory.audioArtifacts.filter((row) => row.sessionId === id),
       };
     },
@@ -484,14 +541,54 @@ function memoryStore(): SceneSessionStore {
         lastActiveAt: new Date().toISOString(),
       });
     },
+    async initializeSceneState(input) {
+      const current = memory.sessions.get(input.sessionId);
+      if (!current || (current.initialScene != null && current.currentScene != null)) return;
+      memory.sessions.set(input.sessionId, {
+        ...current,
+        initialScene: current.initialScene ?? input.initialScene,
+        currentScene: current.currentScene ?? input.currentScene,
+        lastActiveAt: new Date().toISOString(),
+      });
+    },
     async recordContextBuild(input) {
       memory.contexts.push(input);
     },
     async upsertTurn(input) {
-      memory.turns.set(input.id, input);
+      const current = memory.turns.get(input.id);
+      const now = new Date().toISOString();
+      memory.turns.set(input.id, {
+        id: input.id,
+        sessionId: input.sessionId,
+        turnIndex: current?.turnIndex ?? input.turnIndex ?? null,
+        inputMode: input.inputMode,
+        speakerSlug: input.speakerSlug ?? null,
+        userText: current?.userText ?? input.userText ?? null,
+        assistantText: input.assistantText ?? null,
+        provider: input.provider ?? null,
+        model: input.model ?? null,
+        status: input.status,
+        startedAt: current?.startedAt ?? input.startedAt ?? now,
+        completedAt: input.completedAt ?? null,
+        tokenUsage: input.tokenUsage ?? {},
+        audioMetrics: input.audioMetrics ?? {},
+        latencySummary: input.latencySummary ?? {},
+        trace: input.trace ?? {},
+        metadata: input.metadata ?? {},
+        createdAt: current?.createdAt ?? now,
+        updatedAt: now,
+      });
     },
     async appendEvent(input) {
-      memory.events.push(input);
+      memory.events.push({
+        id: input.id ?? crypto.randomUUID(),
+        sessionId: input.sessionId,
+        turnId: input.turnId ?? null,
+        type: input.type,
+        source: input.source,
+        payload: input.payload ?? {},
+        createdAt: input.createdAt ?? new Date().toISOString(),
+      });
     },
     async addAudioArtifact(input) {
       const record: SceneSessionAudioArtifactRecord = {
@@ -611,6 +708,23 @@ function neonStore(): SceneSessionStore {
       }
     },
 
+    async listSessionsForUser(userId, limit = 50) {
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionsTable)
+            .where(eq(sceneSessionsTable.userId, userId))
+            .orderBy(desc(sceneSessionsTable.lastActiveAt))
+            .limit(limit),
+        );
+        return rows.map(normalizeSession);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
     async listSessionSummaries(limit = 50) {
       try {
         const sessions = await this.listSessions(limit);
@@ -661,6 +775,114 @@ function neonStore(): SceneSessionStore {
             };
           }),
         );
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listSessionsForScene(sceneId, limit = 50) {
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionsTable)
+            .where(eq(sceneSessionsTable.sceneId, sceneId))
+            .orderBy(desc(sceneSessionsTable.lastActiveAt))
+            .limit(limit),
+        );
+        return rows.map(normalizeSession);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listEventsForSessions(sessionIds, typePrefix) {
+      if (sessionIds.length === 0) return [];
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionEventsTable)
+            .where(
+              typePrefix
+                ? and(
+                    inArray(sceneSessionEventsTable.sessionId, sessionIds),
+                    like(sceneSessionEventsTable.type, `${typePrefix}%`),
+                  )
+                : inArray(sceneSessionEventsTable.sessionId, sessionIds),
+            )
+            .orderBy(asc(sceneSessionEventsTable.createdAt)),
+        );
+        return rows.map(normalizeEvent);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listTurnsForSessions(sessionIds) {
+      if (sessionIds.length === 0) return [];
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionTurnsTable)
+            .where(inArray(sceneSessionTurnsTable.sessionId, sessionIds))
+            .orderBy(asc(sceneSessionTurnsTable.startedAt)),
+        );
+        return rows.map(normalizeTurn);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listTurnsUpdatedSince(sessionId, sinceIso, limit = 200) {
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionTurnsTable)
+            .where(
+              and(
+                eq(sceneSessionTurnsTable.sessionId, sessionId),
+                gt(sceneSessionTurnsTable.updatedAt, new Date(sinceIso)),
+              ),
+            )
+            .orderBy(
+              asc(sceneSessionTurnsTable.updatedAt),
+              asc(sceneSessionTurnsTable.id),
+            )
+            .limit(limit),
+        );
+        return rows.map(normalizeTurn);
+      } catch (error) {
+        if (isMissingTableError(error)) return [];
+        throw error;
+      }
+    },
+
+    async listEventsSince(sessionId, sinceIso, limit = 500) {
+      try {
+        const rows = await retryRead(() =>
+          db
+            .select()
+            .from(sceneSessionEventsTable)
+            .where(
+              and(
+                eq(sceneSessionEventsTable.sessionId, sessionId),
+                gt(sceneSessionEventsTable.createdAt, new Date(sinceIso)),
+              ),
+            )
+            .orderBy(
+              asc(sceneSessionEventsTable.createdAt),
+              asc(sceneSessionEventsTable.id),
+            )
+            .limit(limit),
+        );
+        return rows.map(normalizeEvent);
       } catch (error) {
         if (isMissingTableError(error)) return [];
         throw error;
@@ -739,6 +961,27 @@ function neonStore(): SceneSessionStore {
             lastActiveAt: new Date(),
           })
           .where(eq(sceneSessionsTable.id, input.sessionId));
+      } catch (error) {
+        if (!isMissingTableError(error)) throw error;
+      }
+    },
+
+    async initializeSceneState(input) {
+      try {
+        await db
+          .update(sceneSessionsTable)
+          .set({
+            initialScene: input.initialScene,
+            currentScene: input.currentScene,
+            lastActiveAt: new Date(),
+          })
+          .where(
+            and(
+              eq(sceneSessionsTable.id, input.sessionId),
+              sql`${sceneSessionsTable.initialScene} is null`,
+              sql`${sceneSessionsTable.currentScene} is null`,
+            ),
+          );
       } catch (error) {
         if (!isMissingTableError(error)) throw error;
       }

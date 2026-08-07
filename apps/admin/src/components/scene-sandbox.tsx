@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import type { Scene } from "@kawabunga/types";
 import {
@@ -11,6 +11,10 @@ import {
 } from "@kawabunga/scene-player";
 import { captureMic } from "@/lib/sandbox-streams";
 import { useSceneMicCapture } from "@/lib/scene-mic";
+import {
+  SessionJournalLivePanel,
+  useSessionJournal,
+} from "@/components/session-journal";
 import {
   AdminButton,
   AdminKicker,
@@ -198,7 +202,7 @@ export function SceneSandbox({
             sceneId={sceneId}
             scene={scene}
             sessionId={sessionId}
-            waveAudio={waveAudioRef.current}
+            waveAudioRef={waveAudioRef}
           />
         )}
       </div>
@@ -210,36 +214,44 @@ function SceneSandboxRunner({
   sceneId,
   scene,
   sessionId,
-  waveAudio,
+  waveAudioRef,
 }: {
   sceneId: string;
   scene: Scene;
   sessionId: string;
-  waveAudio: AudioData;
+  // Shared mutable AudioData: WavefieldStage reads the same object every
+  // animation frame, so voice audio is written into it without re-rendering.
+  waveAudioRef: RefObject<AudioData>;
 }) {
   const syncWaveAudio = useCallback(
     (audio: AudioData) => {
-      waveAudio.energy = audio.energy;
-      waveAudio.bass = audio.bass;
-      waveAudio.mid = audio.mid;
-      waveAudio.high = audio.high;
-      waveAudio.peak = audio.peak;
-      waveAudio.active = audio.active;
+      waveAudioRef.current.energy = audio.energy;
+      waveAudioRef.current.bass = audio.bass;
+      waveAudioRef.current.mid = audio.mid;
+      waveAudioRef.current.high = audio.high;
+      waveAudioRef.current.peak = audio.peak;
+      waveAudioRef.current.active = audio.active;
     },
-    [waveAudio],
+    [waveAudioRef],
   );
   const runner = useScenePlayer({ scene, sessionId, onVoiceAudio: syncWaveAudio });
   const [composer, setComposer] = useState("");
   const [sessionClosed, setSessionClosed] = useState(false);
   const [endedSession, setEndedSession] = useState<EndedSceneSandboxSession | null>(null);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
+  // The Narrator journal, streamed from scene_session_events while the
+  // session runs (poll pauses when the panel is closed or the session ends).
+  const journal = useSessionJournal(sessionId, {
+    live: journalOpen && !sessionClosed,
+  });
   const [readiness, setReadiness] = useState<SceneSandboxReadinessReport | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(true);
   const [readinessError, setReadinessError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
   const sessionEndedRef = useRef(false);
   const sceneStartedRef = useRef(false);
-  const startedAtRef = useRef(Date.now());
+  const startedAtRef = useRef<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recorderStreamRef = useRef<MediaStream | null>(null);
   const recorderChunksRef = useRef<Blob[]>([]);
@@ -251,6 +263,12 @@ function SceneSandboxRunner({
   const mic = useSceneMicCapture({
     onUtterance: (text) => void sendSceneUtterance(text),
   });
+
+  // Fallback start timestamp for sessions that end before the scene starts;
+  // startScene overwrites it with the real start time.
+  useEffect(() => {
+    startedAtRef.current ??= Date.now();
+  }, []);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" });
@@ -284,13 +302,29 @@ function SceneSandboxRunner({
     };
   }, [sceneId]);
 
+  function stopInputRecorder() {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        /* already stopped */
+      }
+    }
+    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recorderRef.current = null;
+    recorderStreamRef.current = null;
+    recorderChunksRef.current = [];
+    recorderStartedAtRef.current = null;
+  }
+
   async function endSessionOnce(status: "ended" | "stopped" = "ended") {
     if (sessionEndedRef.current) return;
     sessionEndedRef.current = true;
     setSessionClosed(true);
     mic.stop();
     stopInputRecorder();
-    const durationMs = Math.max(0, Date.now() - startedAtRef.current);
+    const durationMs = Math.max(0, Date.now() - (startedAtRef.current ?? Date.now()));
     const summary: EndedSceneSandboxSession = {
       id: sessionId,
       endedAt: Date.now(),
@@ -426,22 +460,6 @@ function SceneSandboxRunner({
     }
   }
 
-  function stopInputRecorder() {
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      try {
-        recorder.stop();
-      } catch {
-        /* already stopped */
-      }
-    }
-    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
-    recorderRef.current = null;
-    recorderStreamRef.current = null;
-    recorderChunksRef.current = [];
-    recorderStartedAtRef.current = null;
-  }
-
   async function takeRecordedAudioInput(): Promise<SceneSandboxAudioInput | undefined> {
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
@@ -516,6 +534,9 @@ function SceneSandboxRunner({
           {runner.currentSpeakerSlug ? ` · ${speakerName(runner.currentSpeakerSlug)}` : ""}
         </AdminStatusPill>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-8)" }}>
+          <AdminButton variant="secondary" onClick={() => setJournalOpen((open) => !open)}>
+            {journalOpen ? "Hide journal" : "Journal"}
+          </AdminButton>
           <AdminButton variant="secondary" onClick={() => setDiagnosticsOpen((open) => !open)}>
             {diagnosticsOpen ? "Hide diagnostics" : "Diagnostics"}
           </AdminButton>
@@ -712,6 +733,15 @@ function SceneSandboxRunner({
           Send
         </AdminButton>
       </div>
+
+      {journalOpen && (
+        <SessionJournalLivePanel
+          sessionId={sessionId}
+          items={journal.items}
+          error={journal.error}
+          live={!sessionClosed}
+        />
+      )}
 
       {diagnosticsOpen && (
         <SceneDiagnosticsPanel
@@ -964,9 +994,11 @@ function SceneDiagnosticsPanel({
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(
     latestTrace?.id ?? null,
   );
-  useEffect(() => {
-    if (!selectedTraceId && latestTrace) setSelectedTraceId(latestTrace.id);
-  }, [latestTrace, selectedTraceId]);
+  if (!selectedTraceId && latestTrace) {
+    // Pin the selection to the first trace that arrives (adjust-state-during-
+    // render pattern; the guard makes it converge immediately).
+    setSelectedTraceId(latestTrace.id);
+  }
   const selectedTrace =
     traces.find((trace) => trace.id === selectedTraceId) ?? latestTrace;
   const events = Array.isArray(selectedTrace?.trace.events)

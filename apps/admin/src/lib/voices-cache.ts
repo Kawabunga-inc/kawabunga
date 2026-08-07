@@ -44,6 +44,15 @@ export const listVoiceSummaries = unstable_cache(
         sampleRate: v.sampleRate,
         boundCharacterCount: v.boundCharacterCount ?? 0,
         boundCharacters: v.boundCharacters ?? [],
+        tags: v.tags ?? [],
+        language: v.language,
+        modelId:
+          typeof v.providerConfig?.modelId === "string"
+            ? (v.providerConfig.modelId as string)
+            : null,
+        // The sample route serves the uploaded source or the synthesized
+        // preview, whichever exists — so either one means playable.
+        hasSample: Boolean(v.sourcePath || v.previewPath),
         createdAt: v.createdAt,
         updatedAt: v.updatedAt,
       }),

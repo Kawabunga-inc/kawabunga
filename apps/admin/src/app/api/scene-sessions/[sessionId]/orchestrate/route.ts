@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSceneSessionStore } from "@kawabunga/db";
-import { type OrchestratorDecision, type SceneState } from "@kawabunga/types";
+import {
+  SESSION_COST_EVENT_TYPE,
+  type OrchestratorDecision,
+  type SceneState,
+} from "@kawabunga/types";
+import { buildLlmSessionCostEntry } from "@kawabunga/voice-pipeline";
 import {
   buildSceneDecisionRequest,
   buildSceneSessionSnapshot,
@@ -14,6 +19,7 @@ import {
   type SceneDecisionResolution,
   updateSceneMemory,
 } from "@kawabunga/orchestration/client";
+import { SCENE_JOURNAL_VERSION } from "@kawabunga/orchestration/journal";
 import { resolveOrchestratorExecutor } from "@/lib/orchestrator-executor";
 import { resolveScene } from "@/lib/scene-orchestration";
 import { TraceEnvelope } from "@/lib/voice-trace";
@@ -134,6 +140,7 @@ export async function POST(
   const respond = async (
     resolution: SceneDecisionResolution,
     orchestrator: { provider: string; model: string } | null,
+    meta?: { latencyMs?: number },
   ) => {
     const degraded = resolution.degraded || undefined;
     try {
@@ -148,7 +155,21 @@ export async function POST(
           source: event.source,
           payload: {
             ...event.payload,
-            ...(orchestrator ? { orchestrator } : {}),
+            // Journal parity with the voice path (scene-driver.ts) so the
+            // workbench reads one uniform stream from both transports.
+            journalVersion: SCENE_JOURNAL_VERSION,
+            trigger: body.lastUserMessage?.trim() ? "user-turn" : "player",
+            ...(body.lastUserMessage?.trim()
+              ? { userText: body.lastUserMessage.trim() }
+              : {}),
+            ...(meta?.latencyMs !== undefined ? { latencyMs: meta.latencyMs } : {}),
+            ...(orchestrator
+              ? {
+                  orchestrator,
+                  provider: orchestrator.provider,
+                  model: orchestrator.model,
+                }
+              : {}),
             requestTrace: decisionRequest.trace,
             trace: trace.toJSON(),
           },
@@ -234,6 +255,7 @@ export async function POST(
     });
   }
   const executor = executorResolution.executor;
+  const costOperationId = `director:${crypto.randomUUID()}`;
   trace.mark("orchestrate.provider.resolved", {
     provider: executor.provider,
     model: executor.model,
@@ -244,7 +266,26 @@ export async function POST(
       provider: executor.provider,
       model: executor.model,
     });
-    const rawDecision = await executor.execute(decisionRequest);
+    const llmStartedAt = Date.now();
+    let usage: { inputTokens: number; outputTokens: number; cacheReadTokens: number } | null = null;
+    const rawDecision = await executor.execute(decisionRequest, {
+      onUsage: (value) => { usage = value; },
+    });
+    const llmLatencyMs = Date.now() - llmStartedAt;
+    if (usage) {
+      await store.appendEvent({
+        sessionId,
+        type: SESSION_COST_EVENT_TYPE,
+        source: "billing",
+        payload: buildLlmSessionCostEntry({
+          operationId: costOperationId,
+          category: "director_llm",
+          provider: executor.provider,
+          model: executor.model,
+          usage,
+        }),
+      }).catch((costErr) => console.error("[orchestrate] cost append failed", costErr));
+    }
     trace.mark("orchestrate.llm.done", {
       provider: executor.provider,
       model: executor.model,
@@ -258,12 +299,31 @@ export async function POST(
       turnIndex: resolution.sceneState.turnIndex,
     });
 
-    return respond(resolution, {
-      provider: executor.provider,
-      model: executor.model,
-    });
+    return respond(
+      resolution,
+      {
+        provider: executor.provider,
+        model: executor.model,
+      },
+      { latencyMs: llmLatencyMs },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    await store.appendEvent({
+      sessionId,
+      type: SESSION_COST_EVENT_TYPE,
+      source: "billing",
+      payload: buildLlmSessionCostEntry({
+        operationId: costOperationId,
+        category: "director_llm",
+        provider: executor.provider,
+        model: executor.model,
+        status: "failed",
+        usage: {},
+        usageKnown: false,
+        note: message,
+      }),
+    }).catch((costErr) => console.error("[orchestrate] cost append failed", costErr));
     trace.mark("orchestrate.error", {
       provider: executor.provider,
       model: executor.model,

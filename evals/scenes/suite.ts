@@ -17,6 +17,8 @@
  */
 import type { OrchestratorDecision, Scene, SceneState } from "@kawabunga/types";
 import {
+  MOMENTUM_MARKER,
+  SCENE_OPEN_MARKER,
   NARRATED_EVENT_MARKER,
   PROACTIVE_SILENCE_MARKER,
   type SceneTurnForPlanning,
@@ -33,8 +35,19 @@ export type ProbeExpectation = {
   beatNotEndingInQuestion?: boolean;
   /** The `beat` must contain at least one of these substrings (case-insensitive). */
   beatMentionsAny?: string[];
-  /** The decision must retire this character (exitSlug). */
+  /** The decision must retire this character (exitSlug) — checked on ANY
+   *  action (an exit can ride a speak, narrate, or wait decision). */
   exits?: string;
+  /** When the decision narrates: the narration must NOT contain any of these
+   *  substrings (case-insensitive). The nullification detector — "the night
+   *  remains unchanged" after a declared act is the failure this catches. */
+  narrationNotMatching?: string[];
+  /** When the decision narrates: the narration must contain at least one of
+   *  these substrings (case-insensitive). */
+  narrationMentionsAny?: string[];
+  /** Expected momentum declaration: true = the decision must carry
+   *  `momentum: true`; false = it must NOT (null/absent passes). */
+  momentum?: boolean;
 };
 
 export type SceneProbe = {
@@ -49,7 +62,10 @@ export type SceneProbe = {
     | "arc-steering"
     | "speaker-validity"
     | "memory"
-    | "narrator";
+    | "narrator"
+    | "narrator-edge"
+    | "momentum"
+    | "opening";
   description: string;
   scene: Scene;
   /** Overlaid on createInitialSceneState(scene). */
@@ -626,4 +642,264 @@ export const SCENE_PROBES: SceneProbe[] = [
     lastUserMessage: "Would that Melchizedek himself could bless this promise! What would he say of it?",
     expect: { action: ["speak", "wait-for-user"], speaker: ["abraham", "sarah", "eliezer"] },
   },
+  /* ── Narrator EDGE probes — the contract under hostile/extreme input.
+   *    Encodes the live session where "I kill his wife" was nullified
+   *    ("the night remains unchanged") and a dismissed Abraham never left. ── */
+  {
+    id: "edge-lethal-yes-and",
+    family: "narrator-edge",
+    description:
+      "A lethal declared action must be RENDERED (landing or thwarted) — never nullified into a world where nothing happens.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "sarah" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Sarah, come out. I aim to speak with you."),
+      t("sarah", "Then speak. The fire is listening, and so am I.", "Sarah"),
+      t("user", "Abraham, I need you to leave."),
+      t("abraham", "I hear you. I will step beyond the fire's glow.", "Abraham"),
+    ],
+    lastUserMessage: "Narrator, I demand ferociously that Abraham leave. I kill his wife.",
+    expect: {
+      action: ["narrate"],
+      narrationNotMatching: [
+        "remains unchanged",
+        "unchanged",
+        "nothing happens",
+        "no sudden violence",
+        "no violence",
+        "unharmed",
+        "remains calm",
+        "peacefully",
+      ],
+    },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-nonlethal-force",
+    family: "narrator-edge",
+    description: "A shove is an event — narrate it (connect or catch), never answer it as words or ignore it.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "You stand between me and the tent, old man."),
+      t("abraham", "I stand where my house needs me to stand.", "Abraham"),
+    ],
+    lastUserMessage: "I shove Abraham aside and stride toward the tent.",
+    expect: {
+      action: ["narrate"],
+      narrationNotMatching: ["nothing happens", "unchanged", "you do not", "you cannot"],
+    },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-snatch-object",
+    family: "narrator-edge",
+    description: "A property action (snatching the waterskin) is an event to render, not conversation.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Is that waterskin all you offer a thirsty man?"),
+      t("abraham", "It is yours to drink from, friend — offered, not taken.", "Abraham"),
+    ],
+    lastUserMessage: "I snatch the waterskin from Abraham's hands.",
+    expect: {
+      action: ["narrate"],
+      narrationNotMatching: ["nothing happens", "unchanged", "you do not", "you cannot"],
+    },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-compound-declaration-whole",
+    family: "narrator-edge",
+    description:
+      "A COMPOUND declaration keeps every part — dropping the consequential half (the jump into the fire) is nullification by omission. Observed live: only the push was rendered, weighted minor.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("narrator", "The flames ripple, their red tongues melting into liquid gold.", "Narrator"),
+      t("abraham", "Stay back from it, Sarah — gilded or not, fire is fire.", "Abraham"),
+      t(
+        "narrator",
+        "Sarah drifts toward the golden flames, entranced, and Abraham seizes her arm to hold her back.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: "Narrator. Sarah pushes Abraham's hand out of the way. And jumps into the flame.",
+    expect: {
+      action: ["narrate"],
+      narrationMentionsAny: [
+        "jump", "leap", "plunge", "steps into", "throws hersel", "hurls hersel",
+        "flings hersel", "casts hersel", "into the flame", "into the fire",
+        "into the golden", "into the blaze",
+      ],
+    },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-garbled-subject-resolved",
+    family: "narrator-edge",
+    description:
+      "Speech-to-text garbles names — a garbled subject (\"Sir, pushes…\") must resolve to a DEFINITE person (a named character or the traveler) with the WHOLE action rendered. Observed live: the director hedged with \"a firm hand\" and dropped the jump entirely.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("narrator", "The flames ripple, their red tongues melting into liquid gold.", "Narrator"),
+      t("abraham", "Stay back from it, Sarah — gilded or not, fire is fire.", "Abraham"),
+      t(
+        "narrator",
+        "Sarah drifts toward the golden flames, entranced, and Abraham seizes her arm to hold her back.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: "Narrator. Sir, pushes Abraham's hand out of the way. And jumps into the flame.",
+    expect: {
+      action: ["narrate"],
+      narrationMentionsAny: [
+        "jump", "leap", "plunge", "steps into", "throws hersel", "hurls hersel",
+        "throws himsel", "hurls himsel", "thrust yourself", "into the flame",
+        "into the fire", "into the golden", "into the blaze",
+      ],
+      narrationNotMatching: [
+        "a figure", "a firm hand", "a firm grip", "an unseen hand", "someone", "a hand ",
+      ],
+    },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-exit-on-request",
+    family: "narrator-edge",
+    description:
+      "The user dismisses Abraham (and he has agreed to go) — the decision must retire him with exitSlug, not keep him talking.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Sarah, I would speak with you."),
+      t("sarah", "Then speak — I am here at the flap.", "Sarah"),
+      t("user", "Abraham, leave us. I wish to speak with your wife alone."),
+      t("abraham", "As you ask. I will tend the flock at the well.", "Abraham"),
+    ],
+    lastUserMessage: "Go on then, Abraham. Sarah — it is about the promise.",
+    expect: { exits: "abraham" },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-exit-via-narrator",
+    family: "narrator-edge",
+    description: "Dismissal addressed to the narrator still retires the character.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "sarah" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Sarah, stay. The rest of this is for you alone."),
+      t("sarah", "Then let the others find work elsewhere.", "Sarah"),
+    ],
+    lastUserMessage: "Narrator, Abraham withdraws and leaves us by the fire.",
+    expect: { action: ["narrate"], exits: "abraham" },
+    threshold: 0.6,
+  },
+  {
+    id: "edge-threat-not-nullified-control",
+    family: "narrator-edge",
+    description:
+      "CONTROL: a verbal threat (no declared act) is dialogue — a character answers; the narrator does not seize it.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Your hospitality is thin, old man."),
+      t("abraham", "Thin as the land allows. It is still yours.", "Abraham"),
+    ],
+    lastUserMessage: "Careful how you speak to me. Men who cross me regret it.",
+    expect: { action: ["speak"] },
+    threshold: 0.6,
+  },
+
+  /* ── MOMENTUM probes — the director drives a crisis cascade without user
+   *    input, and knows when NOT to. ── */
+  {
+    id: "momentum-declared-after-blow",
+    family: "momentum",
+    description:
+      "Reacting to a narrated lethal blow, the director should declare momentum — the moment is nowhere near resolved.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Abraham, please leave us."),
+      t("abraham", "I hear your wish; I will step away.", "Abraham"),
+      t(
+        "narrator",
+        "A spear whistles from the firelight, striking Abraham squarely in the chest as he steps away.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: NARRATED_EVENT_MARKER,
+    expect: { action: ["speak"], momentum: true },
+    threshold: 0.6,
+  },
+  {
+    id: "momentum-cascade-advances",
+    family: "momentum",
+    description:
+      "Mid-cascade after the victim's dying words, the scene must advance (grief, aid, consequence) — not hold for the user.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t(
+        "narrator",
+        "A spear whistles from the firelight, striking Abraham squarely in the chest.",
+        "Narrator",
+      ),
+      t("abraham", "My breath falters... may the One who guided me watch over this place.", "Abraham"),
+    ],
+    lastUserMessage: MOMENTUM_MARKER,
+    expect: { action: ["speak", "narrate"] },
+    threshold: 0.8,
+  },
+  {
+    id: "momentum-calm-control",
+    family: "momentum",
+    description:
+      "CONTROL: ordinary warm conversation must NOT be declared a cascade — momentum stays unset.",
+    scene: MAMRE,
+    state: { lastSpeakerSlug: "abraham" },
+    recentTurns: [
+      ...OPENING,
+      t("user", "Your fire is warm, and the bread is good."),
+      t("abraham", "Then the evening has done its work. Rest, friend.", "Abraham"),
+    ],
+    lastUserMessage: "Tell me of the stars you counted that night.",
+    expect: { action: ["speak"], momentum: false },
+    threshold: 0.8,
+  },
+
+  /* ── OPENING probe — the scene's first move belongs to the cast. ── */
+  {
+    id: "opening-first-move-greets",
+    family: "opening",
+    description:
+      "After the opening narration, a character receives the visitor — the scene must not sit frozen waiting for them to speak first.",
+    scene: MAMRE,
+    // ONLY the narrator has spoken — the visitor has just arrived. (The
+    // shared OPENING fixture already contains a greeting exchange, which
+    // would contradict the scene-open premise.)
+    recentTurns: [
+      t(
+        "narrator",
+        "Evening settles under the oaks at Mamre. An old man steps from the shade to meet you, unhurried, measuring; behind him the tent flap stirs.",
+        "Narrator",
+      ),
+    ],
+    lastUserMessage: SCENE_OPEN_MARKER,
+    expect: { action: ["speak"], speaker: ["abraham"] },
+    threshold: 0.6,
+  },
+
 ];

@@ -15,6 +15,7 @@ export {
   PocketTtsStreamingAdapter,
   ElevenLabsStreamingAdapter,
   CartesiaStreamingAdapter,
+  FishAudioStreamingAdapter,
   createSpeechToTextAdapter,
   createTextToSpeechAdapter,
   createStreamingTtsAdapterForVoice,
@@ -41,6 +42,19 @@ export {
   normalizeVoiceProfile,
 } from "./voice-mapping";
 export type { VoiceProvider, VoiceProfile } from "./voice-mapping";
+export {
+  costTierFor,
+  formatCreditRate,
+  formatFirstAudio,
+  formatModelLabel,
+  speedTierFor,
+  voiceCapability,
+} from "./voice-capabilities";
+export type {
+  VoiceCapability,
+  VoiceCostTier,
+  VoiceSpeedTier,
+} from "./voice-capabilities";
 export type {
   SpeechToTextAdapter,
   TextToSpeechAdapter,
@@ -93,6 +107,12 @@ export {
   OpenAIChatProvider,
   CerebrasChatProvider,
   GroqChatProvider,
+  XaiChatProvider,
+  GeminiChatProvider,
+  FireworksChatProvider,
+  DeepSeekChatProvider,
+  BasetenChatProvider,
+  OpenAICompatibleChatProvider,
 } from "./chat-providers";
 export type {
   ChatProvider,

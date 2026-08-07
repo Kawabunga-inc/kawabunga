@@ -92,7 +92,7 @@ const STATE_CONFIG: Record<HalftoneIntelligenceState, StateConfig> = {
   idle: {
     preset: "sweep",
     toneVar: "--halftone-idle",
-    fallback: "#8FD1CB",
+    fallback: "currentColor",
     density: 8,
     speed: 0.42,
     wavelength: 150,
@@ -103,7 +103,7 @@ const STATE_CONFIG: Record<HalftoneIntelligenceState, StateConfig> = {
   listening: {
     preset: "ocean",
     toneVar: "--halftone-listening",
-    fallback: "#8FD1CB",
+    fallback: "currentColor",
     density: 7,
     speed: 0.82,
     wavelength: 115,
@@ -114,7 +114,7 @@ const STATE_CONFIG: Record<HalftoneIntelligenceState, StateConfig> = {
   thinking: {
     preset: "undulate",
     toneVar: "--halftone-thinking",
-    fallback: "#8FD1CB",
+    fallback: "currentColor",
     density: 7,
     speed: 0.95,
     wavelength: 112,
@@ -125,7 +125,7 @@ const STATE_CONFIG: Record<HalftoneIntelligenceState, StateConfig> = {
   processing: {
     preset: "scanner",
     toneVar: "--halftone-processing",
-    fallback: "#8FD1CB",
+    fallback: "currentColor",
     density: 7,
     speed: 1.28,
     wavelength: 86,
@@ -136,7 +136,7 @@ const STATE_CONFIG: Record<HalftoneIntelligenceState, StateConfig> = {
   responding: {
     preset: "dual",
     toneVar: "--halftone-responding",
-    fallback: "#DFFFF5",
+    fallback: "currentColor",
     density: 6,
     speed: 1.08,
     wavelength: 96,
@@ -395,8 +395,8 @@ export function HalftoneIntelligenceIcon({
     let rafId: number | null = null;
     let startTime = performance.now();
     let cachedTone = resolveCssColor(canvas, toneRef.current.toneVar, toneRef.current.fallback);
-    let cachedAccent = resolveCssColor(canvas, "--halftone-accent", "#8FD1CB");
-    let cachedSecondary = resolveCssColor(canvas, "--halftone-secondary", "#8FD1CB");
+    let cachedAccent = resolveCssColor(canvas, "--halftone-accent", "currentColor");
+    let cachedSecondary = resolveCssColor(canvas, "--halftone-secondary", "currentColor");
 
     let isOffscreen = false;
     let isPageHidden =
@@ -413,8 +413,8 @@ export function HalftoneIntelligenceIcon({
 
     const refreshColors = () => {
       cachedTone = resolveCssColor(canvas, toneRef.current.toneVar, toneRef.current.fallback);
-      cachedAccent = resolveCssColor(canvas, "--halftone-accent", "#8FD1CB");
-      cachedSecondary = resolveCssColor(canvas, "--halftone-secondary", "#8FD1CB");
+      cachedAccent = resolveCssColor(canvas, "--halftone-accent", "currentColor");
+      cachedSecondary = resolveCssColor(canvas, "--halftone-secondary", "currentColor");
     };
 
     const fitIcon = () => {

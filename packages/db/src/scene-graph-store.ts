@@ -5,6 +5,7 @@ import { retryRead } from "./retry";
 import {
   audioAssetsTable,
   charactersTable,
+  artifactAssetsTable,
   sceneEdgesTable,
   sceneNodesTable,
 } from "./schema";
@@ -19,8 +20,30 @@ import {
 // (refId → audio_assets). Kept in the registry for read tolerance on
 // rows the conversion script hasn't touched; the editors no longer
 // create it.
-export const NODE_KINDS = ["character", "place", "event", "ambience", "audio"] as const;
+export const NODE_KINDS = [
+  "character",
+  "place",
+  "event",
+  "ambience",
+  "audio",
+  "artifact",
+  "zone",
+] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
+
+// Stage placement: world-space meters on the shared 96×64 stage (origin
+// center, +x right, +y up). z is a small render-order int; rotation is
+// degrees. Nullable — null means "not placed on the stage".
+export const stagePositionSchema = z
+  .object({
+    x: z.number(),
+    y: z.number(),
+    z: z.number().optional(),
+    rotation: z.number().optional(),
+  })
+  .strict();
+
+export type StageNodePosition = z.infer<typeof stagePositionSchema>;
 
 export const behaviorTriggerSchema = z
   .object({
@@ -42,6 +65,9 @@ export const characterDataSchema = z
     knowledgeHorizon: z
       .object({ era: z.string().trim().min(1), index: z.number().int() })
       .optional(),
+    // Stage: how far this character can overhear, in meters. Authored on
+    // the canvas; dormant until the director gains spatial awareness.
+    earshotM: z.number().positive().max(96).optional(),
     overrides: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
@@ -91,10 +117,57 @@ export const audioDataSchema = z
     // Per-scene gain trim in dB applied on top of the asset's
     // normalized level.
     gainDb: z.number().min(-24).max(12).optional(),
+    // Stage: audible range in meters when this one-shot is placed on the
+    // canvas. Dormant until positional audio lands.
+    rangeM: z.number().positive().max(96).optional(),
+    // Stage: anchor this sound to an artifact placement — it emanates
+    // from that set piece and follows it. Anchored sounds carry no
+    // position of their own.
+    anchorNodeId: z.string().min(1).optional(),
   })
   .strict();
 
 export type AudioNodeData = z.infer<typeof audioDataSchema>;
+
+// Stage set piece (library-backed via artifact_assets, or ad hoc).
+// Dimensions in meters; either a footprint (widthM×heightM) or a radius
+// for round pieces.
+export const artifactDataSchema = z
+  .object({
+    // Deprecated icon-catalog key from before sprites; tolerated on old
+    // rows, no longer written.
+    icon: z.string().trim().min(1).optional(),
+    // Legacy unicode glyph from before the icon catalog; still renders,
+    // no longer written.
+    glyph: z.string().trim().min(1).optional(),
+    widthM: z.number().positive().max(96).optional(),
+    heightM: z.number().positive().max(64).optional(),
+    radiusM: z.number().positive().max(48).optional(),
+    // Marks the artifact as something sound can emanate from (fire pit,
+    // waterfall) — a hint for future positional audio.
+    soundSource: z.boolean().optional(),
+    // Authoring lock: drag, resize, and destructive actions are disabled
+    // on the canvas until unlocked.
+    locked: z.boolean().optional(),
+  })
+  .strict();
+
+export type ArtifactNodeData = z.infer<typeof artifactDataSchema>;
+
+// Named region of the stage ("the tent", "the road"). The node's
+// position is the zone's center; shape + dimensions live here.
+export const zoneDataSchema = z
+  .object({
+    shape: z.enum(["rect", "ellipse"]),
+    widthM: z.number().positive().max(96),
+    heightM: z.number().positive().max(64),
+    color: z.string().trim().min(1).optional(),
+    // Authoring lock — zones are the biggest drag targets on the stage.
+    locked: z.boolean().optional(),
+  })
+  .strict();
+
+export type ZoneNodeData = z.infer<typeof zoneDataSchema>;
 
 const dataSchemasByKind = {
   character: characterDataSchema,
@@ -102,9 +175,16 @@ const dataSchemasByKind = {
   event: eventDataSchema,
   ambience: ambienceDataSchema,
   audio: audioDataSchema,
+  artifact: artifactDataSchema,
+  zone: zoneDataSchema,
 } as const satisfies Record<NodeKind, z.ZodTypeAny>;
 
 const kindsRequiringRef = new Set<NodeKind>(["character", "audio"]);
+
+// Kinds that may carry a refId. Superset of kindsRequiringRef: artifacts
+// are ref-OPTIONAL — library-backed when placed from the artifact_assets
+// catalog, ref-less when created ad hoc on the canvas.
+const kindsAllowingRef = new Set<NodeKind>(["character", "audio", "artifact"]);
 
 function validateNodeData(kind: NodeKind, data: unknown): Record<string, unknown> {
   const schema = dataSchemasByKind[kind];
@@ -140,7 +220,7 @@ export interface SceneNodeRecord {
   label: string;
   summary: string | null;
   data: Record<string, unknown>;
-  position: { x: number; y: number } | null;
+  position: StageNodePosition | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -162,14 +242,17 @@ export interface CreateNodeInput {
   label: string;
   summary?: string | null;
   data?: Record<string, unknown>;
-  position?: { x: number; y: number } | null;
+  position?: StageNodePosition | null;
 }
 
 export interface UpdateNodeInput {
   label?: string;
   summary?: string | null;
   data?: Record<string, unknown>;
-  position?: { x: number; y: number } | null;
+  position?: StageNodePosition | null;
+  /** Attach/detach a library ref (e.g. promoting an ad-hoc artifact to a
+   * library asset). Validated against the node's kind. */
+  refId?: string | null;
 }
 
 export interface CreateEdgeInput {
@@ -201,7 +284,7 @@ export interface SceneGraphStore {
       label?: string;
       roleInScene?: string;
       data?: CharacterNodeData;
-      position?: { x: number; y: number };
+      position?: StageNodePosition;
       mergeOnExist?: boolean;
     },
   ): Promise<SceneNodeRecord>;
@@ -214,6 +297,17 @@ export interface SceneGraphStore {
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
+
+// Positions are stored as untyped jsonb; rows written before the stage
+// rework hold React-Flow pixel coordinates. Anything that doesn't parse
+// as a stage position reads as null (unplaced) rather than throwing.
+// Out-of-bounds values are left to the UI's isPlaced guard so the raw
+// data stays inspectable.
+function normalizePosition(value: unknown): StageNodePosition | null {
+  if (value == null) return null;
+  const parsed = stagePositionSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 function toIso(d: Date | string): string {
   return d instanceof Date ? d.toISOString() : String(d);
@@ -249,7 +343,7 @@ function normalizeNode(row: typeof sceneNodesTable.$inferSelect): SceneNodeRecor
     label: row.label,
     summary: row.summary,
     data: (row.data as Record<string, unknown> | null) ?? {},
-    position: (row.position as { x: number; y: number } | null) ?? null,
+    position: normalizePosition(row.position),
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
   };
@@ -301,7 +395,7 @@ function neonStore(): SceneGraphStore {
       if (kindsRequiringRef.has(input.kind) && !input.refId) {
         throw new Error(`kind='${input.kind}' requires refId`);
       }
-      if (!kindsRequiringRef.has(input.kind) && input.refId) {
+      if (!kindsAllowingRef.has(input.kind) && input.refId) {
         throw new Error(`kind='${input.kind}' must not carry refId`);
       }
 
@@ -333,6 +427,19 @@ function neonStore(): SceneGraphStore {
         if (!a) throw new Error(`audio asset ${input.refId} not found`);
       }
 
+      if (input.kind === "artifact" && input.refId) {
+        const db = requireDb();
+        const refId = input.refId;
+        const [p] = await retryRead(() =>
+          db
+            .select({ id: artifactAssetsTable.id })
+            .from(artifactAssetsTable)
+            .where(eq(artifactAssetsTable.id, refId))
+            .limit(1),
+        );
+        if (!p) throw new Error(`artifact asset ${input.refId} not found`);
+      }
+
       const db = requireDb();
       const [row] = await db
         .insert(sceneNodesTable)
@@ -343,7 +450,7 @@ function neonStore(): SceneGraphStore {
           label: input.label,
           summary: input.summary ?? null,
           data,
-          position: input.position ?? null,
+          position: input.position ? stagePositionSchema.parse(input.position) : null,
         })
         .returning();
       return normalizeNode(row);
@@ -363,9 +470,37 @@ function neonStore(): SceneGraphStore {
       const values: Record<string, unknown> = { updatedAt: new Date() };
       if (input.label !== undefined) values.label = input.label;
       if (input.summary !== undefined) values.summary = input.summary;
-      if (input.position !== undefined) values.position = input.position;
+      if (input.position !== undefined)
+        values.position = input.position ? stagePositionSchema.parse(input.position) : null;
       if (input.data !== undefined) {
         values.data = validateNodeData(existing.kind as NodeKind, input.data);
+      }
+      if (input.refId !== undefined) {
+        const kind = existing.kind as NodeKind;
+        if (input.refId !== null && !kindsAllowingRef.has(kind)) {
+          throw new Error(`kind='${kind}' must not carry refId`);
+        }
+        if (input.refId === null && kindsRequiringRef.has(kind)) {
+          throw new Error(`kind='${kind}' requires refId`);
+        }
+        if (input.refId) {
+          const refTable =
+            kind === "character"
+              ? charactersTable
+              : kind === "audio"
+                ? audioAssetsTable
+                : artifactAssetsTable;
+          const refId = input.refId;
+          const [ref] = await retryRead(() =>
+            db
+              .select({ id: refTable.id })
+              .from(refTable)
+              .where(eq(refTable.id, refId))
+              .limit(1),
+          );
+          if (!ref) throw new Error(`${kind} ref ${input.refId} not found`);
+        }
+        values.refId = input.refId;
       }
 
       const [row] = await db
@@ -438,7 +573,7 @@ function neonStore(): SceneGraphStore {
         refId: characterId,
         label: opts?.label ?? character.title,
         data: incomingData,
-        position: opts?.position ?? null,
+        position: opts?.position ? stagePositionSchema.parse(opts.position) : null,
       });
     },
 

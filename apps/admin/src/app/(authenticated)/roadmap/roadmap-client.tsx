@@ -88,7 +88,7 @@ function InlineSelect<T extends string>({
                 style={{
                   display: "flex", alignItems: "center", gap: "var(--space-8)",
                   width: "100%", padding: "7px 12px",
-                  background: isActive ? "rgba(140, 231, 210, 0.08)" : "none",
+                  background: isActive ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)" : "none",
                   border: "none", cursor: "pointer", textAlign: "left",
                   color: isActive ? "var(--accent-strong, var(--accent))" : "var(--text-secondary, var(--foreground))",
                   fontSize: "var(--font-size-sm)", fontFamily: "inherit",
@@ -292,7 +292,7 @@ function statusDot(status: string) {
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; bg: string; color: string }> = {
-    done: { label: "Complete", bg: "rgba(140, 231, 210, 0.15)", color: "var(--status-live, #8FD1CB)" },
+    done: { label: "Complete", bg: "color-mix(in srgb, var(--color-accent-strong) 15%, transparent)", color: "var(--status-live, #8FD1CB)" },
     active: { label: "In Progress", bg: "rgba(143, 209, 203, 0.15)", color: "var(--accent, #8fd1cb)" },
     planned: { label: "Upcoming", bg: "var(--border-subtle)", color: "var(--text-tertiary)" },
   };
@@ -687,7 +687,7 @@ export default function RoadmapClient({ versions: initialVersions, team = [] }: 
           onClick={() => setTab(t.id)}
           style={{
             padding: "5px 14px", borderRadius: "var(--radius-md)", border: "none",
-            background: tab === t.id ? "rgba(140, 231, 210, 0.12)" : "transparent",
+            background: tab === t.id ? "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)" : "transparent",
             color: tab === t.id ? "var(--accent-strong)" : "var(--text-tertiary)",
             fontSize: "var(--font-size-base)", fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
           }}
@@ -724,7 +724,7 @@ export default function RoadmapClient({ versions: initialVersions, team = [] }: 
               onClick={() => onTab(t.id)}
               style={{
                 padding: "5px 14px", borderRadius: "var(--radius-md)", border: "none",
-                background: tab === t.id ? "rgba(140, 231, 210, 0.12)" : "transparent",
+                background: tab === t.id ? "color-mix(in srgb, var(--color-accent-strong) 12%, transparent)" : "transparent",
                 color: tab === t.id ? "var(--accent-strong)" : "var(--text-tertiary)",
                 fontSize: "var(--font-size-base)", fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
               }}

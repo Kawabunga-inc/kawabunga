@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Sidebar, type SidebarItem, type SidebarTab } from "@kawabunga/ui";
 import { HeaderProvider, useHeaderContent } from "./header-context";
@@ -28,6 +28,7 @@ import {
   Users,
   User,
   Wind,
+  Box,
 } from "react-feather";
 
 const I = 18; // icon size
@@ -52,6 +53,7 @@ const icons = {
   tool: <Tool size={I} />,
   docs: <Book size={I} />,
   sounds: <Wind size={I} />,
+  artifacts: <Box size={I} />,
 };
 
 const kawabungaWordmark = (
@@ -89,6 +91,7 @@ const items: SidebarItem[] = [
   { href: "/wikis", label: "Wikis", section: "Studio", icon: icons.wikis, tab: "app" },
   { href: "/voices", label: "Voices", section: "Studio", icon: icons.waveform, tab: "app" },
   { href: "/sounds", label: "Enviro Sounds", section: "Studio", icon: icons.sounds, tab: "app" },
+  { href: "/artifacts", label: "Artifacts", section: "Studio", icon: icons.artifacts, tab: "app" },
   { href: "/users", label: "Users", section: "Ops", icon: icons.users, tab: "app" },
   { href: "/sessions", label: "Sessions", section: "Database", icon: icons.sessions, tab: "infra" },
   { href: "/ai-icon-test", label: "AI Icon", section: "Tools", icon: icons.tool, tab: "infra" },
@@ -129,7 +132,15 @@ function isFlushRoute(pathname: string | null): boolean {
   );
 }
 
-function AdminShellInner({ children, initialCollapsed }: { children: React.ReactNode; initialCollapsed?: boolean }) {
+function AdminShellInner({
+  children,
+  initialCollapsed,
+  activeSessionCount,
+}: {
+  children: React.ReactNode;
+  initialCollapsed?: boolean;
+  activeSessionCount: number;
+}) {
   const pathname = usePathname();
   const { content: headerContent, flush } = useHeaderContent();
   /* Either explicit (a client component called setFlush) or implicit
@@ -183,12 +194,21 @@ function AdminShellInner({ children, initialCollapsed }: { children: React.React
   const userName = session?.user?.name?.trim() || "Admin";
   const userRole = session?.user?.role === "admin" ? "Admin" : "User";
   const userEmail = session?.user?.email ?? undefined;
+  const navItems = useMemo(
+    () =>
+      items.map((item) =>
+        item.href === "/sessions" && activeSessionCount > 0
+          ? { ...item, badge: activeSessionCount }
+          : item,
+      ),
+    [activeSessionCount],
+  );
 
   return (
     <Sidebar
       brand="Kawabunga"
       brandIcon={kawabungaWordmark}
-      items={items}
+      items={navItems}
       tabs={tabs}
       pathname={pathname}
       linkComponent={Link}
@@ -237,13 +257,20 @@ function AdminShellInner({ children, initialCollapsed }: { children: React.React
 export function AdminShell({
   children,
   initialCollapsed,
+  activeSessionCount = 0,
 }: {
   children: React.ReactNode;
   initialCollapsed?: boolean;
+  activeSessionCount?: number;
 }) {
   return (
     <HeaderProvider>
-      <AdminShellInner initialCollapsed={initialCollapsed}>{children}</AdminShellInner>
+      <AdminShellInner
+        initialCollapsed={initialCollapsed}
+        activeSessionCount={activeSessionCount}
+      >
+        {children}
+      </AdminShellInner>
     </HeaderProvider>
   );
 }

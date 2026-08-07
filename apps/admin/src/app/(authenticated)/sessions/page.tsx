@@ -1,25 +1,16 @@
-import { getSceneSessionStore } from "@kawabunga/db";
-import { SessionsTable, type SessionRow } from "@/components/sessions-table";
+import { SessionsRefresh } from "@/components/sessions-refresh";
+import { SessionsTable } from "@/components/sessions-table";
+import { getSessionsIndexData } from "@/lib/session-index-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function SessionsPage() {
-  const sceneSessions = await getSceneSessionStore().listSessionSummaries(50);
-  const sessions: SessionRow[] = sceneSessions.map((session) => ({
-    id: session.id,
-    userId: session.userId,
-    user: session.user,
-    sceneId: session.sceneId,
-    characterId: session.characterId,
-    mode: session.mode,
-    status: session.status,
-    contextBuildCount: session.contextBuildCount,
-    turnCount: session.turnCount,
-    eventCount: session.eventCount,
-    startedAt: session.startedAt,
-    endedAt: session.endedAt,
-    lastActiveAt: session.lastActiveAt,
-  }));
+  const data = await getSessionsIndexData();
 
-  return <SessionsTable sessions={sessions} />;
+  return (
+    <>
+      <SessionsRefresh activeCount={data.activeCount} />
+      <SessionsTable data={data} />
+    </>
+  );
 }
