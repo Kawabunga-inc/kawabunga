@@ -836,7 +836,6 @@ export function CharacterSandbox({ character, bindings, defaultModel }: Props) {
           history,
           scene: executionScene,
           model: activeVoiceModel,
-          ackMode: "off",
           signal: controller.signal,
           callbacks: {
             onTrace: (trace) => {
