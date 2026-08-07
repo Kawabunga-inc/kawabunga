@@ -11,7 +11,16 @@ import {
 import { useHeaderContent } from "@/components/header-context";
 import { SortMenu } from "@/components/sort-menu";
 import { VoiceUploadDialog } from "@/components/voice-upload-dialog";
+import {
+  ProviderVoiceModal,
+  type IdEntryProvider,
+} from "@/components/provider-voice-modal";
 import { ProviderPickerModal } from "@/components/provider-picker-modal";
+import {
+  PlayButton,
+  SpecStrip,
+  TonePills,
+} from "@/components/voice-card-spec";
 import { ElevenLabsPickerModal } from "@/components/elevenlabs-picker-modal";
 import type { VoiceProvider, VoiceStatus } from "@kawabunga/db";
 import type { VoiceSummary } from "@/app/(authenticated)/voices/page";
@@ -45,13 +54,6 @@ const STATUS_LABELS: Record<VoiceStatus, string> = {
   uploaded: "uploaded",
 };
 
-const PROVIDER_LABELS: Record<VoiceProvider, string> = {
-  pocket_tts: "POCKET",
-  elevenlabs: "ELEVEN",
-  openai: "OPENAI",
-  cartesia: "CARTESIA",
-};
-
 /* ── Sort ─────────────────────────────────────────────────────── */
 
 type SortKey = "recent" | "name";
@@ -79,11 +81,6 @@ function formatDuration(s: number | null): string {
   const m = Math.floor(s / 60);
   const r = Math.round(s % 60);
   return `${m}m ${r}s`;
-}
-
-function formatSampleRate(hz: number | null): string {
-  if (hz == null) return "—";
-  return `${Math.round(hz / 1000)} kHz`;
 }
 
 function formatLastEvent(v: VoiceSummary): string {
@@ -199,6 +196,11 @@ export function VoicesGrid({ voices }: Props) {
   const [sort, setSort] = useState<SortKey>("recent");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [providerPickerOpen, setProviderPickerOpen] = useState(false);
+  /* Which id-entry provider's form is open (Cartesia / Fish Audio), or
+   * null. One slot rather than a boolean each: they share a component and
+   * only one can be open at a time. */
+  const [idEntryProvider, setIdEntryProvider] =
+    useState<IdEntryProvider | null>(null);
   const [elevenLabsPickerOpen, setElevenLabsPickerOpen] = useState(false);
 
   /* "+ new voice" — open the picker immediately so the overlay paints in
@@ -218,9 +220,11 @@ export function VoicesGrid({ voices }: Props) {
       setUploadOpen(true);
     } else if (provider === "elevenlabs") {
       setElevenLabsPickerOpen(true);
+    } else if (provider === "cartesia" || provider === "fish_audio") {
+      setIdEntryProvider(provider);
     } else {
-      // OpenAI and Cartesia forms aren't built yet — surface a polite
-      // notice rather than silently no-op'ing.
+      // OpenAI has no streaming adapter yet — say so rather than opening a
+      // form that would create an unusable voice.
       window.alert(
         `${provider} voices aren't supported yet — coming soon.`,
       );
@@ -233,6 +237,8 @@ export function VoicesGrid({ voices }: Props) {
     setProviderPickerOpen(false);
     if (provider === "pocket_tts") setUploadOpen(true);
     else if (provider === "elevenlabs") setElevenLabsPickerOpen(true);
+    else if (provider === "cartesia" || provider === "fish_audio")
+      setIdEntryProvider(provider);
   }, []);
 
   /* Track the voice queued for deletion. Modal opens when non-null; we
@@ -550,6 +556,12 @@ export function VoicesGrid({ voices }: Props) {
           }}
           existingSlugs={existingSlugs}
         />
+        {idEntryProvider && (
+          <ProviderVoiceModal
+            provider={idEntryProvider}
+            onClose={() => setIdEntryProvider(null)}
+          />
+        )}
       </div>
     );
   }
@@ -693,6 +705,12 @@ export function VoicesGrid({ voices }: Props) {
         }}
         existingSlugs={existingSlugs}
       />
+      {idEntryProvider && (
+        <ProviderVoiceModal
+          provider={idEntryProvider}
+          onClose={() => setIdEntryProvider(null)}
+        />
+      )}
 
       <ConfirmModal
         open={pendingDelete !== null}
@@ -897,7 +915,15 @@ function VoiceCard({
       >
         {/* ── Top row: mini wave + identity + status pill ──────────── */}
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-12)" }}>
-          <MiniWaveformThumb status={voice.status} />
+          {voice.status === "ready" ? (
+            <PlayButton
+              voiceId={voice.id}
+              voiceName={voice.name}
+              disabled={!voice.hasSample}
+            />
+          ) : (
+            <MiniWaveformThumb status={voice.status} />
+          )}
           <div
             style={{
               display: "flex",
@@ -934,10 +960,9 @@ function VoiceCard({
               }}
             >
               {voice.slug}
+              {voice.language && ` · ${voice.language}`}
               {voice.durationS != null &&
                 ` · ${formatDuration(voice.durationS)}`}
-              {voice.sampleRate != null &&
-                ` · ${formatSampleRate(voice.sampleRate)}`}
             </span>
           </div>
           {/* Only render the status pill for in-flight or error states.
@@ -965,15 +990,12 @@ function VoiceCard({
           </p>
         )}
 
+        {/* ── Tone: the voice's own tags, finally surfaced ─────────── */}
+        {voice.status === "ready" && <TonePills tags={voice.tags} />}
+
         {/* ── State-specific middle block ──────────────────────────── */}
-        {voice.status === "ready" && voice.boundCharacterCount > 0 && (
-          <BindingsBlock
-            count={voice.boundCharacterCount}
-            characters={voice.boundCharacters}
-          />
-        )}
-        {voice.status === "ready" && voice.boundCharacterCount === 0 && (
-          <UnboundBlock />
+        {voice.status === "ready" && (
+          <SpecStrip provider={voice.provider} modelId={voice.modelId} />
         )}
         {(voice.status === "processing" || voice.status === "uploaded") && (
           <ProcessingBlock status={voice.status} updatedAt={voice.updatedAt} />
@@ -1010,25 +1032,57 @@ function VoiceCard({
               "1px solid var(--ink-soft)",
           }}
         >
-          <span
+          <div
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
-              padding: "2px 8px",
-              borderRadius: "var(--radius-sm)",
-              border:
-                "1px solid var(--ink-line)",
-              fontFamily: FONT_MONO,
-              fontSize: "var(--font-size-2xs)",
-              fontWeight: 500,
-              letterSpacing: "0.18em",
-              color: "var(--text-tertiary)",
-              whiteSpace: "nowrap",
+              gap: "var(--space-8)",
+              minWidth: 0,
             }}
-            title={`Provider: ${voice.provider}`}
           >
-            {PROVIDER_LABELS[voice.provider]}
-          </span>
+            {voice.boundCharacterCount > 0 ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {voice.boundCharacters.slice(0, 2).map((c, i) => (
+                    <CharacterAvatar
+                      key={c.id}
+                      title={c.title}
+                      color={c.thumbnailColor}
+                      offset={i > 0}
+                    />
+                  ))}
+                  {voice.boundCharacterCount > 2 && (
+                    <OverflowAvatar
+                      n={voice.boundCharacterCount - 2}
+                      offset={voice.boundCharacters.length > 0}
+                    />
+                  )}
+                </div>
+                <span
+                  style={{
+                    fontFamily: FONT_HEAD,
+                    fontSize: "var(--font-size-sm)",
+                    color: "var(--text-tertiary)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {voice.boundCharacterCount} character
+                  {voice.boundCharacterCount === 1 ? "" : "s"}
+                </span>
+              </>
+            ) : (
+              <span
+                style={{
+                  fontFamily: FONT_HEAD,
+                  fontSize: "var(--font-size-sm)",
+                  color: "var(--text-quaternary)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Unbound
+              </span>
+            )}
+          </div>
           <div onClick={(e) => e.stopPropagation()}>
             <ContextMenu
               items={items}
@@ -1165,122 +1219,6 @@ function MiniWaveformThumb({ status }: { status: VoiceStatus }) {
   );
 }
 
-/* Avatar stack + name pills for the BOUND TO block. Capped at 2 visible
- * items + a "+N" overflow indicator when there are more than 3 bindings,
- * so a heavy-reuse voice (think shared narrator) doesn't push the card
- * height around. */
-function BindingsBlock({
-  count,
-  characters,
-}: {
-  count: number;
-  characters: VoiceSummary["boundCharacters"];
-}) {
-  const overflow = count > 3;
-  const visible = overflow ? characters.slice(0, 2) : characters.slice(0, count);
-  const overflowN = count - visible.length;
-
-  return (
-    <div
-      style={{
-        // `flex: 1` so this block expands to fill row height when a neighbor
-        // card (Processing/Failed) pushes the row taller — matches design
-        // where the Bindings block grows from 90px → 124px in tall rows.
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--space-10)",
-        padding: "var(--space-14)",
-        background:
-          "var(--ink-wash)",
-        border:
-          "1px solid var(--ink-soft)",
-        borderRadius: "var(--radius-lg)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "var(--space-12)",
-        }}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          <span
-            style={{
-              fontFamily: FONT_MONO,
-              fontSize: "var(--font-size-2xs)",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: "var(--text-tertiary)",
-            }}
-          >
-            Bound to
-          </span>
-          <span
-            style={{
-              fontFamily: FONT_HEAD,
-              fontSize: "var(--font-size-md)",
-              fontWeight: 500,
-              color: "var(--text-primary)",
-            }}
-          >
-            {count} character{count === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          {visible.map((c, i) => (
-            <CharacterAvatar
-              key={c.id}
-              title={c.title}
-              color={c.thumbnailColor}
-              offset={i > 0}
-            />
-          ))}
-          {overflowN > 0 && (
-            <OverflowAvatar n={overflowN} offset={visible.length > 0} />
-          )}
-        </div>
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-6)" }}>
-        {visible.map((c) => (
-          <span
-            key={c.id}
-            style={{
-              padding: "3px 8px",
-              borderRadius: "var(--radius-sm)",
-              background:
-                "var(--ink-soft)",
-              fontFamily: FONT_HEAD,
-              fontSize: "var(--font-size-sm)",
-              color: "var(--text-secondary)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {c.title}
-          </span>
-        ))}
-        {overflowN > 0 && (
-          <span
-            style={{
-              padding: "3px 8px",
-              borderRadius: "var(--radius-sm)",
-              background:
-                "var(--ink-soft)",
-              fontFamily: FONT_HEAD,
-              fontSize: "var(--font-size-sm)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            +{overflowN}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function CharacterAvatar({
   title,
   color,
@@ -1339,44 +1277,6 @@ function OverflowAvatar({ n, offset }: { n: number; offset: boolean }) {
       title={`+${n} more bound character${n === 1 ? "" : "s"}`}
     >
       +{n}
-    </div>
-  );
-}
-
-/* Empty bindings state — voice is `ready` but no character has been
- * bound to it yet. Shown with a dashed border to read as "slot waiting
- * to be filled" and a Bind CTA that routes to the detail page. */
-function UnboundBlock() {
-  return (
-    <div
-      style={{
-        // `flex: 1` lets the dashed slot stretch to fill the card height
-        // when neighbors in the same row push the card taller (e.g. a
-        // Processing block). Without this the unbound block stays
-        // intrinsic and leaves dead space above the footer.
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        gap: "var(--space-2)",
-        padding: "var(--space-14)",
-        background:
-          "var(--ink-wash)",
-        border:
-          "1px dashed var(--ink-line)",
-        borderRadius: "var(--radius-lg)",
-      }}
-    >
-      <span
-        style={{
-          fontFamily: FONT_MONO,
-          fontSize: "var(--font-size-2xs)",
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "var(--text-tertiary)",
-        }}
-      >
-        Unbound
-      </span>
     </div>
   );
 }

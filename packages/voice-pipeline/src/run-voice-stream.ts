@@ -2081,7 +2081,8 @@ function normalizeStreamingTtsProvider(value?: string | null): StreamingTtsProvi
     normalized === "pocket_tts" ||
     normalized === "elevenlabs" ||
     normalized === "openai" ||
-    normalized === "cartesia"
+    normalized === "cartesia" ||
+    normalized === "fish_audio"
   ) {
     return normalized;
   }

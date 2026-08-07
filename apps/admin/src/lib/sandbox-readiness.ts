@@ -884,6 +884,8 @@ function missingTtsEnv(provider: StreamingTtsProvider): string | null {
       return process.env.OPENAI_API_KEY?.trim() ? null : "OPENAI_API_KEY";
     case "cartesia":
       return process.env.CARTESIA_API_KEY?.trim() ? null : "CARTESIA_API_KEY";
+    case "fish_audio":
+      return process.env.FISH_AUDIO_API_KEY?.trim() ? null : "FISH_AUDIO_API_KEY";
   }
 }
 

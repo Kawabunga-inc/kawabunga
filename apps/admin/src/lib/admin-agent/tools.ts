@@ -345,6 +345,7 @@ const voiceProviderSchema = z.enum([
   "elevenlabs",
   "openai",
   "cartesia",
+  "fish_audio",
 ]);
 const voiceStatusSchema = z.enum(["uploaded", "processing", "ready", "failed"]);
 const featuresListSchema = z
