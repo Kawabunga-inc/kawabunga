@@ -7,92 +7,18 @@
   --radius-card: var(--ocean-radius-card);
 }
 
-/* Admin shell glass language. Structural surfaces stay neutral so the
-   workspace remains calm; mint is reserved for state, focus, and motion. */
+/* Admin shell glass language.
+ *
+ * This block defines *material* only — blur, elevation, and the hairline
+ * highlights that give the shell its depth. Every colour comes from the Ocean
+ * theme; nothing here may redeclare a palette token. The shell previously
+ * carried a full teal-tinted palette that shadowed ocean.css on every
+ * authenticated screen, which is why Ocean could never be tuned from one
+ * place. Keep it that way: new values belong in ocean.css. */
 .odyssey-shell {
-  --admin-glass-line: rgba(184, 244, 238, 0.13);
-  --admin-glass-line-strong: rgba(184, 244, 238, 0.24);
-  --admin-glass-highlight: rgba(255, 255, 255, 0.035);
-  --background: #071112;
-  --sidebar: rgba(7, 16, 17, 0.92);
-  --surface-1: rgba(13, 27, 27, 0.72);
-  --surface-2: rgba(18, 35, 34, 0.72);
-  --surface-hover: rgba(29, 51, 49, 0.76);
-  --surface-active: rgba(35, 61, 58, 0.78);
-  --canvas-surface: #081415;
-  --canvas-base: #071112;
-  --foreground: #e4efed;
-  --text-primary: #d8e5e2;
-  --text-secondary: #9eb2ae;
-  --text-tertiary: #6f8985;
-  --text-quaternary: #49625f;
-  --text-placeholder: #819793;
-  --border-subtle: rgba(184, 244, 238, 0.085);
-  --border-medium: rgba(184, 244, 238, 0.14);
-  --border-active: rgba(184, 244, 238, 0.3);
-  --control-bg: rgba(19, 37, 36, 0.68);
-  --control-border: rgba(184, 244, 238, 0.14);
-  --popover-bg: rgba(8, 20, 21, 0.92);
-  --popover-border: rgba(184, 244, 238, 0.2);
-  --material-highlight: rgba(222, 255, 250, 0.045);
-  --card-highlight: rgba(222, 255, 250, 0.035);
-  --material-surface:
-    linear-gradient(145deg, rgba(215, 255, 249, 0.05), transparent 48%),
-    rgba(10, 24, 24, 0.76);
-  --material-card:
-    linear-gradient(145deg, rgba(215, 255, 249, 0.055), transparent 44%),
-    linear-gradient(180deg, rgba(11, 29, 28, 0.78), rgba(7, 20, 21, 0.72));
-  --page-atmosphere:
-    radial-gradient(circle at 18% 12%, rgba(67, 143, 134, 0.1), transparent 30%),
-    radial-gradient(circle at 82% 88%, rgba(23, 80, 78, 0.09), transparent 34%),
-    #071112;
-  --canvas-atmosphere:
-    radial-gradient(circle at 50% 26%, rgba(82, 177, 166, 0.09), transparent 42%),
-    #071112;
-  --ink-wash: rgba(215, 255, 249, 0.025);
-  --ink-soft: rgba(215, 255, 249, 0.055);
-  --ink-fill: rgba(215, 255, 249, 0.075);
-  --ink-line: rgba(215, 255, 249, 0.12);
-  --ink-edge: rgba(215, 255, 249, 0.2);
-  --shadow: rgba(0, 0, 0, 0.42);
-  --elevation-surface:
-    inset 0 1px 0 rgba(255, 255, 255, 0.025),
-    0 14px 44px rgba(0, 0, 0, 0.2);
-  --elevation-card:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    0 14px 44px rgba(0, 0, 0, 0.2);
-  --elevation-panel:
-    inset 0 1px 0 rgba(255, 255, 255, 0.035),
-    0 24px 70px rgba(0, 0, 0, 0.34);
-  --radius-button: 8px;
-  --radius-card: 8px;
-  --radius-panel: 8px;
-  --radius-floating: 8px;
-  --radius-2xl: 8px;
-  --radius-3xl: 8px;
-  --admin-glass-sidebar: linear-gradient(
-    180deg,
-    rgba(15, 20, 21, 0.94),
-    rgba(8, 14, 16, 0.91)
-  );
-  --admin-glass-header: linear-gradient(
-    90deg,
-    rgba(13, 18, 19, 0.9),
-    rgba(8, 15, 17, 0.82)
-  );
-  --sidebar-bg: var(--admin-glass-sidebar);
-  --header-bg: var(--admin-glass-header);
-  --sidebar-border: var(--admin-glass-line);
-  --header-border: var(--admin-glass-line);
-  --sidebar-hover: rgba(201, 255, 247, 0.055);
-  --sidebar-active: linear-gradient(
-    90deg,
-    rgba(133, 222, 213, 0.16),
-    rgba(133, 222, 213, 0.045)
-  );
-  --sidebar-active-border: #8fd9d2;
+  --admin-glass-highlight: var(--material-highlight);
   isolation: isolate;
-  background: #0c1112;
+  background: var(--background);
 }
 
 .odyssey-shell-sidebar {
@@ -115,7 +41,7 @@
 .odyssey-shell-sidebar::before {
   inset: 0 0 auto;
   height: 140px;
-  background: linear-gradient(180deg, rgba(143, 217, 210, 0.055), transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-strong) 6%, transparent), transparent);
 }
 
 .odyssey-shell-brand,
@@ -123,7 +49,7 @@
 .odyssey-shell-account {
   position: relative;
   z-index: 1;
-  background: rgba(5, 11, 13, 0.18);
+  background: color-mix(in srgb, var(--background) 18%, transparent);
 }
 
 .odyssey-shell-brand {
@@ -131,13 +57,13 @@
 }
 
 .odyssey-shell-tabs {
-  background: rgba(5, 11, 13, 0.3);
+  background: color-mix(in srgb, var(--background) 30%, transparent);
 }
 
 .odyssey-shell-navigation {
   position: relative;
   z-index: 1;
-  scrollbar-color: rgba(143, 217, 210, 0.22) transparent;
+  scrollbar-color: color-mix(in srgb, var(--accent-strong) 22%, transparent) transparent;
 }
 
 .odyssey-shell-navigation .sidebar-item,
@@ -153,17 +79,17 @@
 .odyssey-shell-nav-item--active {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.035),
-    0 0 24px rgba(92, 201, 191, 0.055);
+    0 0 24px color-mix(in srgb, var(--accent-strong) 6%, transparent);
 }
 
 .odyssey-shell-tab--active {
-  text-shadow: 0 0 18px rgba(143, 217, 210, 0.28);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent-strong) 28%, transparent);
 }
 
 .odyssey-shell-account {
   box-shadow:
     0 -18px 38px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(184, 244, 238, 0.08);
+    inset 0 1px 0 color-mix(in srgb, var(--accent-strong) 8%, transparent);
 }
 
 .odyssey-shell-header {
@@ -182,8 +108,8 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(143, 217, 210, 0.28) 28%,
-    rgba(143, 217, 210, 0.08) 76%,
+    color-mix(in srgb, var(--accent-strong) 28%, transparent) 28%,
+    color-mix(in srgb, var(--accent-strong) 8%, transparent) 76%,
     transparent
   );
 }
@@ -239,10 +165,10 @@
   overflow: hidden;
   background: linear-gradient(
     180deg,
-    rgba(10, 20, 21, 0.91),
-    rgba(6, 13, 15, 0.86)
+    color-mix(in srgb, var(--surface-1) 91%, transparent),
+    color-mix(in srgb, var(--background) 86%, transparent)
   ) !important;
-  border: 1px solid rgba(184, 244, 238, 0.24) !important;
+  border: 1px solid color-mix(in srgb, var(--accent-strong) 24%, transparent) !important;
   border-radius: 0 8px 8px 0 !important;
   box-shadow:
     18px 0 56px rgba(0, 0, 0, 0.35),
@@ -254,10 +180,10 @@
 .admin-agent-glass-rail {
   background: linear-gradient(
     180deg,
-    rgba(10, 20, 21, 0.94),
-    rgba(6, 13, 15, 0.91)
+    color-mix(in srgb, var(--surface-1) 94%, transparent),
+    color-mix(in srgb, var(--background) 91%, transparent)
   ) !important;
-  border-left-color: rgba(184, 244, 238, 0.18) !important;
+  border-left-color: color-mix(in srgb, var(--accent-strong) 18%, transparent) !important;
   box-shadow:
     -22px 0 58px rgba(0, 0, 0, 0.3),
     inset 1px 0 0 rgba(255, 255, 255, 0.025) !important;
@@ -269,76 +195,10 @@
   background: transparent !important;
 }
 
+/* Light mode carries no palette override — ocean.css owns it. Only the
+   material highlights flip, since a light surface needs a bright inset. */
 :root[data-theme="light"] .odyssey-shell {
-  --admin-glass-line: rgba(31, 80, 83, 0.13);
-  --admin-glass-line-strong: rgba(31, 80, 83, 0.2);
   --admin-glass-highlight: rgba(255, 255, 255, 0.7);
-  --background: #dce9e8;
-  --sidebar: rgba(234, 245, 244, 0.9);
-  --surface-1: rgba(250, 255, 254, 0.7);
-  --surface-2: rgba(235, 246, 244, 0.72);
-  --surface-hover: rgba(221, 238, 235, 0.78);
-  --surface-active: rgba(208, 230, 226, 0.8);
-  --canvas-surface: #dce9e8;
-  --canvas-base: #dce9e8;
-  --foreground: #152b2a;
-  --text-primary: #1c3331;
-  --text-secondary: #526c68;
-  --text-tertiary: #718b87;
-  --text-quaternary: #9bafac;
-  --text-placeholder: #728b87;
-  --border-subtle: rgba(24, 80, 76, 0.09);
-  --border-medium: rgba(24, 80, 76, 0.14);
-  --border-active: rgba(15, 142, 164, 0.3);
-  --control-bg: rgba(255, 255, 255, 0.55);
-  --control-border: rgba(24, 80, 76, 0.14);
-  --popover-bg: rgba(244, 251, 250, 0.92);
-  --popover-border: rgba(24, 80, 76, 0.18);
-  --material-surface:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.7), transparent 52%),
-    rgba(237, 248, 246, 0.72);
-  --material-card:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.74), transparent 48%),
-    rgba(230, 244, 241, 0.7);
-  --page-atmosphere:
-    radial-gradient(circle at 18% 12%, rgba(15, 142, 164, 0.09), transparent 30%),
-    radial-gradient(circle at 82% 88%, rgba(47, 155, 114, 0.07), transparent 34%),
-    #dce9e8;
-  --canvas-atmosphere:
-    radial-gradient(circle at 50% 24%, rgba(15, 142, 164, 0.08), transparent 42%),
-    #dce9e8;
-  --ink-wash: rgba(24, 80, 76, 0.025);
-  --ink-soft: rgba(24, 80, 76, 0.055);
-  --ink-fill: rgba(24, 80, 76, 0.075);
-  --ink-line: rgba(24, 80, 76, 0.12);
-  --ink-edge: rgba(24, 80, 76, 0.2);
-  --shadow: rgba(30, 64, 61, 0.16);
-  --elevation-surface:
-    inset 0 1px 0 rgba(255, 255, 255, 0.68),
-    0 14px 40px rgba(30, 64, 61, 0.1);
-  --elevation-card:
-    inset 0 1px 0 rgba(255, 255, 255, 0.72),
-    0 14px 40px rgba(30, 64, 61, 0.1);
-  --elevation-panel:
-    inset 0 1px 0 rgba(255, 255, 255, 0.74),
-    0 24px 64px rgba(30, 64, 61, 0.14);
-  --admin-glass-sidebar: linear-gradient(
-    180deg,
-    rgba(244, 250, 250, 0.92),
-    rgba(231, 241, 243, 0.88)
-  );
-  --admin-glass-header: linear-gradient(
-    90deg,
-    rgba(246, 251, 251, 0.91),
-    rgba(235, 245, 246, 0.85)
-  );
-  --sidebar-hover: rgba(15, 112, 117, 0.055);
-  --sidebar-active: linear-gradient(
-    90deg,
-    rgba(15, 142, 164, 0.14),
-    rgba(15, 142, 164, 0.035)
-  );
-  background: #e8f0f2;
 }
 
 :root[data-theme="light"] .odyssey-shell-sidebar::before {
@@ -354,22 +214,15 @@
 :root[data-theme="light"] .odyssey-shell-nav-item--active {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
-    0 0 22px rgba(15, 142, 164, 0.05);
+    0 0 22px color-mix(in srgb, var(--accent-strong) 5%, transparent);
 }
 
-:root[data-theme="light"] .odyssey-shell-sidecar,
-:root[data-theme="light"] .admin-agent-glass-rail {
-  background: linear-gradient(
-    180deg,
-    rgba(247, 252, 252, 0.94),
-    rgba(234, 244, 245, 0.9)
-  ) !important;
-}
-
+/* The sidecar and agent rail derive their fill from Ocean surfaces in both
+   modes, so light needs only a brighter inset and a softer cast shadow. */
 :root[data-theme="light"] .odyssey-shell-sidecar {
-  border-color: rgba(31, 80, 83, 0.2) !important;
+  border-color: var(--border-medium) !important;
   box-shadow:
-    18px 0 46px rgba(30, 43, 49, 0.16),
+    18px 0 46px color-mix(in srgb, var(--shadow) 60%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
 }
 
