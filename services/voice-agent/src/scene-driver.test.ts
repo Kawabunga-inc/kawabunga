@@ -1247,6 +1247,51 @@ describe("SceneDriver — proactive turns", () => {
     expect(spoke).toBe(false);
     expect(exec.calls).toBe(callsBefore); // held without consulting the director
   });
+
+  // A tick the runtime declines used to leave no trace, so a scene that kept
+  // yielding the floor read exactly like one whose narrator never woke up
+  // (session a726ec1b: 2 journalled decisions against 28 director calls).
+  it("journals a declined proactive tick with its reason", async () => {
+    const exec = fakeExecutor([speakDecision("abraham"), speakDecision("abraham")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const journal: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak } = fakeSpeak(["I'm sorry, but I can't help with that."]);
+
+    await driver.drive("Hello?", speak);
+    journal.length = 0;
+    await driver.driveProactive(speak);
+
+    const suppressed = journal.find((e) => e.type === "scene.proactive.suppressed");
+    expect(suppressed?.payload.reason).toBe("refusal-echo");
+    // No director call was made, so nothing was paid for before standing down.
+    expect(suppressed?.payload.decisionSpent).toBe(false);
+  });
+
+  it("marks a suppression that already paid for a director call", async () => {
+    // Superseded AFTER deciding: the round trip is spent, and the journal has
+    // to say so — otherwise a costly abandoned tick looks like a cheap skip.
+    const exec = fakeExecutor([speakDecision("abraham")]);
+    const driver = SceneDriver.fromScene(TENT, {
+      resolveExecutor: exec.resolveExecutor,
+      resolveCharacter: fakeCharacters(),
+    });
+    const journal: Array<{ type: string; payload: Record<string, unknown> }> = [];
+    driver.onJournal((entry) => journal.push(entry));
+    const { speak } = fakeSpeak(["unused"]);
+
+    const controller = new AbortController();
+    const pending = driver.driveProactive(speak, { signal: controller.signal });
+    controller.abort(); // the user takes the floor mid-deliberation
+    await pending;
+
+    const suppressed = journal.find((e) => e.type === "scene.proactive.suppressed");
+    expect(suppressed?.payload.reason).toBe("superseded");
+    expect(suppressed?.payload.decisionSpent).toBe(true);
+  });
 });
 
 describe("SceneDriver — unanswered events", () => {
