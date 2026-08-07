@@ -809,7 +809,7 @@ export default function VoiceTest2Page() {
       style={{
         position: "fixed",
         inset: 0,
-        left: "var(--sidebar-width, 240px)",
+        left: "var(--sidebar-width)",
         background: "var(--color-background)",
         display: "flex",
         flexDirection: "column",

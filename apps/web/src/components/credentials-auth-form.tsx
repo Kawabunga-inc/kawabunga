@@ -95,7 +95,7 @@ export function CredentialsAuthForm() {
         />
 
         {error && (
-          <p className="text-sm text-red-400">{error}</p>
+          <p className="text-sm text-status-error">{error}</p>
         )}
 
         <button

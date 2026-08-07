@@ -1495,7 +1495,7 @@ function TicketDetailSidebar({
                 padding: "8px 10px",
                 borderRadius: "var(--radius-sm)",
                 border: "1px solid var(--control-border)",
-                background: "var(--input-background, transparent)",
+                background: "var(--control-bg)",
                 color: "var(--text-primary)",
                 fontSize: "var(--font-size-base)",
                 lineHeight: 1.5,

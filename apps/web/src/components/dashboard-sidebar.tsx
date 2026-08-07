@@ -99,7 +99,7 @@ function SettingsOverlay({ onClose }: { onClose: () => void }) {
           {/* Sign out — mobile only (desktop has it in sidebar menu) */}
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="flex items-center justify-center gap-2 rounded-xl border border-white/6 bg-white/[0.03] py-3.5 text-sm font-medium text-red-400/70 transition-colors hover:text-red-400 md:hidden"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/6 bg-white/[0.03] py-3.5 text-sm font-medium text-status-error/70 transition-colors hover:text-status-error md:hidden"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -195,7 +195,7 @@ function ProfileMenu() {
             <div className="border-t border-white/6" />
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-red-400/70 transition-colors hover:bg-white/5 hover:text-red-400"
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-status-error/70 transition-colors hover:bg-white/5 hover:text-status-error"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />

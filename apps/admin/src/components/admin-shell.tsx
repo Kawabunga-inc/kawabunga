@@ -65,7 +65,7 @@ const kawabungaWordmark = (
       width: 142,
       height: 20,
       flexShrink: 0,
-      background: "var(--sidebar-foreground, var(--foreground))",
+      background: "var(--foreground)",
       mask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
       WebkitMask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
     }}
