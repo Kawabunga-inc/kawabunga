@@ -798,6 +798,14 @@ export default defineAgent({
               voiced = true;
               worldAudio?.flushSpeakerCues();
             },
+            // A silent first attempt is retried; say so, or a recovered beat
+            // looks identical to one that never had trouble.
+            onRetry: (error) =>
+              console.warn(
+                `[voice-agent] narration retry after silent failure: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              ),
           });
         } catch (error) {
           narrationStatus = signal?.aborted ? "cancelled" : "failed";
@@ -1179,6 +1187,12 @@ export default defineAgent({
           openingVoiced = true;
           worldAudio?.flushSpeakerCues();
         },
+        onRetry: (error) =>
+          console.warn(
+            `[voice-agent] opening narration retry after silent failure: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
       })
         .catch((err) => {
           openingStatus = openingSignal.aborted ? "cancelled" : "failed";
