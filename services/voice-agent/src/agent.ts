@@ -74,6 +74,7 @@ import {
   streamNarration,
 } from "./narration";
 import { SceneDriver } from "./scene-driver";
+import { buildIdentity } from "./build-identity";
 import { isNarratorAddressed } from "@kawabunga/orchestration";
 import { buildProactiveSuppressedJournalEntry } from "@kawabunga/orchestration";
 import { createSceneEndPublisher } from "./scene-lifecycle";
@@ -98,7 +99,7 @@ if (!process.send) {
   const healthServer = createServer((req, res) => {
     if (req.url === "/healthz") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ok: true, service: "voice-agent" }));
+      res.end(JSON.stringify({ ok: true, service: "voice-agent", ...buildIdentity() }));
       return;
     }
     res.writeHead(404).end();
