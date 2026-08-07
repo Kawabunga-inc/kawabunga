@@ -129,7 +129,69 @@ export async function streamNarration(input: {
   signal?: AbortSignal;
   /** Called when the first audio frame lands (e.g. release with-speaker sfx). */
   onFirstAudio?: () => void;
+  /** Reported when a silent attempt is retried, for the journal. */
+  onRetry?: (error: unknown) => void;
 }): Promise<void> {
+  // One retry, and ONLY before any audio has been captured.
+  //
+  // A narration beat has no fallback anywhere — unlike the character path,
+  // which carries ttsFallbackRouting and emits tts.provider_fallback — so a
+  // single transient provider error silently costs the scene a beat that
+  // nothing replays. Observed live (session c22c0895): 118 characters,
+  // status failed, audioDurationMs 0, at scene open; the next narration
+  // succeeded, so the fault was transient and a retry would have carried it.
+  //
+  // The pre-first-frame condition is what makes this safe rather than a
+  // stutter: once frames are on the track the visitor has HEARD the opening
+  // words, and starting over would speak them twice. A mid-stream failure
+  // therefore still throws, and is still lost — a truncated line is bad, but
+  // a line delivered twice is worse and cannot be un-heard.
+  try {
+    await streamNarrationOnce(input);
+  } catch (error) {
+    if (input.signal?.aborted) return;
+    // `heard` travels with the attempt, not the module: two narrations can be
+    // in flight (a scene-open line and a world event), and shared mutable
+    // state would let one decide the other's retry.
+    if ((error as NarrationAttemptError).heard) throw error;
+    input.onRetry?.(error);
+    await streamNarrationOnce(input);
+  }
+}
+
+/** Carries whether the visitor had already heard audio when the attempt died. */
+type NarrationAttemptError = Error & { heard?: boolean };
+
+async function streamNarrationOnce(input: {
+  routing: NarrationRouting;
+  text: string;
+  audioSource: AudioSource;
+  signal?: AbortSignal;
+  onFirstAudio?: () => void;
+}): Promise<void> {
+  let firstAudio = false;
+  try {
+    await streamNarrationFrames(input, () => {
+      firstAudio = true;
+    });
+  } catch (error) {
+    const tagged = (error instanceof Error ? error : new Error(String(error))) as
+      NarrationAttemptError;
+    tagged.heard = firstAudio;
+    throw tagged;
+  }
+}
+
+async function streamNarrationFrames(
+  input: {
+    routing: NarrationRouting;
+    text: string;
+    audioSource: AudioSource;
+    signal?: AbortSignal;
+    onFirstAudio?: () => void;
+  },
+  markHeard: () => void,
+): Promise<void> {
   let firstAudio = false;
   for await (const chunk of input.routing.adapter.stream({
     text: input.text,
@@ -141,6 +203,7 @@ export async function streamNarration(input: {
     if (chunk.type === "audio") {
       if (!firstAudio) {
         firstAudio = true;
+        markHeard();
         input.onFirstAudio?.();
       }
       await input.audioSource.captureFrame(toAudioFrame(chunk.pcmFloat32Base64, chunk.sampleRate));

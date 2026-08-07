@@ -8,7 +8,11 @@ import { compileIdentityXml } from "./identity-xml";
 import { compileVoiceXml } from "./voice-xml";
 
 function buildActingChannelConvention(characterName: string): string {
-  return `You speak in first person as ${characterName}. When you ACT — a movement, an expression, something the audience must see — put that action in *asterisks*, one short present-tense sentence, third person. Everything outside asterisks is your spoken voice and must be pure first-person speech: no narration, no describing yourself from outside. Never quote your own dialogue inside quotation marks.`;
+  // "Only your own body" is one clause, not a new rule: a character writing
+  // another's action puppeteers them, and the next turn may contradict it.
+  // Observed once in 54 stage directions over two weeks — rare enough that a
+  // runtime guard would be overfitting, cheap enough to say plainly here.
+  return `You speak in first person as ${characterName}. When you ACT — a movement, an expression, something the audience must see — put that action in *asterisks*, one short present-tense sentence, third person, and only your OWN body: never write what another character does. Everything outside asterisks is your spoken voice and must be pure first-person speech: no narration, no describing yourself from outside. Never quote your own dialogue inside quotation marks.`;
 }
 
 /**

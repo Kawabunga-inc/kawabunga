@@ -5,7 +5,7 @@ import {
 } from "../character-system-prompt";
 
 const convention =
-  "You speak in first person as Sarah. When you ACT — a movement, an expression, something the audience must see — put that action in *asterisks*, one short present-tense sentence, third person. Everything outside asterisks is your spoken voice and must be pure first-person speech: no narration, no describing yourself from outside. Never quote your own dialogue inside quotation marks.";
+  "You speak in first person as Sarah. When you ACT — a movement, an expression, something the audience must see — put that action in *asterisks*, one short present-tense sentence, third person, and only your OWN body: never write what another character does. Everything outside asterisks is your spoken voice and must be pure first-person speech: no narration, no describing yourself from outside. Never quote your own dialogue inside quotation marks.";
 
 describe("character performance prompt", () => {
   it("carries the acting channel in legacy chat and voice prompts", () => {
