@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
 };
 
-const themeScript = `(function(){try{var t=localStorage.getItem("odyssey-theme")||"dark";var v="river";localStorage.setItem("odyssey-theme-variant",v);localStorage.removeItem("odyssey-theme-debug-overrides");localStorage.removeItem("odyssey-theme-debug-overlay");localStorage.removeItem("odyssey-theme-debug-position");var r=t==="system"?window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light":t;var d=document.documentElement;d.setAttribute("data-theme",r);d.setAttribute("data-theme-variant",v);d.style.colorScheme=r;document.body.style.backgroundColor="var(--background)"}catch(e){}})()`;
+const themeScript = `(function(){try{var t=localStorage.getItem("odyssey-theme")||"dark";var v="ocean";localStorage.setItem("odyssey-theme-variant",v);localStorage.removeItem("odyssey-theme-debug-overrides");localStorage.removeItem("odyssey-theme-debug-overlay");localStorage.removeItem("odyssey-theme-debug-position");var r=t==="system"?window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light":t;var d=document.documentElement;d.setAttribute("data-theme",r);d.setAttribute("data-theme-variant",v);d.style.colorScheme=r;document.body.style.backgroundColor="var(--background)"}catch(e){}})()`;
 
 export default function AdminLayout({
   children,
@@ -52,7 +52,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark" data-theme-variant="river" style={{ colorScheme: "dark" }} suppressHydrationWarning>
+    <html lang="en" data-theme="dark" data-theme-variant="ocean" style={{ colorScheme: "dark" }} suppressHydrationWarning>
       <head>
         <meta name="color-scheme" content="dark light" />
       </head>

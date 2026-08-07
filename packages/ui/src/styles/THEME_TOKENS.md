@@ -120,19 +120,24 @@ Use the canonical token in new code:
 - Use the theme debug palette in admin to inspect computed values and live-test
   overrides. It marks compatibility aliases separately.
 
-## Theme Variants
+## Theme Modes and Variants
 
-`data-theme` controls mode: `dark` or `light`. `data-theme-variant` controls
-the palette family inside that mode:
+`data-theme` controls mode. `data-theme-variant` controls the palette family
+inside that mode.
 
-- `ocean`: current atmospheric Kawabunga palette
-- `clean`: clean light/dark palette with Kawabunga blue-green accents
-- `mono-ink`: highest-neutral ink/grayscale palette
-- `mono-slate`: cool blue-gray monotone palette
-- `mono-graphite`: neutral graphite palette
-- `mono-mist`: soft green-gray monotone palette
-- `mono-deep`: deeper low-chroma green monotone palette
-- `river`: warm neutral palette with Ocean blue-green accents
+**Ocean is the only shipping palette.** Both apps render it:
 
-The admin theme debugger writes `data-theme-variant` to the document root and
-persists it in `localStorage` as `odyssey-theme-variant`.
+- `apps/admin` pins `data-theme-variant="ocean"` in `app/layout.tsx` (the
+  inline pre-hydration script) and re-asserts it in `admin-shell.tsx`. Mode
+  follows the user's `odyssey-theme` preference (`dark` / `light` / `system`),
+  defaulting to `dark`.
+- `apps/web` sets no variant, so it falls through to the `:root` Ocean
+  defaults. Scene and visit pages mount `<DeepTheme />`, which sets
+  `data-theme="deep"` for the near-black cinematic player.
+
+Modes: `dark`, `light`, `system`, and `deep`.
+
+The other variant blocks in `ocean.css` (`clean`, `river`, and the five
+`mono-*` families) are **dormant** — nothing sets them. They are retained only
+as reference palettes and are not maintained alongside Ocean. Do not build
+against them.
