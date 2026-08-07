@@ -38,6 +38,34 @@ type Meter = {
   source: MediaStreamAudioSourceNode;
 };
 
+/** Where `begin()` was when it threw. Reported so a failed session says which
+ *  step broke, not merely that one did. */
+export type SceneJoinStage =
+  | "mic-permission"
+  | "token"
+  | "audio-context"
+  | "room-connect"
+  | "mic-publish";
+
+/**
+ * The reason a session is closed with when joining fails.
+ *
+ * The session row is opened the moment "Run live" is clicked — before the mic
+ * prompt, before any connect — so without this a failure leaves it `active`
+ * forever with `session.started` as its only event, which is byte-identical to
+ * a crashed agent. A denied microphone is called out by name because it is the
+ * one cause that is the visitor's to fix, not ours.
+ */
+export function sceneJoinFailureReason(cause: unknown, stage: SceneJoinStage): string {
+  const denied =
+    cause instanceof DOMException &&
+    (cause.name === "NotAllowedError" ||
+      cause.name === "PermissionDeniedError" ||
+      cause.name === "NotFoundError" ||
+      cause.name === "NotReadableError");
+  return `join-failed:${denied ? "mic-denied" : stage}`;
+}
+
 function createMeter(context: AudioContext, track: MediaStreamTrack): Meter {
   const source = context.createMediaStreamSource(new MediaStream([track]));
   const analyser = context.createAnalyser();
@@ -151,6 +179,9 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
     setStage("connecting");
 
     let permissionStream: MediaStream | null = null;
+    // Which step we are on, so a failure reports where it broke rather than
+    // just that it broke. Every one of these throws the same way from here.
+    let failedStage: SceneJoinStage = "mic-permission";
     try {
       permissionStream = await navigator.mediaDevices.getUserMedia({
         audio: audioInputConstraint(selection?.audioInputDeviceId ?? "default"),
@@ -158,9 +189,11 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
       permissionStream.getTracks().forEach((track) => track.stop());
       permissionStream = null;
 
+      failedStage = "token";
       const payload = await provider.join();
       if (!payload.url || !payload.token) throw new Error("The scene could not be reached.");
 
+      failedStage = "audio-context";
       const context = new AudioContext();
       contextRef.current = context;
       await context.resume();
@@ -215,7 +248,9 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
           if (!leavingRef.current) setStage("ended");
         });
 
+      failedStage = "room-connect";
       await room.connect(payload.url, payload.token, { autoSubscribe: true });
+      failedStage = "mic-publish";
       await room.localParticipant.setMicrophoneEnabled(true);
       const micPublication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
       const micTrack = micPublication?.track?.mediaStreamTrack;
@@ -230,12 +265,8 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
       setStage("connected");
     } catch (cause) {
       permissionStream?.getTracks().forEach((track) => track.stop());
-      const denied =
-        cause instanceof DOMException &&
-        (cause.name === "NotAllowedError" ||
-          cause.name === "PermissionDeniedError" ||
-          cause.name === "NotFoundError" ||
-          cause.name === "NotReadableError");
+      const reason = sceneJoinFailureReason(cause, failedStage);
+      const denied = reason.endsWith("mic-denied");
       setError(cause instanceof Error ? cause.message : "The scene could not be reached.");
       setStage(denied ? "denied" : "error");
       leavingRef.current = true;
@@ -244,6 +275,13 @@ export function useLiveScene({ sessionId, provider, onTranscript, onSceneEnded, 
       await room?.disconnect().catch(() => undefined);
       await cleanupMedia();
       leavingRef.current = false;
+      // Close the session server-side with WHY. The row is opened the moment
+      // "Run live" is clicked — before the mic prompt, before any connect — so
+      // a failure here used to leave it `active` forever with `session.started`
+      // as its only event. Three such rows sat open for hours (one 4.7h), and
+      // they are indistinguishable from a crashed agent: identical signature,
+      // opposite cause. `failedStage` names which step actually threw.
+      void provider.end(reason).catch(() => undefined);
     }
   }, [attachRemoteTrack, cleanupMedia, disabled, provider, sessionId, stage, startMeters]);
 
