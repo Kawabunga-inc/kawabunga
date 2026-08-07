@@ -6,17 +6,11 @@ import {
   sandboxVoiceContextCacheKeyForDebug,
   storeSandboxVoiceContextCache,
 } from "@/lib/sandbox-voice-context-cache";
-import {
-  clearVoiceAckAudioCache,
-  storeCachedVoiceAckAudio,
-  voiceAckAudioCacheKey,
-} from "@/lib/voice-ack-audio-cache";
 
 const upsertTurn = vi.hoisted(() => vi.fn());
 const recordContextBuild = vi.hoisted(() => vi.fn());
 const appendEvent = vi.hoisted(() => vi.fn());
 const ttsTexts = vi.hoisted(() => [] as string[]);
-const failAckTts = vi.hoisted(() => ({ current: false }));
 // Scripted LLM replies (token arrays), consumed one per stream call. Empty ⇒
 // the default single-reply stream. Inputs are captured for prompt assertions.
 const llmScript = vi.hoisted(() => ({ current: [] as string[][] }));
@@ -205,10 +199,6 @@ vi.mock("@kawabunga/engine", () => ({
     adapter: {
       stream: async function* ({ text }: { text: string }) {
         ttsTexts.push(text);
-        if (failAckTts.current && text === "I can speak to that.") {
-          yield { type: "error", message: "ack synth failed" };
-          return;
-        }
         const samples = new Float32Array([0, 0.2, -0.2, 0]);
         yield {
           type: "audio",
@@ -299,7 +289,6 @@ describe("character voice-stream persistence", () => {
     recordContextBuild.mockReset();
     appendEvent.mockReset();
     ttsTexts.length = 0;
-    failAckTts.current = false;
     llmScript.current = [];
     llmCallInputs.length = 0;
     llmStallNextCall.current = false;
@@ -307,7 +296,6 @@ describe("character voice-stream persistence", () => {
     buildVoicePromptPlan.mockClear();
     curate.mockClear();
     clearSandboxVoiceContextCache();
-    clearVoiceAckAudioCache();
     vi.unstubAllEnvs();
   });
 
@@ -492,10 +480,9 @@ describe("character voice-stream persistence", () => {
     expect(response.status).toBe(200);
 
     const events = await collectSse(response);
-    // "Lot" is too short for the named-entity ack (min 4 chars so it can't
-    // false-fire on "a lot") — the lane picks the generic phrase.
+    // Tokens now stream unprefixed: no canned acknowledgement is spoken ahead
+    // of the reply, so what the visitor hears IS what the character generated.
     expect(events.filter((event) => event.event === "token").map((event) => (event.data as { delta: string }).delta)).toEqual([
-      "I can speak to that. ",
       "Testing voice pipeline.",
     ]);
     const trace = events.find((event) => event.event === "trace")?.data as {
@@ -507,22 +494,13 @@ describe("character voice-stream persistence", () => {
       Array.isArray(event.meta?.selectedPageSlugs) &&
       event.meta.selectedPageSlugs.includes("lot"),
     )).toBe(true);
-    expect(trace.events?.some((event) => event.name === "server.ack.selected")).toBe(true);
-    expect(ttsTexts[0]).toBe("I can speak to that.");
     const done = events.find((event) => event.event === "done")?.data as {
-      ackText?: string | null;
-      ackDelivered?: boolean;
-      ackFirstAudioMs?: number | null;
       brainFirstTokenMs?: number | null;
       serverTrace?: { events?: Array<{ name?: string }> };
     };
     expect(done).toMatchObject({
-      ackText: "I can speak to that.",
-      ackDelivered: true,
-      ackFirstAudioMs: expect.any(Number),
       brainFirstTokenMs: expect.any(Number),
     });
-    expect(done.serverTrace?.events?.some((event) => event.name === "server.ack.tts.first-audio")).toBe(true);
     expect(buildVoicePromptPlan).toHaveBeenCalledWith(
       expect.objectContaining({
         curatedContext: expect.objectContaining({
@@ -539,16 +517,13 @@ describe("character voice-stream persistence", () => {
         metadata: expect.objectContaining({
           contextCacheHit: true,
           realtimeLane: true,
-          ackText: "I can speak to that.",
         }),
       }),
     );
     expect(upsertTurn).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        assistantText: "I can speak to that. Testing voice pipeline.",
+        assistantText: "Testing voice pipeline.",
         metadata: expect.objectContaining({
-          ackText: "I can speak to that.",
-          ackDelivered: true,
         }),
       }),
     );
@@ -567,7 +542,6 @@ describe("character voice-stream persistence", () => {
         history: [],
         scene: { activeEntities: ["abraham"], location: "character sandbox" },
         model: "gpt-oss-120b",
-        ackMode: "off",
       }),
       routeCtx,
     );
@@ -632,7 +606,6 @@ describe("character voice-stream persistence", () => {
         scene: { activeEntities: ["abraham"], location: "character sandbox" },
         model: "gpt-oss-120b",
         voice: "abraham",
-        ackMode: "off",
       }),
       routeCtx,
     );
@@ -662,157 +635,8 @@ describe("character voice-stream persistence", () => {
     );
   });
 
-  it("does not run the acknowledgement lane when disabled by request", async () => {
-    seedLotContextCache();
 
-    const response = await POST(
-      request({
-        sessionId: "session_1",
-        turnId: "turn_ack_off",
-        message: "Tell me more about Lot.",
-        history: [],
-        scene: { activeEntities: ["abraham"], location: "character sandbox" },
-        model: "gpt-oss-120b",
-        ackMode: "off",
-      }),
-      routeCtx,
-    );
-    expect(response.status).toBe(200);
 
-    const events = await collectSse(response);
-    expect(events.filter((event) => event.event === "token").map((event) => (event.data as { delta: string }).delta)).toEqual([
-      "Testing voice pipeline.",
-    ]);
-    const done = events.find((event) => event.event === "done")?.data as {
-      ackText?: string | null;
-      ackDelivered?: boolean;
-      serverTrace?: { events?: Array<{ name?: string }> };
-    };
-    expect(done.ackText).toBeNull();
-    expect(done.ackDelivered).toBe(false);
-    expect(done.serverTrace?.events?.some((event) => event.name === "server.ack.selected")).toBe(false);
-    expect(ttsTexts[0]).toBe("Testing voice pipeline.");
-    expect(upsertTurn).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        assistantText: "Testing voice pipeline.",
-        metadata: expect.objectContaining({
-          ackText: null,
-          ackDelivered: false,
-        }),
-      }),
-    );
-  });
-
-  it("uses prepared acknowledgement audio when it is cached", async () => {
-    seedLotContextCache();
-    const contextCacheKey = sandboxVoiceContextCacheKeyForDebug({
-      characterId: "char_1",
-      sessionId: "session_1",
-      scene: undefined,
-      tokenBudget: 2500,
-    });
-    // Seed the cache under the phrase the lane actually selects for this
-    // message ("Lot" is below the named-entity minimum) or it can never hit.
-    storeCachedVoiceAckAudio({
-      key: voiceAckAudioCacheKey({
-        contextCacheKey,
-        ttsProvider: "pocket_tts",
-        ttsVoice: "abraham",
-        ackText: "I can speak to that.",
-      }),
-      ackText: "I can speak to that.",
-      frames: [
-        {
-          pcmFloat32Base64: Buffer.from(new Float32Array([0, 0.1, -0.1, 0]).buffer).toString("base64"),
-          samples: 4,
-          sampleRate: 24_000,
-        },
-      ],
-    });
-
-    const response = await POST(
-      request({
-        sessionId: "session_1",
-        turnId: "turn_ack_cached",
-        message: "Tell me more about Lot.",
-        history: [],
-        scene: { activeEntities: ["abraham"], location: "character sandbox" },
-        model: "gpt-oss-120b",
-      }),
-      routeCtx,
-    );
-    expect(response.status).toBe(200);
-
-    const events = await collectSse(response);
-    expect(events.filter((event) => event.event === "token").map((event) => (event.data as { delta: string }).delta)).toEqual([
-      "I can speak to that. ",
-      "Testing voice pipeline.",
-    ]);
-    expect(ttsTexts).toEqual(["Testing voice pipeline."]);
-    const done = events.find((event) => event.event === "done")?.data as {
-      ackAudioCacheHit?: boolean;
-      audioSamples?: number;
-      serverTrace?: { events?: Array<{ name?: string }> };
-    };
-    expect(done.ackAudioCacheHit).toBe(true);
-    expect(done.audioSamples).toBe(8);
-    expect(done.serverTrace?.events?.some((event) => event.name === "server.ack.audio_cache.hit")).toBe(true);
-    expect(done.serverTrace?.events?.some((event) => event.name === "server.ack.audio_cache.dispatched")).toBe(true);
-    expect(upsertTurn).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        assistantText: "I can speak to that. Testing voice pipeline.",
-        metadata: expect.objectContaining({
-          ackAudioCacheHit: true,
-        }),
-      }),
-    );
-  });
-
-  it("continues the main stream when acknowledgement TTS fails", async () => {
-    seedLotContextCache();
-    failAckTts.current = true;
-
-    const response = await POST(
-      request({
-        sessionId: "session_1",
-        turnId: "turn_ack_fail",
-        message: "Tell me more about Lot.",
-        history: [],
-        scene: { activeEntities: ["abraham"], location: "character sandbox" },
-        model: "gpt-oss-120b",
-      }),
-      routeCtx,
-    );
-    expect(response.status).toBe(200);
-
-    const events = await collectSse(response);
-    // The ack token is coupled to its audio delivery — when ack TTS fails,
-    // the browser stream carries only the main reply.
-    expect(events.filter((event) => event.event === "token").map((event) => (event.data as { delta: string }).delta)).toEqual([
-      "Testing voice pipeline.",
-    ]);
-    expect(ttsTexts).toEqual(["I can speak to that.", "Testing voice pipeline."]);
-    const done = events.find((event) => event.event === "done")?.data as {
-      ackText?: string | null;
-      ackDelivered?: boolean;
-      ackFirstAudioMs?: number | null;
-      serverTrace?: { events?: Array<{ name?: string }> };
-    };
-    expect(done.ackText).toBe("I can speak to that.");
-    expect(done.ackDelivered).toBe(false);
-    expect(done.ackFirstAudioMs).toBeNull();
-    expect(done.serverTrace?.events?.some((event) => event.name === "server.ack.tts.failed")).toBe(true);
-    expect(upsertTurn).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        assistantText: "Testing voice pipeline.",
-        status: "completed",
-        metadata: expect.objectContaining({
-          ackText: "I can speak to that.",
-          ackDelivered: false,
-        }),
-      }),
-    );
-  });
 
   it("re-rolls assistant refusal boilerplate into an in-character reply with no residue", async () => {
     llmScript.current = [
