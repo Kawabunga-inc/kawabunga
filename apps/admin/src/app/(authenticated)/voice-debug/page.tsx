@@ -627,7 +627,7 @@ export default function VoiceDebugPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
-      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Tools · Debug</p>
         <h1 className="mt-2 text-3xl font-semibold">Voice Debug</h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--text-tertiary)]">
@@ -636,7 +636,7 @@ export default function VoiceDebugPage() {
         </p>
       </header>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-medium">Kyutai Gateway</h2>
@@ -703,7 +703,7 @@ export default function VoiceDebugPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <h2 className="text-lg font-medium">1. Audio input</h2>
         <p className="mt-1 text-sm text-[var(--text-tertiary)]">Record from mic or upload an audio file. Re-usable across stages — uploads keep tests repeatable.</p>
 
@@ -773,7 +773,7 @@ export default function VoiceDebugPage() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-medium">2. Pipeline</h2>
@@ -900,7 +900,7 @@ export default function VoiceDebugPage() {
 
       <StreamingPanel />
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <h2 className="text-lg font-medium">Raw responses</h2>
         <p className="mt-1 text-sm text-[var(--text-tertiary)]">Last server payload from each stage.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-3">

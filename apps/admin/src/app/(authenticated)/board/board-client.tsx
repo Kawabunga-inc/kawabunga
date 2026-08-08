@@ -257,7 +257,7 @@ function PriorityTag({ priority }: { priority: TicketPriority }) {
         fontSize: "var(--font-size-2xs)",
         fontFamily: "var(--font-mono, ui-monospace, monospace)",
         fontWeight: 500,
-        color: "#8FD1CB",
+        color: "var(--accent-strong)",
         lineHeight: "12px",
         whiteSpace: "nowrap",
       }}
@@ -435,7 +435,7 @@ function FilterDropdown({
             cursor: "pointer",
             color:
               active === opt
-                ? "#8FD1CB"
+                ? "var(--accent-strong)"
                 : "var(--text-secondary)",
             fontSize: "var(--font-size-sm)",
             fontFamily: "var(--font-mono, ui-monospace, monospace)",
@@ -946,8 +946,8 @@ function NewTicketModal({
               padding: "7px 16px",
               borderRadius: "var(--radius-md)",
               border: "none",
-              background: "#8FD1CB",
-              color: "#000",
+              background: "var(--accent-strong)",
+              color: "var(--accent-on)",
               fontSize: "var(--font-size-base)",
               fontWeight: 600,
               cursor: "pointer",
@@ -1495,7 +1495,7 @@ function TicketDetailSidebar({
                 padding: "8px 10px",
                 borderRadius: "var(--radius-sm)",
                 border: "1px solid var(--control-border)",
-                background: "var(--input-background, transparent)",
+                background: "var(--control-bg)",
                 color: "var(--text-primary)",
                 fontSize: "var(--font-size-base)",
                 lineHeight: 1.5,
@@ -1701,7 +1701,7 @@ export default function BoardClient({ initialTickets, features = [], team = [] }
                       ? "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)"
                       : "var(--control-bg)",
                     color: isActive
-                      ? "#8FD1CB"
+                      ? "var(--accent-strong)"
                       : "var(--text-tertiary)",
                     fontSize: "var(--font-size-sm)",
                     fontWeight: 500,
@@ -1761,8 +1761,8 @@ export default function BoardClient({ initialTickets, features = [], team = [] }
               padding: "6px 14px",
               borderRadius: "var(--radius-md)",
               border: "none",
-              background: "#8FD1CB",
-              color: "#000",
+              background: "var(--accent-strong)",
+              color: "var(--accent-on)",
               fontSize: "var(--font-size-sm)",
               fontWeight: 600,
               cursor: "pointer",

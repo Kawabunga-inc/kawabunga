@@ -1,8 +1,28 @@
 # Kawabunga Theme Tokens
 
-`themes/ocean.css` is the source of truth for runtime theme variables. New UI
-should use the canonical tokens below. Compatibility aliases remain available so
-older surfaces can migrate gradually.
+`themes/ocean.css` is the source of truth for runtime theme variables, and the
+only palette that ships. Use the canonical tokens below — the compatibility
+alias tier has been removed, so there is no longer a gradual-migration path to
+fall back on.
+
+## Design source
+
+The palette originates in the **Kawabunga Brand & Design System** Paper file,
+page *voices*:
+
+- **Dark** — the "voice card — explorations" artboard, which is drawn entirely
+  from `var(--color-*)` references. It renders the `:root` contract directly,
+  so `:root` and dark mode are by definition the same palette.
+- **Light** — the "voice card — light mode" artboard: `#F5F6F4` ground,
+  `#FFFFFF` cards on a `0 10px 30px rgba(0,0,0,.06)` shadow, `#5E8E84` accent
+  (the mint drops to a deeper teal so it survives on white), and a
+  `.88 / .68 / .42 / .18` black text ramp.
+
+When a value changes in Paper, change it here — not in a component.
+
+Nothing downstream of `ocean.css` may redeclare a semantic token. A component
+that needs a different value changes it here, or composes one with `color-mix`
+from an existing token. `npm run theme:check` enforces the removed aliases.
 
 ## Canonical Color Tokens
 
@@ -70,11 +90,11 @@ Materials and effects:
 - `--elevation-menu`
 - `--elevation-side`
 
-## Compatibility Aliases
+## Removed Aliases
 
-Use the canonical token in new code:
+These no longer exist. `theme:check` fails the build if one reappears.
 
-| Alias | Canonical replacement |
+| Removed | Use instead |
 |---|---|
 | `--app-background` | `--background` |
 | `--node-canvas` | `--canvas-surface` |
@@ -101,6 +121,10 @@ Use the canonical token in new code:
 | `--danger` | `--status-error` |
 | `--forest-*` | semantic surface/accent tokens |
 
+Their Tailwind mappings went with them, so `bg-card`, `text-muted`,
+`bg-panel`, and `bg-forest-*` are gone too. Use `bg-surface-1`,
+`text-text-tertiary`, and friends.
+
 ## Usage Guidance
 
 - Prefer semantic tokens over raw hex values in app components.
@@ -112,27 +136,40 @@ Use the canonical token in new code:
   pickers.
 - Use `--material-surface` for broad panels and `--material-card` for repeated
   item cards.
-- Treat `--card` as compatibility only; new code should choose a semantic
-  surface or material token directly.
-- Use `--text-tertiary` for muted labels; avoid `--muted` in new code.
+- Choose a semantic surface or material token directly; there is no longer a
+  generic card alias to fall back on.
+- Use `--text-tertiary` for muted labels.
 - Use `--status-error` for validation/errors and `--critical-crimson` only for
   stronger destructive or graph-category red.
-- Use the theme debug palette in admin to inspect computed values and live-test
-  overrides. It marks compatibility aliases separately.
+## Theme Modes
 
-## Theme Variants
+**Ocean is the only palette.** The variant axis is retired — the `clean`,
+`river`, and five `mono-*` families are deleted, not dormant. `ocean.css` has
+one palette with three mode overrides, so a token has exactly one definition
+per mode and you can read its value off the file.
 
-`data-theme` controls mode: `dark` or `light`. `data-theme-variant` controls
-the palette family inside that mode:
+`data-theme` selects the mode:
 
-- `ocean`: current atmospheric Kawabunga palette
-- `clean`: clean light/dark palette with Kawabunga blue-green accents
-- `mono-ink`: highest-neutral ink/grayscale palette
-- `mono-slate`: cool blue-gray monotone palette
-- `mono-graphite`: neutral graphite palette
-- `mono-mist`: soft green-gray monotone palette
-- `mono-deep`: deeper low-chroma green monotone palette
-- `river`: warm neutral palette with Ocean blue-green accents
+- `dark` — the admin default, and what `apps/admin` renders. It declares **no
+  colour of its own**: `:root` already holds the Paper dark contract, so the
+  block carries only chrome (glass, elevation, scrims). Redeclaring a palette
+  token here is what let dark drift to a `#05070A` ground against Paper's
+  `#13181D`; put the value in `:root` instead.
+- `light` — follows the user's `odyssey-theme` preference. Matches the Paper
+  light artboard value for value.
+- `deep` — near-black cinematic mode, and the *only* place the `#05070A`
+  ground now lives. `apps/web` scene and visit pages mount `<DeepTheme />` to
+  opt in. This is a deliberate third ground, not a darker dark.
+- `system` — resolves to dark or light from `prefers-color-scheme`.
 
-The admin theme debugger writes `data-theme-variant` to the document root and
-persists it in `localStorage` as `odyssey-theme-variant`.
+`apps/admin` pins `data-theme-variant="ocean"` in `app/layout.tsx` (the inline
+pre-hydration script) and re-asserts it in `admin-shell.tsx`; `apps/web` sets
+no variant. Both land on the same `:root` palette either way — the attribute is
+now belt-and-braces rather than a selector anything keys off.
+
+### The shell is not a theme layer
+
+`.odyssey-shell` in `apps/admin/src/app/globals.css` defines *material* only —
+blur, elevation, hairline highlights. It once carried a full teal palette that
+shadowed this file on every authenticated screen, which made Ocean impossible
+to tune from one place. Don't reintroduce that: colour belongs in `ocean.css`.

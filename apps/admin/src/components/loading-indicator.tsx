@@ -70,7 +70,7 @@ export function LoadingIndicator({
     >
       <svg
         aria-hidden="true"
-        viewBox="0 -105.402 315.009 236.299"
+        viewBox="0 0 596 163"
         fill="none"
         style={{
           display: "block",
@@ -115,15 +115,15 @@ export function LoadingIndicator({
         <g clipPath={`url(#${clipId})`}>
           <rect
             x={-sweepWidth}
-            y="-120"
+            y="-24"
             width={sweepWidth}
-            height="270"
+            height="211"
             fill={`url(#${gradientId})`}
             filter={`url(#kawabunga-loader-glow-${id})`}
           >
             <animate
               attributeName="x"
-              values={`${-sweepWidth};${315 + sweepWidth}`}
+              values={`${-sweepWidth};${596 + sweepWidth}`}
               dur={`${safeSpeed}s`}
               repeatCount="indefinite"
             />

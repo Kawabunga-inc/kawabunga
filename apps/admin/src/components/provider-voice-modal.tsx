@@ -275,7 +275,7 @@ export function ProviderVoiceModal({
               style={{
                 padding: "10px 12px",
                 borderRadius: "var(--radius-md)",
-                background: "var(--status-error-fill, rgba(255,90,90,0.10))",
+                background: "var(--critical-fill)",
                 border: "1px solid var(--status-error)",
                 fontFamily: "var(--font-body), system-ui, sans-serif",
                 fontSize: "var(--font-size-sm)",

@@ -16,13 +16,14 @@ export default function OGImage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0C0E14",
+          // Static PNG render, so no var(); canonical Ocean background + mint.
+          background: "#13181D",
           fontFamily: "system-ui, sans-serif",
         }}
       >
-        <svg width="360" height="270" viewBox="0 -105.402 315.009 236.299" fill="none">
+        <svg width="520" height="142" viewBox="0 0 596 163" fill="none">
           {KAWABUNGA_ICON_PATHS.map((path) => (
-            <path key={path} d={path} fill="#8fd1cb" />
+            <path key={path} d={path} fill="rgb(143 209 203)" />
           ))}
         </svg>
 

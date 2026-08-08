@@ -17,6 +17,17 @@ import {
 } from "three";
 
 /* ─── brand palette ─── */
+// The three.js scene background needs a concrete color (WebGL runs outside
+// CSS), so the Ocean token is read from the computed style at load, with the
+// canonical --color-background value as the SSR fallback (comma-separated
+// rgb() — three's Color.setStyle doesn't parse the space-separated form).
+const OCEAN_BACKGROUND =
+  typeof document === "undefined"
+    ? "rgb(19, 24, 29)"
+    : getComputedStyle(document.documentElement)
+        .getPropertyValue("--color-background")
+        .trim() || "rgb(19, 24, 29)";
+
 const PALETTES = {
   kawabunga: ["#0d9488", "#06b6d4", "#8b5cf6", "#ec4899", "#f59e0b"],
   warm: ["#ef4444", "#f97316", "#eab308", "#f59e0b", "#dc2626"],
@@ -693,7 +704,7 @@ function Scene({
 
   return (
     <>
-      <color attach="background" args={["#0C0E14"]} />
+      <color attach="background" args={[OCEAN_BACKGROUND]} />
       <OrbitControls
         autoRotate={autoOrbit}
         autoRotateSpeed={1.5}
@@ -798,8 +809,8 @@ export default function VoiceTest2Page() {
       style={{
         position: "fixed",
         inset: 0,
-        left: "var(--sidebar-width, 240px)",
-        background: "#0C0E14",
+        left: "var(--sidebar-width)",
+        background: "var(--color-background)",
         display: "flex",
         flexDirection: "column",
       }}

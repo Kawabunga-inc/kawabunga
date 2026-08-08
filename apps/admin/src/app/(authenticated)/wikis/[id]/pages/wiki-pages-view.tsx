@@ -41,7 +41,7 @@ const DANGER = "var(--status-error)";
 
 /** Six-color type palette — same one used in the knowledge graph. */
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--accent-strong)",
   event: "#60A5FA",
   concept: "#A78BFA",
   relationship: "#FACC15",
@@ -476,8 +476,8 @@ function FilterStrip({
               style={chipStyle(
                 active,
                 color,
-                `${color}4D`,
-                `${color}10`,
+                `color-mix(in srgb, ${color} 30%, transparent)`,
+                `color-mix(in srgb, ${color} 6%, transparent)`,
               )}
             >
               <span
@@ -493,7 +493,7 @@ function FilterStrip({
               </span>
               <span
                 style={{
-                  color: active ? `${color}AA` : TEXT_FADED,
+                  color: active ? `color-mix(in srgb, ${color} 67%, transparent)` : TEXT_FADED,
                 }}
               >
                 {pad2(count)}
@@ -1166,8 +1166,8 @@ function PageDetail({
                 alignItems: "center",
                 gap: "var(--space-6)",
                 padding: "2px 8px",
-                border: `1px solid ${color}4D`,
-                background: `${color}14`,
+                border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
+                background: `color-mix(in srgb, ${color} 8%, transparent)`,
                 color,
                 fontFamily: MONO,
                 fontSize: "var(--font-size-2xs)",

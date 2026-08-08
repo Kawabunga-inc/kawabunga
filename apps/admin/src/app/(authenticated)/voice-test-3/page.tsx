@@ -409,7 +409,7 @@ export default function VoiceTest3Page() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
-      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Tools</p>
         <h1 className="mt-2 text-3xl font-semibold">Voice Test 3</h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--text-tertiary)]">
@@ -418,7 +418,7 @@ export default function VoiceTest3Page() {
       </header>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
           <h2 className="text-lg font-medium">1) Service Checks</h2>
           <p className="mt-1 text-sm text-[var(--text-tertiary)]">Verify deployment and audio config routes.</p>
           <button
@@ -434,7 +434,7 @@ export default function VoiceTest3Page() {
           </pre>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
           <h2 className="text-lg font-medium">2) Text-to-Speech</h2>
           <p className="mt-1 text-sm text-[var(--text-tertiary)]">Calls POST /api/audio/speak and plays returned audio.</p>
           <textarea
@@ -457,7 +457,7 @@ export default function VoiceTest3Page() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
           <h2 className="text-lg font-medium">3) Speech-to-Text</h2>
           <p className="mt-1 text-sm text-[var(--text-tertiary)]">
             Record microphone audio, transcribe, then run AI reply and playback.
@@ -521,7 +521,7 @@ export default function VoiceTest3Page() {
           </pre>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
           <h2 className="text-lg font-medium">Recent Probe Results</h2>
           <p className="mt-1 text-sm text-[var(--text-tertiary)]">Most recent checks and failures.</p>
           <div className="mt-4 flex max-h-72 flex-col gap-2 overflow-auto">

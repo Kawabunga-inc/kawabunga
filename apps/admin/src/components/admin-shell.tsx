@@ -56,18 +56,18 @@ const icons = {
   artifacts: <Box size={I} />,
 };
 
-const kawabungaWordmark = (
+const kawabungaIcon = (
   <span
     role="img"
     aria-label="Kawabunga"
     style={{
       display: "inline-block",
-      width: 142,
-      height: 20,
+      width: 32,
+      height: 14,
       flexShrink: 0,
-      background: "var(--sidebar-foreground, var(--foreground))",
-      mask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
-      WebkitMask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
+      background: "#8FD1CB",
+      mask: "url('/kawabunga_icon.svg') center / contain no-repeat",
+      WebkitMask: "url('/kawabunga_icon.svg') center / contain no-repeat",
     }}
   />
 );
@@ -165,11 +165,11 @@ function AdminShellInner({
           : "light"
         : theme;
     document.documentElement.setAttribute("data-theme", resolved);
-    document.documentElement.setAttribute("data-theme-variant", "river");
+    document.documentElement.setAttribute("data-theme-variant", "ocean");
     document.documentElement.style.colorScheme = resolved;
     document.body.style.backgroundColor = "var(--background)";
     localStorage.setItem("odyssey-theme", theme);
-    localStorage.setItem("odyssey-theme-variant", "river");
+    localStorage.setItem("odyssey-theme-variant", "ocean");
   }, [theme]);
 
   // Listen for OS theme changes when set to "system"
@@ -179,7 +179,7 @@ function AdminShellInner({
     const handler = (e: MediaQueryListEvent) => {
       const resolved = e.matches ? "dark" : "light";
       document.documentElement.setAttribute("data-theme", resolved);
-      document.documentElement.setAttribute("data-theme-variant", "river");
+      document.documentElement.setAttribute("data-theme-variant", "ocean");
       document.documentElement.style.colorScheme = resolved;
       document.body.style.backgroundColor = "var(--background)";
     };
@@ -207,7 +207,7 @@ function AdminShellInner({
   return (
     <Sidebar
       brand="Kawabunga"
-      brandIcon={kawabungaWordmark}
+      brandIcon={kawabungaIcon}
       items={navItems}
       tabs={tabs}
       pathname={pathname}

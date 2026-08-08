@@ -28,9 +28,6 @@
   --color-surface-hover: var(--surface-hover);
   --color-surface-active: var(--surface-active);
   --color-canvas-surface: var(--canvas-surface);
-  --color-node-canvas: var(--canvas-surface);
-  --color-panel: var(--panel);
-  --color-panel-strong: var(--panel-strong);
   --color-border: var(--border);
   --color-border-subtle: var(--border-subtle);
   --color-border-medium: var(--border-medium);
@@ -44,8 +41,6 @@
   --color-ink-edge: var(--ink-edge);
 
   /* Semantic accent colors */
-  --color-passive-teal: var(--passive-teal);
-  --color-active-teal: var(--active-teal);
   --color-emissive-mint: var(--emissive-mint);
   --color-signal-blue: var(--signal-blue);
   --color-event-violet: var(--event-violet);
@@ -61,7 +56,6 @@
   --color-accent-on: var(--accent-on);
 
   /* Semantic text colors */
-  --color-muted: var(--muted);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-tertiary: var(--text-tertiary);
@@ -75,8 +69,6 @@
   --color-status-error: var(--status-error);
   --color-status-processing: var(--status-processing);
   --color-status-info: var(--status-info);
-  --color-success: var(--success);
-  --color-danger: var(--danger);
 
   /* Critical fill scale (status-error tints) */
   --color-critical-wash: var(--critical-wash);
@@ -84,9 +76,6 @@
   --color-critical-border: var(--critical-border);
 
   /* Component tokens */
-  --color-card: var(--card);
-  --color-card-hover: var(--card-hover);
-  --color-card-border: var(--card-border);
   --color-control-bg: var(--control-bg);
   --color-control-border: var(--control-border);
   --color-popover-bg: var(--popover-bg);
@@ -118,17 +107,6 @@
   --radius-pill: var(--radius-pill);
 
   /* Palette — raw scale for one-off use */
-  --color-forest-950: var(--forest-950);
-  --color-forest-900: var(--forest-900);
-  --color-forest-800: var(--forest-800);
-  --color-forest-700: var(--forest-700);
-  --color-forest-600: var(--forest-600);
-  --color-forest-500: var(--forest-500);
-  --color-forest-400: var(--forest-400);
-  --color-forest-300: var(--forest-300);
-  --color-forest-200: var(--forest-200);
-  --color-forest-100: var(--forest-100);
-  --color-forest-50: var(--forest-50);
 }
 
 /* ── Reset & base ───────────────────────────────────────────── */
@@ -201,11 +179,6 @@ textarea {
   backdrop-filter: blur(18px);
   border: 1px solid var(--border);
   box-shadow: var(--elevation-panel, 0 24px 80px var(--shadow));
-}
-
-.panel-strong {
-  background: var(--panel-strong);
-  color: var(--panel-strong-text);
 }
 
 .text-balance {
