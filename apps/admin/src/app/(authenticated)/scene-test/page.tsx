@@ -64,20 +64,20 @@ export default function SceneTestPage() {
     <div className="mx-auto max-w-3xl space-y-6 p-6 text-sm">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">{ABRAHAMS_TENT.title}</h1>
-        <p className="text-muted-foreground">{ABRAHAMS_TENT.description}</p>
+        <p className="text-text-tertiary">{ABRAHAMS_TENT.description}</p>
       </header>
 
-      <section className="rounded-md border bg-card p-4">
+      <section className="rounded-md border bg-surface-1 p-4">
         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-          <div><span className="text-muted-foreground">phase: </span>{runner.phase}</div>
-          <div><span className="text-muted-foreground">speaker: </span>{runner.currentSpeakerSlug ?? "—"}</div>
-          <div className="col-span-2"><span className="text-muted-foreground">beat: </span>{runner.sceneState.beat}</div>
-          <div><span className="text-muted-foreground">ambience: </span>{runner.sceneState.ambience ?? "—"}</div>
-          <div><span className="text-muted-foreground">turn: </span>{runner.sceneState.turnIndex}</div>
-          <div><span className="text-muted-foreground">mic: </span>{mic.status}</div>
+          <div><span className="text-text-tertiary">phase: </span>{runner.phase}</div>
+          <div><span className="text-text-tertiary">speaker: </span>{runner.currentSpeakerSlug ?? "—"}</div>
+          <div className="col-span-2"><span className="text-text-tertiary">beat: </span>{runner.sceneState.beat}</div>
+          <div><span className="text-text-tertiary">ambience: </span>{runner.sceneState.ambience ?? "—"}</div>
+          <div><span className="text-text-tertiary">turn: </span>{runner.sceneState.turnIndex}</div>
+          <div><span className="text-text-tertiary">mic: </span>{mic.status}</div>
           <div>
-            <span className="text-muted-foreground">level: </span>
-            <span className="inline-block h-2 w-24 overflow-hidden rounded-full bg-muted align-middle">
+            <span className="text-text-tertiary">level: </span>
+            <span className="inline-block h-2 w-24 overflow-hidden rounded-full bg-surface-2 align-middle">
               <span
                 className="block h-full bg-accent transition-all"
                 style={{ width: `${Math.min(100, Math.round(mic.micLevel * 200))}%` }}
@@ -86,7 +86,7 @@ export default function SceneTestPage() {
           </div>
         </div>
         {(runner.error || mic.error) && (
-          <div className="mt-3 rounded border border-red-500/30 bg-red-500/10 p-2 text-red-400">
+          <div className="mt-3 rounded border border-status-error/30 bg-status-error/10 p-2 text-status-error">
             {runner.error ?? mic.error}
           </div>
         )}
@@ -98,7 +98,7 @@ export default function SceneTestPage() {
             type="button"
             onClick={handleStartScene}
             disabled={runner.phase !== "idle"}
-            className="rounded-md border bg-accent px-3 py-1.5 text-accent-foreground disabled:opacity-50"
+            className="rounded-md border bg-accent px-3 py-1.5 text-accent-on disabled:opacity-50"
           >
             Start scene
           </button>
@@ -121,14 +121,14 @@ export default function SceneTestPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Transcript</h2>
-        <div className="max-h-[400px] space-y-2 overflow-y-auto rounded-md border bg-card p-3">
+        <h2 className="text-sm font-medium text-text-tertiary">Transcript</h2>
+        <div className="max-h-[400px] space-y-2 overflow-y-auto rounded-md border bg-surface-1 p-3">
           {runner.turns.length === 0 && (
-            <div className="text-muted-foreground">No turns yet. Press Start scene.</div>
+            <div className="text-text-tertiary">No turns yet. Press Start scene.</div>
           )}
           {runner.turns.map((turn, idx) => (
             <div key={idx} className="flex gap-2">
-              <span className="min-w-[80px] text-muted-foreground">
+              <span className="min-w-[80px] text-text-tertiary">
                 {turn.speakerName ?? turn.speakerSlug}:
               </span>
               <span className="flex-1">{turn.text}</span>
@@ -138,7 +138,7 @@ export default function SceneTestPage() {
       </section>
 
       <section className="space-y-2">
-        <div className="rounded-md border bg-card px-3 py-2 text-muted-foreground">
+        <div className="rounded-md border bg-surface-1 px-3 py-2 text-text-tertiary">
           {mic.partialTranscript || (
             <span className="italic">
               {mic.status === "listening"
@@ -149,7 +149,7 @@ export default function SceneTestPage() {
             </span>
           )}
         </div>
-        <details className="text-xs text-muted-foreground">
+        <details className="text-xs text-text-tertiary">
           <summary className="cursor-pointer">Text input (fallback)</summary>
           <div className="mt-2 flex gap-2">
             <input
@@ -160,7 +160,7 @@ export default function SceneTestPage() {
                 if (e.key === "Enter") handleSend();
               }}
               placeholder="Type if mic isn't available..."
-              className="flex-1 rounded-md border bg-card px-3 py-1.5"
+              className="flex-1 rounded-md border bg-surface-1 px-3 py-1.5"
             />
             <button
               type="button"
@@ -172,7 +172,7 @@ export default function SceneTestPage() {
             </button>
           </div>
         </details>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-text-tertiary">
           Voice-first: the mic is on while the scene runs. Each completed
           utterance (pause-detected) interrupts whoever is speaking and
           flows into the orchestrator. Use headphones — TTS audio leaking

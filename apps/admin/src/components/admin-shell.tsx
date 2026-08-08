@@ -165,11 +165,11 @@ function AdminShellInner({
           : "light"
         : theme;
     document.documentElement.setAttribute("data-theme", resolved);
-    document.documentElement.setAttribute("data-theme-variant", "river");
+    document.documentElement.setAttribute("data-theme-variant", "ocean");
     document.documentElement.style.colorScheme = resolved;
     document.body.style.backgroundColor = "var(--background)";
     localStorage.setItem("odyssey-theme", theme);
-    localStorage.setItem("odyssey-theme-variant", "river");
+    localStorage.setItem("odyssey-theme-variant", "ocean");
   }, [theme]);
 
   // Listen for OS theme changes when set to "system"
@@ -179,7 +179,7 @@ function AdminShellInner({
     const handler = (e: MediaQueryListEvent) => {
       const resolved = e.matches ? "dark" : "light";
       document.documentElement.setAttribute("data-theme", resolved);
-      document.documentElement.setAttribute("data-theme-variant", "river");
+      document.documentElement.setAttribute("data-theme-variant", "ocean");
       document.documentElement.style.colorScheme = resolved;
       document.body.style.backgroundColor = "var(--background)";
     };

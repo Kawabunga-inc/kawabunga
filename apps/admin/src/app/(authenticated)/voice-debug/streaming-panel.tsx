@@ -259,7 +259,7 @@ export default function StreamingPanel() {
   const vadPercent = Math.max(0, Math.min(100, Math.round(vadPause * 100)));
 
   return (
-    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-medium">3. Streaming (Kyutai Rust)</h2>

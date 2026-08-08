@@ -630,7 +630,7 @@ export default function VoiceTest4Page() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8">
-      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <header className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Tools</p>
         <h1 className="mt-2 text-3xl font-semibold">Voice Test 4</h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--text-tertiary)]">
@@ -639,7 +639,7 @@ export default function VoiceTest4Page() {
       </header>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
           <h2 className="text-lg font-medium">Live Session</h2>
           <p className="mt-1 text-sm text-[var(--text-tertiary)]">State machine: listening - processing - speaking - listening.</p>
 
@@ -703,7 +703,7 @@ export default function VoiceTest4Page() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
           <h2 className="text-lg font-medium">Recent Probe Results</h2>
           <p className="mt-1 text-sm text-[var(--text-tertiary)]">Latest route checks and runtime failures.</p>
           <div className="mt-4 flex max-h-80 flex-col gap-2 overflow-auto">
@@ -729,7 +729,7 @@ export default function VoiceTest4Page() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
+      <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <h2 className="text-lg font-medium">Turn History</h2>
         <p className="mt-1 text-sm text-[var(--text-tertiary)]">Most recent live turns with total loop latency.</p>
         <div className="mt-4 flex max-h-80 flex-col gap-3 overflow-auto">

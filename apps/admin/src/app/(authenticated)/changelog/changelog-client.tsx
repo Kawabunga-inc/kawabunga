@@ -202,13 +202,13 @@ export default function ChangelogClient({ entries: initialEntries, versions }: P
                 fontWeight: 600,
                 border: "1px solid",
                 borderColor: active
-                  ? (style?.color ?? "var(--accent, #8fd1cb)")
+                  ? (style?.color ?? "var(--accent)")
                   : "var(--border-subtle)",
                 background: active
                   ? (style?.bg ?? "rgba(143, 209, 203, 0.15)")
                   : "transparent",
                 color: active
-                  ? (style?.color ?? "var(--accent, #8fd1cb)")
+                  ? (style?.color ?? "var(--accent)")
                   : "var(--text-tertiary)",
                 cursor: "pointer",
                 textTransform: "capitalize",

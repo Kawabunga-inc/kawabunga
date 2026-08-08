@@ -76,10 +76,10 @@ export function VoicesDebugPanel() {
         <p className="font-mono text-xs uppercase tracking-[0.28em] text-[var(--text-tertiary)]">
           Voice Debug
         </p>
-        <h1 className="mt-3 text-3xl font-semibold text-stone-900 md:text-5xl">
+        <h1 className="mt-3 text-3xl font-semibold text-text-primary md:text-5xl">
           ElevenLabs Discovery and Pricing Guard
         </h1>
-        <p className="mt-4 max-w-4xl text-sm leading-7 text-stone-700 md:text-base">
+        <p className="mt-4 max-w-4xl text-sm leading-7 text-text-secondary md:text-base">
           Validate live voice discovery, filtered voice count, and normal-pricing enforcement.
         </p>
 
@@ -90,7 +90,7 @@ export function VoicesDebugPanel() {
               void load();
             }}
             disabled={isLoading}
-            className="rounded-full bg-[var(--accent-strong)] px-6 py-3 text-sm font-medium text-amber-50 transition hover:bg-[var(--accent)] disabled:opacity-60"
+            className="rounded-full bg-[var(--accent-strong)] px-6 py-3 text-sm font-medium text-accent-on transition hover:bg-[var(--accent)] disabled:opacity-60"
           >
             {isLoading ? "Refreshing..." : "Refresh"}
           </button>
@@ -115,25 +115,25 @@ export function VoicesDebugPanel() {
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
               Pricing Guard
             </p>
-            <div className="mt-3 space-y-2 text-sm text-stone-700">
+            <div className="mt-3 space-y-2 text-sm text-text-secondary">
               <p>
-                <span className="font-medium text-stone-900">Enforced:</span>{" "}
+                <span className="font-medium text-text-primary">Enforced:</span>{" "}
                 {data.pricingGuard.enforceNormalPricing ? "yes" : "no"}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Configured model:</span>{" "}
+                <span className="font-medium text-text-primary">Configured model:</span>{" "}
                 {data.pricingGuard.configuredModelId ?? "(default)"}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Effective model:</span>{" "}
+                <span className="font-medium text-text-primary">Effective model:</span>{" "}
                 {data.pricingGuard.effectiveModelId}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Allowed models:</span>{" "}
+                <span className="font-medium text-text-primary">Allowed models:</span>{" "}
                 {data.pricingGuard.allowedModelIds.join(", ")}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Allowed currently:</span>{" "}
+                <span className="font-medium text-text-primary">Allowed currently:</span>{" "}
                 {data.pricingGuard.isAllowedModel ? "yes" : "no"}
               </p>
             </div>
@@ -143,33 +143,33 @@ export function VoicesDebugPanel() {
             <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
               Discovery
             </p>
-            <div className="mt-3 space-y-2 text-sm text-stone-700">
+            <div className="mt-3 space-y-2 text-sm text-text-secondary">
               <p>
-                <span className="font-medium text-stone-900">API key present:</span>{" "}
+                <span className="font-medium text-text-primary">API key present:</span>{" "}
                 {data.discovery.hasApiKey ? "yes" : "no"}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Allow professional voices:</span>{" "}
+                <span className="font-medium text-text-primary">Allow professional voices:</span>{" "}
                 {data.discovery.allowProfessionalVoices ? "yes" : "no"}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Cache hit:</span>{" "}
+                <span className="font-medium text-text-primary">Cache hit:</span>{" "}
                 {data.discovery.cache.hit ? "yes" : "no"}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Cache TTL:</span>{" "}
+                <span className="font-medium text-text-primary">Cache TTL:</span>{" "}
                 {data.discovery.cache.ttlSeconds}s
               </p>
               <p>
-                <span className="font-medium text-stone-900">Raw voices:</span>{" "}
+                <span className="font-medium text-text-primary">Raw voices:</span>{" "}
                 {data.discovery.counts.raw}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Filtered voices:</span>{" "}
+                <span className="font-medium text-text-primary">Filtered voices:</span>{" "}
                 {data.discovery.counts.filtered}
               </p>
               <p>
-                <span className="font-medium text-stone-900">Cache expires:</span>{" "}
+                <span className="font-medium text-text-primary">Cache expires:</span>{" "}
                 {data.discovery.cache.expiresAt
                   ? new Date(data.discovery.cache.expiresAt).toLocaleTimeString()
                   : "n/a"}
@@ -185,7 +185,7 @@ export function VoicesDebugPanel() {
             Filtered Voices
           </p>
           <div className="mt-4 overflow-x-auto rounded-[1rem] border border-[var(--border)] bg-white/80">
-            <table className="min-w-full text-left text-sm text-stone-700">
+            <table className="min-w-full text-left text-sm text-text-secondary">
               <thead className="border-b border-[var(--border)] bg-white/90 text-xs uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
                 <tr>
                   <th className="px-4 py-3">Name</th>
@@ -196,7 +196,7 @@ export function VoicesDebugPanel() {
               <tbody>
                 {data.discovery.voices.map((voice) => (
                   <tr key={voice.voiceId} className="border-b border-[var(--border)]/50">
-                    <td className="px-4 py-3 text-stone-900">{voice.name}</td>
+                    <td className="px-4 py-3 text-text-primary">{voice.name}</td>
                     <td className="px-4 py-3 font-mono text-xs text-[var(--text-tertiary)]">
                       {voice.voiceId}
                     </td>
@@ -205,7 +205,7 @@ export function VoicesDebugPanel() {
                 ))}
                 {data.discovery.voices.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-5 text-sm text-stone-500" colSpan={3}>
+                    <td className="px-4 py-5 text-sm text-text-tertiary" colSpan={3}>
                       No voices discovered with current filter settings.
                     </td>
                   </tr>

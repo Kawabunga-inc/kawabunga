@@ -2,6 +2,7 @@
 
 import {
   type ComponentType,
+  type CSSProperties,
   type ReactNode,
   useMemo,
   useState,
@@ -471,7 +472,10 @@ export function Sidebar({
         width: "100%",
         height: "100vh",
         overflow: "hidden",
-      }}
+        /* Published so fixed-position overlays can clear the sidebar without
+           duplicating SIDEBAR_WIDTH. Tracks the collapse state. */
+        "--sidebar-width": collapsed ? "0px" : `${SIDEBAR_WIDTH}px`,
+      } as CSSProperties}
     >
       {/* Sidebar */}
       <nav
