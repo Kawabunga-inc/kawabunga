@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * the refreshed clip on the next router.refresh().
  *
  * Behaviour by provider:
- *   - pocket_tts   → audio-rt /speak with the existing embedding (~2–5s).
+ *   - pocket_tts   → pocket-tts /speak with the existing embedding.
  *                    Does NOT re-derive the .safetensors — that's what
  *                    /extract is for, exposed via the Re-extract row in
  *                    the Danger Zone.
