@@ -6,6 +6,7 @@ import type {
 import { VoicesGrid } from "@/components/voices-grid";
 import { listVoiceSummaries } from "@/lib/voices-cache";
 import { voiceCapabilityOverrides } from "@/lib/voice-capability-overrides";
+import { POCKET_LIBRARY_VOICES } from "@/lib/voice-library/pocket-manifest";
 
 /** Summary shape consumed by VoicesGrid. Keeps the type co-located with the
  * page so server hydration and client rendering can't drift apart. */
@@ -41,6 +42,7 @@ export default async function VoicesPage() {
   return (
     <VoicesGrid
       voices={summaries}
+      libraryCount={POCKET_LIBRARY_VOICES.length}
       capabilityOverrides={voiceCapabilityOverrides()}
     />
   );

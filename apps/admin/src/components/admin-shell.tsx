@@ -56,18 +56,18 @@ const icons = {
   artifacts: <Box size={I} />,
 };
 
-const kawabungaWordmark = (
+const kawabungaIcon = (
   <span
     role="img"
     aria-label="Kawabunga"
     style={{
       display: "inline-block",
-      width: 142,
-      height: 20,
+      width: 32,
+      height: 24,
       flexShrink: 0,
-      background: "var(--sidebar-foreground, var(--foreground))",
-      mask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
-      WebkitMask: "url('/kawabunga_wordmark.svg') center / contain no-repeat",
+      background: "var(--accent-strong)",
+      mask: "url('/kawabunga_icon.svg') center / contain no-repeat",
+      WebkitMask: "url('/kawabunga_icon.svg') center / contain no-repeat",
     }}
   />
 );
@@ -207,7 +207,7 @@ function AdminShellInner({
   return (
     <Sidebar
       brand="Kawabunga"
-      brandIcon={kawabungaWordmark}
+      brandIcon={kawabungaIcon}
       items={navItems}
       tabs={tabs}
       pathname={pathname}

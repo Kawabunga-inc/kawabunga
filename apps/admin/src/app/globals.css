@@ -193,6 +193,14 @@
   z-index: 1;
 }
 
+@media (max-width: 720px) {
+  .odyssey-shell-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0;
+    height: 100vh;
+  }
+}
+
 .odyssey-shell-content {
   background: var(--page-atmosphere) !important;
 }

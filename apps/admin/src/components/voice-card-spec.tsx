@@ -19,7 +19,7 @@ const FONT_MONO = "var(--font-mono), ui-monospace, monospace";
  * Unknown tiers render an em dash rather than an empty row, so "we don't
  * price this provider yet" never looks like "this provider is free". */
 
-function CostPips({ tier }: { tier: 1 | 2 | 3 | 4 | null }) {
+export function CostPips({ tier }: { tier: 1 | 2 | 3 | 4 | null }) {
   if (tier == null) return <Unknown />;
   return (
     <span style={{ display: "inline-flex", gap: 1 }} aria-label={`cost ${tier} of 4`}>
@@ -62,7 +62,7 @@ function Bolt({ filled }: { filled: boolean }) {
   );
 }
 
-function SpeedBolts({ tier }: { tier: 1 | 2 | 3 | 4 | null }) {
+export function SpeedBolts({ tier }: { tier: 1 | 2 | 3 | 4 | null }) {
   if (tier == null) return <Unknown />;
   return (
     <span
@@ -94,16 +94,18 @@ function Unknown() {
  * Label left, rating + exact value right. The value sits in a fixed-width
  * slot so the ratings share a vertical lane down the card. */
 
-function SpecRow({
+export function SpecRow({
   label,
   rating,
   value,
   title,
+  provenance,
 }: {
   label: string;
   rating: React.ReactNode;
   value: string;
   title?: string;
+  provenance?: string;
 }) {
   return (
     <div
@@ -126,6 +128,21 @@ function SpecRow({
         }}
       >
         {label}
+        {provenance && (
+          <span
+            style={{
+              marginLeft: "var(--space-6)",
+              padding: "1px 5px",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--text-tertiary)",
+              color: "var(--background)",
+              fontSize: "var(--font-size-3xs)",
+              letterSpacing: "0.08em",
+            }}
+          >
+            {provenance}
+          </span>
+        )}
       </span>
       <span
         style={{
