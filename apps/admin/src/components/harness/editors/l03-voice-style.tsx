@@ -2250,7 +2250,7 @@ function PlaybackStatus({
   if (state.kind === "loading") {
     return (
       <span style={{ fontFamily: T.fontMono, fontSize: "var(--font-size-xs)", color: "rgba(255,184,112,0.95)" }}>
-        calling audio-rt /speak…
+        calling pocket-tts /speak…
       </span>
     );
   }
