@@ -274,6 +274,19 @@ export function Sidebar({
     left: number;
   } | null>(null);
 
+  // Compact admin viewports start with the navigation rail closed. The
+  // existing brand trigger remains available in the header and opens the
+  // rail as an overlay, so mobile pages keep their full canvas width.
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 720px)");
+    const collapseForCompactViewport = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) setCollapsed(true);
+    };
+    queueMicrotask(() => collapseForCompactViewport(media));
+    media.addEventListener("change", collapseForCompactViewport);
+    return () => media.removeEventListener("change", collapseForCompactViewport);
+  }, []);
+
   // One-shot migration: if a previous session persisted the state in
   // localStorage but no cookie exists yet, copy it to the cookie so the
   // server picks it up on the next request.

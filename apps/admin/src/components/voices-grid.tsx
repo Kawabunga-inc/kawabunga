@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -31,6 +32,7 @@ import {
   ContextMenuTriggerButton,
   type ContextMenuItem,
 } from "@kawabunga/ui";
+import { VoicesSectionNav } from "@/components/voices-section-nav";
 
 /* ── Theme tokens ─────────────────────────────────────────────── */
 
@@ -191,11 +193,13 @@ function EmptyStepCard({
 
 type Props = {
   voices: VoiceSummary[];
+  libraryCount: number;
   capabilityOverrides?: Record<string, VoiceCapability>;
 };
 
-export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
+export function VoicesGrid({ voices, libraryCount, capabilityOverrides = {} }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -217,6 +221,12 @@ export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
   const handleNewVoiceClick = useCallback(() => {
     setProviderPickerOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setProviderPickerOpen(true);
+    router.replace("/voices", { scroll: false });
+  }, [router, searchParams]);
 
   const handleProviderPick = useCallback((provider: VoiceProvider) => {
     setProviderPickerOpen(false);
@@ -337,6 +347,25 @@ export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
           VOICES
         </span>
         <div style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-8)" }}>
+          <Link
+            href="/voices/library"
+            style={{
+              minHeight: 36,
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "0 14px",
+              border: "1px solid var(--control-border)",
+              borderRadius: "var(--radius-pill)",
+              color: "var(--text-secondary)",
+              fontFamily: FONT_HEAD,
+              fontSize: "var(--font-size-sm)",
+              fontWeight: 600,
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Browse library
+          </Link>
           {voices.length > 0 && <RefreshButton />}
           <NewVoiceButton onClick={handleNewVoiceClick} />
         </div>
@@ -346,7 +375,7 @@ export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
       setContent(null);
       setFlush(false);
     };
-  }, [setContent, setFlush, voices.length]);
+  }, [handleNewVoiceClick, setContent, setFlush, voices.length]);
 
   /* ── Empty state ────────────────────────────────────────────── */
 
@@ -364,6 +393,13 @@ export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
           gap: 28,
         }}
       >
+        <div style={{ alignSelf: "stretch", margin: "-96px -32px 64px" }}>
+          <VoicesSectionNav
+            active="catalog"
+            catalogCount={voices.length}
+            libraryCount={libraryCount}
+          />
+        </div>
         {/* Status tag. Mirrors the "voices · ready to populate" copy in the
             design — sets expectation that the page is functional, just unfilled. */}
         <div
@@ -401,7 +437,7 @@ export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
             textAlign: "center",
           }}
         >
-          Your voice library is empty
+          Your voice catalog is empty
         </h2>
         <p
           style={{
@@ -581,6 +617,11 @@ export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
         flexDirection: "column",
       }}
     >
+      <VoicesSectionNav
+        active="catalog"
+        catalogCount={voices.length}
+        libraryCount={libraryCount}
+      />
       {/* Toolbar — search + count + sort */}
       <div
         style={{

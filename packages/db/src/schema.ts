@@ -486,6 +486,52 @@ export const voiceExtractionAttemptsTable = pgTable(
   ],
 );
 
+// ── Voice library imports ─────────────────────────────────────────────
+//
+// Durable job journal for provider-library imports. The admin renders the
+// six import phases from this table instead of simulating progress in the
+// browser. A Pocket import creates its catalog voice early (uploaded status),
+// so partial failures remain recoverable and can resume without re-fetching
+// the source clip.
+export const voiceImportJobsTable = pgTable(
+  "voice_import_jobs",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    provider: text("provider").notNull(),
+    externalId: text("external_id").notNull(),
+    voiceId: text("voice_id").references(() => voicesTable.id, {
+      onDelete: "set null",
+    }),
+    voiceSlug: text("voice_slug"),
+    status: text("status").notNull().default("queued"),
+    phase: text("phase").notNull().default("fetching_source"),
+    completedPhases: text("completed_phases")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    config: jsonb("config").notNull().default(sql`'{}'::jsonb`),
+    createdBy: text("created_by").references(() => usersTable.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("voice_import_jobs_provider_external_idx").on(
+      t.provider,
+      t.externalId,
+    ),
+    index("voice_import_jobs_status_idx").on(t.status),
+    index("voice_import_jobs_voice_idx").on(t.voiceId),
+  ],
+);
+
 // ── Audio assets (global sound library) ───────────────────────────────
 //
 // Reusable sounds — ambience beds, one-shot effects — referenced by scene

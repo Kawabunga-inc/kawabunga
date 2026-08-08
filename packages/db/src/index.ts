@@ -18,6 +18,7 @@ export {
   voicesTable,
   voicePreviewsTable,
   voiceExtractionAttemptsTable,
+  voiceImportJobsTable,
   audioAssetsTable,
   scenesTable,
   sceneNodesTable,
@@ -100,6 +101,16 @@ export type {
   BoundCharacterSummary,
   BoundCharacterPreview,
 } from "./voice-store";
+
+export { getVoiceLibraryStore } from "./voice-library-store";
+export type {
+  VoiceLibraryStore,
+  VoiceImportJobRecord,
+  VoiceImportJobStatus,
+  VoiceImportPhase,
+  CreateVoiceImportJobInput,
+  UpdateVoiceImportJobInput,
+} from "./voice-library-store";
 
 export { getAudioAssetStore } from "./audio-asset-store";
 export type {

@@ -63,9 +63,9 @@ const kawabungaIcon = (
     style={{
       display: "inline-block",
       width: 32,
-      height: 14,
+      height: 24,
       flexShrink: 0,
-      background: "#8FD1CB",
+      background: "var(--accent-strong)",
       mask: "url('/kawabunga_icon.svg') center / contain no-repeat",
       WebkitMask: "url('/kawabunga_icon.svg') center / contain no-repeat",
     }}
