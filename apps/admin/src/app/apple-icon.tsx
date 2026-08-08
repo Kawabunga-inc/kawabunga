@@ -19,7 +19,7 @@ export default function AppleIcon() {
           borderRadius: 36,
         }}
       >
-        <svg width="144" height="108" viewBox="0 -105.402 315.009 236.299" fill="none">
+        <svg width="148" height="41" viewBox="0 0 596 163" fill="none">
           {KAWABUNGA_ICON_PATHS.map((path) => (
             <path key={path} d={path} fill="rgb(143 209 203)" />
           ))}
