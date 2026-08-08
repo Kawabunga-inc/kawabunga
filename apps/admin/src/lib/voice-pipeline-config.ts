@@ -20,7 +20,7 @@ export const VOICE_PIPELINE_CONFIG = {
   },
   tts: {
     label: "Pocket TTS",
-    full: "Pocket TTS · english_2026-01 (Railway audio-rt)",
+    full: "Pocket TTS · english_2026-01 (Railway pocket-tts)",
     short: "Pocket TTS",
   },
 } as const;

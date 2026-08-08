@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  *   bucket path, primarily for imported clips):
  *
  *     Synthesize :  { label, prompt }
- *       Hits the voice's configured provider (Pocket via audio-rt, or
+ *       Hits the voice's configured provider (Pocket via pocket-tts, or
  *       ElevenLabs via /v1/text-to-speech) with the supplied prompt,
  *       uploads the result to voice-embeddings/takes/<voiceId>/<slug>-
  *       <ts>.<ext>, and creates a preview row pointing at it.

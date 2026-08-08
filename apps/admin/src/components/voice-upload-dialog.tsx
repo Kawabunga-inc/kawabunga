@@ -598,7 +598,7 @@ function ExtractingContent({
           <div style={{ fontFamily: FONT_HEAD, fontSize: "var(--font-size-base)", color: "var(--text-secondary)" }}>
             {state.kind === "creating"
               ? "voice-sources bucket"
-              : `Pocket TTS · audio-rt-production · ${elapsedSec}s elapsed`}
+              : `Pocket TTS · pocket-tts-production · ${elapsedSec}s elapsed`}
           </div>
         </div>
       </div>

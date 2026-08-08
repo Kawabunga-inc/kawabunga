@@ -23,6 +23,7 @@ import {
 } from "@/components/voice-card-spec";
 import { ElevenLabsPickerModal } from "@/components/elevenlabs-picker-modal";
 import type { VoiceProvider, VoiceStatus } from "@kawabunga/db";
+import type { VoiceCapability } from "@kawabunga/engine";
 import type { VoiceSummary } from "@/app/(authenticated)/voices/page";
 import {
   ConfirmModal,
@@ -188,9 +189,12 @@ function EmptyStepCard({
 
 /* ── Component ────────────────────────────────────────────────── */
 
-type Props = { voices: VoiceSummary[] };
+type Props = {
+  voices: VoiceSummary[];
+  capabilityOverrides?: Record<string, VoiceCapability>;
+};
 
-export function VoicesGrid({ voices }: Props) {
+export function VoicesGrid({ voices, capabilityOverrides = {} }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("recent");
@@ -679,6 +683,7 @@ export function VoicesGrid({ voices }: Props) {
           <VoiceCard
             key={v.id}
             voice={v}
+            capability={capabilityOverrides[v.provider]}
             onRequestDelete={() => setPendingDelete(v)}
             onArchive={() => onArchive(v)}
           />
@@ -810,10 +815,12 @@ export function VoicesGrid({ voices }: Props) {
 
 function VoiceCard({
   voice,
+  capability,
   onRequestDelete,
   onArchive,
 }: {
   voice: VoiceSummary;
+  capability?: VoiceCapability;
   onRequestDelete: () => void;
   onArchive: () => void;
 }) {
@@ -995,7 +1002,11 @@ function VoiceCard({
 
         {/* ── State-specific middle block ──────────────────────────── */}
         {voice.status === "ready" && (
-          <SpecStrip provider={voice.provider} modelId={voice.modelId} />
+          <SpecStrip
+            provider={voice.provider}
+            modelId={voice.modelId}
+            capability={capability}
+          />
         )}
         {(voice.status === "processing" || voice.status === "uploaded") && (
           <ProcessingBlock status={voice.status} updatedAt={voice.updatedAt} />
@@ -1490,7 +1501,7 @@ function FailedBlock({
               overflow: "hidden",
             }}
           >
-            {parsed.message ?? description ?? "audio-rt returned an error."}
+            {parsed.message ?? description ?? "Pocket TTS returned an error."}
             {parsed.code && (
               <>
                 {" "}
@@ -1742,4 +1753,3 @@ function RefreshButton() {
     </>
   );
 }
-

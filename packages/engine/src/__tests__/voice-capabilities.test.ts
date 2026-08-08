@@ -29,6 +29,8 @@ describe("voiceCapability", () => {
   it("reports nulls rather than inventing a rate", () => {
     // Self-hosted: the cost is infrastructure, not per character.
     expect(voiceCapability("pocket_tts").creditsPerThousandChars).toBeNull();
+    // Speed is independently measurable even while cost remains unconfigured.
+    expect(voiceCapability("pocket_tts").typicalFirstAudioMs).toBe(365);
     expect(voiceCapability("openai").typicalFirstAudioMs).toBeNull();
     const unknown = voiceCapability("some_new_provider");
     expect(unknown.creditsPerThousandChars).toBeNull();

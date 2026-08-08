@@ -8,6 +8,7 @@ import {
   formatModelLabel,
   speedTierFor,
   voiceCapability,
+  type VoiceCapability,
 } from "@kawabunga/engine";
 
 const FONT_MONO = "var(--font-mono), ui-monospace, monospace";
@@ -160,11 +161,13 @@ function SpecRow({
 export function SpecStrip({
   provider,
   modelId,
+  capability,
 }: {
   provider: string;
   modelId: string | null;
+  capability?: VoiceCapability;
 }) {
-  const cap = voiceCapability(provider, modelId);
+  const cap = capability ?? voiceCapability(provider, modelId);
   const shownModel = formatModelLabel(modelId ?? cap.defaultModelId);
   return (
     <div

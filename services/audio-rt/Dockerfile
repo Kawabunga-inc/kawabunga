@@ -33,6 +33,10 @@ ENV PORT=8080
 ENV POCKET_TTS_FIRST_AUDIO_TIMEOUT_SECONDS=12
 ENV POCKET_TTS_TOTAL_TIMEOUT_SECONDS=120
 ENV POCKET_TTS_RESTART_ON_STALL=1
+# Pocket now has a dedicated serverless service. Keep the compatibility
+# endpoints lazy so an old caller can still roll back without paying to keep a
+# second Pocket model resident alongside STT.
+ENV POCKET_TTS_WARM_ON_STARTUP=0
 # Worker count for uvicorn. Each worker is its own Python process with its
 # own Pocket TTS / Whisper model instances, so concurrent /speak requests
 # parallelize across workers (the in-process generate lock keeps each

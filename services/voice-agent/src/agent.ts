@@ -28,7 +28,12 @@
  */
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
-import { getChatProviderForModel, modelMetaFor, warmLocalEmbedder } from "@kawabunga/engine";
+import {
+  getChatProviderForModel,
+  modelMetaFor,
+  warmLocalEmbedder,
+  warmPocketTtsService,
+} from "@kawabunga/engine";
 import {
   type JobContext,
   WorkerOptions,
@@ -757,6 +762,24 @@ export default defineAgent({
       narratorVoice: sceneDriver.scene.narratorVoice,
       fallbackVoiceSlug: sceneDriver.scene.characters[0]!.voice,
     });
+    // Serverless Pocket may be cold when the room dispatches. Start loading
+    // the model + exact narrator embedding while LiveKit and the opening LLM
+    // initialize, then wait at the last responsible moment before playback.
+    // A failed prewarm is non-fatal: /speak can still perform the same load and
+    // report its provider error through the normal narration path.
+    const pocketWarmPromise =
+      narrationRouting?.provider === "pocket_tts"
+        ? warmPocketTtsService({ voice: narrationRouting.voiceContext }).catch(
+            (error) => {
+              console.warn(
+                `[voice-agent] Pocket TTS prewarm failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+              return null;
+            },
+          )
+        : Promise.resolve(null);
     // PREWARM the opening. A generated opening costs a model call, and it
     // used to be requested only after the room was live — so the user
     // arrived to silence, said "Hello?" into the gap, and that first
@@ -1158,7 +1181,10 @@ export default defineAgent({
     // authored → the authored line (one of its variants); generated → the
     // narrator writes it from the premise, falling back to authored on any
     // failure; off → silence. Resolved once, at session open.
-    const openingNarration = await openingPromise;
+    const [openingNarration] = await Promise.all([
+      openingPromise,
+      pocketWarmPromise,
+    ]);
     if (openingNarration && narrationRouting) {
       turn = new AbortController();
       const openingSignal = turn.signal;

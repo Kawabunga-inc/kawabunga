@@ -11,8 +11,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 export const CHARACTER_THUMBNAILS_BUCKET = "character-thumbnails";
 // Private buckets that back the /voices admin surface. Sources are the
 // original uploaded clips; embeddings are the .safetensors files
-// extracted by audio-rt. Both are addressed by `${voice.slug}.<ext>` so
-// audio-rt can resolve a voice from /speak by slug alone.
+// extracted by Pocket TTS. Both are addressed by `${voice.slug}.<ext>` so
+// Pocket TTS can resolve a voice from /speak by slug alone.
 export const VOICE_SOURCES_BUCKET = "voice-sources";
 export const VOICE_EMBEDDINGS_BUCKET = "voice-embeddings";
 // Private buckets that back the /sounds global library (audio_assets).

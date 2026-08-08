@@ -25,14 +25,11 @@ export type TtsProvider = "openai" | "elevenlabs";
 // /voice-stream route. Mirrors VoiceProvider in @kawabunga/db (kept as a
 // string-literal union here so this package stays db-independent).
 export type StreamingTtsProvider =
-  | "pocket_tts"
-  | "elevenlabs"
-  | "openai"
-  | "cartesia"
-  | "fish_audio";
+  "pocket_tts" | "elevenlabs" | "openai" | "cartesia" | "fish_audio";
 
 export const ELEVENLABS_DEFAULT_MODEL_ID = "eleven_flash_v2_5";
-export const POCKET_TTS_PUBLIC_BASE_URL = "https://audio-rt-production.up.railway.app";
+export const POCKET_TTS_PUBLIC_BASE_URL =
+  "https://pocket-tts-production-production.up.railway.app";
 export const POCKET_TTS_SAMPLE_RATE = 24000;
 // Cartesia Sonic streaming. Version is the API contract date (override via
 // CARTESIA_VERSION if the account is pinned to a newer one). Model defaults to
@@ -49,8 +46,7 @@ export const FISH_AUDIO_SAMPLE_RATE = 24000;
 const DEFAULT_TTS_FIRST_AUDIO_TIMEOUT_MS = 15_000;
 
 type StreamReadResult<T> =
-  | { done: false; value: T }
-  | { done: true; value?: T };
+  { done: false; value: T } | { done: true; value?: T };
 
 type NodeWebSocket = {
   on(event: "message", listener: (data: unknown) => void): void;
@@ -88,15 +84,22 @@ function getWebSocketCtor(): NodeWebSocketCtor {
   // production build, so it can't be relied on. getBuiltinModule is present in
   // every runtime that loads this module (Next dev, Vercel prod, tsx — all
   // Node ≥22), so no fallback is needed.
-  const proc = (globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } }).process;
+  const proc = (
+    globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } }
+  ).process;
   const builtin = proc?.getBuiltinModule?.("module") as
     | { createRequire?: (path: string | URL) => (id: string) => unknown }
     | undefined;
   if (typeof builtin?.createRequire !== "function") {
-    throw new Error("process.getBuiltinModule('module').createRequire unavailable (need Node ≥20.16/22.3)");
+    throw new Error(
+      "process.getBuiltinModule('module').createRequire unavailable (need Node ≥20.16/22.3)",
+    );
   }
-  const wsModule = builtin.createRequire(import.meta.url)("ws") as { WebSocket?: NodeWebSocketCtor };
-  cachedWsCtor = (wsModule.WebSocket ?? (wsModule as unknown as NodeWebSocketCtor)) as NodeWebSocketCtor;
+  const wsModule = builtin.createRequire(import.meta.url)("ws") as {
+    WebSocket?: NodeWebSocketCtor;
+  };
+  cachedWsCtor = (wsModule.WebSocket ??
+    (wsModule as unknown as NodeWebSocketCtor)) as NodeWebSocketCtor;
   return cachedWsCtor;
 }
 
@@ -112,7 +115,8 @@ const NORMAL_RATE_MODEL_IDS = new Set([
 export function getElevenLabsPricingGuardInfo() {
   const configured = (process.env.ELEVENLABS_MODEL_ID || "").trim();
   const modelId = configured || ELEVENLABS_DEFAULT_MODEL_ID;
-  const enforceNormalPricing = process.env.ELEVENLABS_ENFORCE_NORMAL_PRICING !== "false";
+  const enforceNormalPricing =
+    process.env.ELEVENLABS_ENFORCE_NORMAL_PRICING !== "false";
   const allowedModelIds = Array.from(NORMAL_RATE_MODEL_IDS);
   const isAllowedModel = NORMAL_RATE_MODEL_IDS.has(modelId);
 
@@ -140,14 +144,21 @@ function resolveElevenLabsModelId() {
 }
 
 export class OpenAISpeechToTextAdapter implements SpeechToTextAdapter {
-  async transcribe({ audioBase64, mimeType }: { audioBase64: string; mimeType: string }) {
+  async transcribe({
+    audioBase64,
+    mimeType,
+  }: {
+    audioBase64: string;
+    mimeType: string;
+  }) {
     const client = getOpenAIClient();
 
     if (!client) {
       throw new Error("OPENAI_API_KEY is required for speech transcription.");
     }
 
-    const cleanedMimeType = mimeType.split(";")[0]?.trim().toLowerCase() || "audio/webm";
+    const cleanedMimeType =
+      mimeType.split(";")[0]?.trim().toLowerCase() || "audio/webm";
     const extensionByMimeType: Record<string, string> = {
       "audio/webm": "webm",
       "audio/wav": "wav",
@@ -163,10 +174,14 @@ export class OpenAISpeechToTextAdapter implements SpeechToTextAdapter {
     const extension = extensionByMimeType[cleanedMimeType] ?? "webm";
 
     const transcription = await client.audio.transcriptions.create({
-      file: await fetch(`data:${cleanedMimeType};base64,${audioBase64}`).then(async (response) => {
-        const blob = await response.blob();
-        return new File([blob], `turn.${extension}`, { type: cleanedMimeType });
-      }),
+      file: await fetch(`data:${cleanedMimeType};base64,${audioBase64}`).then(
+        async (response) => {
+          const blob = await response.blob();
+          return new File([blob], `turn.${extension}`, {
+            type: cleanedMimeType,
+          });
+        },
+      ),
       model: "gpt-4o-mini-transcribe",
     });
 
@@ -238,10 +253,18 @@ export class ElevenLabsTextToSpeechAdapter implements TextToSpeechAdapter {
 }
 
 export class KyutaiSpeechToTextAdapter implements SpeechToTextAdapter {
-  async transcribe({ audioBase64, mimeType }: { audioBase64: string; mimeType: string }) {
+  async transcribe({
+    audioBase64,
+    mimeType,
+  }: {
+    audioBase64: string;
+    mimeType: string;
+  }) {
     const baseUrl = getKyutaiSttBaseUrl();
     if (!baseUrl) {
-      throw new Error("KYUTAI_BASE_URL is required for Kyutai speech transcription.");
+      throw new Error(
+        "KYUTAI_BASE_URL is required for Kyutai speech transcription.",
+      );
     }
 
     const response = await fetch(`${baseUrl}/transcribe`, {
@@ -259,7 +282,9 @@ export class KyutaiSpeechToTextAdapter implements SpeechToTextAdapter {
 
     if (!response.ok) {
       throw new Error(
-        payload.error ?? payload.detail ?? `Kyutai STT failed: HTTP ${response.status}`,
+        payload.error ??
+          payload.detail ??
+          `Kyutai STT failed: HTTP ${response.status}`,
       );
     }
 
@@ -268,7 +293,9 @@ export class KyutaiSpeechToTextAdapter implements SpeechToTextAdapter {
 }
 
 export function resolveSttProvider(provider?: string): SttProvider {
-  const normalized = (provider ?? process.env.STT_PROVIDER ?? "openai").trim().toLowerCase();
+  const normalized = (provider ?? process.env.STT_PROVIDER ?? "openai")
+    .trim()
+    .toLowerCase();
   return normalized === "kyutai" ? "kyutai" : "openai";
 }
 
@@ -284,7 +311,11 @@ export function createSpeechToTextAdapter(provider?: string): {
 }
 
 export function resolveTtsProvider(provider?: string): TtsProvider {
-  const normalized = (provider ?? process.env.TTS_PROVIDER ?? "openai").toLowerCase();
+  const normalized = (
+    provider ??
+    process.env.TTS_PROVIDER ??
+    "openai"
+  ).toLowerCase();
 
   if (normalized === "elevenlabs" || normalized === "eleven") {
     return "elevenlabs";
@@ -293,7 +324,9 @@ export function resolveTtsProvider(provider?: string): TtsProvider {
   return "openai";
 }
 
-export function resolveTtsAttemptOrder(requestedProvider?: string): TtsProvider[] {
+export function resolveTtsAttemptOrder(
+  requestedProvider?: string,
+): TtsProvider[] {
   const primary = resolveTtsProvider(requestedProvider);
   const fallbackEnabled = process.env.TTS_ENABLE_FALLBACK === "true";
 
@@ -337,8 +370,68 @@ export function createTextToSpeechAdapter(provider?: string): {
 // so consumers don't have to know.
 
 export function getPocketTtsBaseUrl(): string {
-  return ((process.env.KYUTAI_TTS_BASE_URL ?? "").trim().replace(/\/+$/, "") ||
-    POCKET_TTS_PUBLIC_BASE_URL);
+  return (
+    (process.env.POCKET_TTS_BASE_URL ?? "").trim().replace(/\/+$/, "") ||
+    // Migration compatibility: callers can move before the old shared
+    // audio-rt deployment is retired.
+    (process.env.KYUTAI_TTS_BASE_URL ?? "").trim().replace(/\/+$/, "") ||
+    POCKET_TTS_PUBLIC_BASE_URL
+  );
+}
+
+export function getPocketTtsAuthHeaders(): Record<string, string> {
+  const token = (process.env.POCKET_TTS_API_TOKEN ?? "").trim();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export interface PocketTtsWarmResult {
+  ok: true;
+  service: "pocket-tts";
+  voice: string;
+  elapsedMs: number;
+}
+
+/**
+ * Prime the dedicated Pocket runtime and the exact voice embedding before a
+ * live session needs its first frame. Health checks stay cheap; callers opt in
+ * to this potentially cold, long-running request while other setup runs.
+ */
+export async function warmPocketTtsService(input: {
+  voice: VoiceContext;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  baseUrl?: string;
+}): Promise<PocketTtsWarmResult> {
+  const timeoutMs =
+    Number.isFinite(input.timeoutMs) && (input.timeoutMs ?? 0) > 0
+      ? Math.round(input.timeoutMs!)
+      : 115_000;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = input.signal
+    ? AbortSignal.any([input.signal, timeoutSignal])
+    : timeoutSignal;
+  const baseUrl = (input.baseUrl ?? getPocketTtsBaseUrl()).replace(/\/+$/, "");
+  const response = await fetch(`${baseUrl}/warm`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getPocketTtsAuthHeaders(),
+    },
+    body: JSON.stringify({
+      voice: input.voice.slug,
+      voiceUrl: input.voice.embeddingUrl ?? null,
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(
+      `Pocket TTS warm-up ${response.status}: ${detail.slice(0, 300) || "no body"}`,
+    );
+  }
+
+  return (await response.json()) as PocketTtsWarmResult;
 }
 
 function getTtsFirstAudioTimeoutMs(): number {
@@ -394,7 +487,10 @@ export class PocketTtsStreamingAdapter implements StreamingTextToSpeechAdapter {
 
     const resp = await fetch(`${this.baseUrl}/speak`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getPocketTtsAuthHeaders(),
+      },
       body: JSON.stringify({
         text: trimmed,
         voice: voice.slug,
@@ -547,9 +643,7 @@ export function resolveElevenLabsConfig(
   };
 }
 
-export class ElevenLabsStreamingAdapter
-  implements StreamingTextToSpeechAdapter
-{
+export class ElevenLabsStreamingAdapter implements StreamingTextToSpeechAdapter {
   async *stream({
     text,
     voice,
@@ -571,7 +665,8 @@ export class ElevenLabsStreamingAdapter
       return;
     }
 
-    const baseConfig = (voice.providerConfig ?? {}) as Partial<ElevenLabsVoiceProviderConfig>;
+    const baseConfig = (voice.providerConfig ??
+      {}) as Partial<ElevenLabsVoiceProviderConfig>;
     const config = resolveElevenLabsConfig(baseConfig, voice.voiceSettings);
     if (!config.voiceId) {
       yield {
@@ -589,8 +684,10 @@ export class ElevenLabsStreamingAdapter
       if (config.modelId) {
         // Re-validate the per-voice override against the pricing guard.
         const guard = getElevenLabsPricingGuardInfo();
-        if (guard.enforceNormalPricing &&
-            !guard.allowedModelIds.includes(config.modelId)) {
+        if (
+          guard.enforceNormalPricing &&
+          !guard.allowedModelIds.includes(config.modelId)
+        ) {
           yield {
             type: "error",
             message: `Model ${config.modelId} is blocked by ELEVENLABS_ENFORCE_NORMAL_PRICING.`,
@@ -601,7 +698,8 @@ export class ElevenLabsStreamingAdapter
     } catch (guardErr) {
       yield {
         type: "error",
-        message: guardErr instanceof Error ? guardErr.message : String(guardErr),
+        message:
+          guardErr instanceof Error ? guardErr.message : String(guardErr),
       };
       return;
     }
@@ -614,7 +712,9 @@ export class ElevenLabsStreamingAdapter
     // ws supports custom headers; ElevenLabs accepts xi-api-key as a
     // header (cleaner than the query-param alternative since the key
     // won't leak into proxy logs).
-    const ws = new (getWebSocketCtor())(url, { headers: { "xi-api-key": apiKey } });
+    const ws = new (getWebSocketCtor())(url, {
+      headers: { "xi-api-key": apiKey },
+    });
 
     // Bridge ws events into an async generator. Three sources push
     // chunks into `pending`; the consumer loop drains it. `streamEnded`
@@ -642,7 +742,9 @@ export class ElevenLabsStreamingAdapter
 
     ws.on("message", (data: unknown) => {
       try {
-        const raw = Buffer.isBuffer(data) ? data.toString("utf-8") : String(data);
+        const raw = Buffer.isBuffer(data)
+          ? data.toString("utf-8")
+          : String(data);
         const payload = JSON.parse(raw) as {
           audio?: string;
           isFinal?: boolean;
@@ -715,8 +817,7 @@ export class ElevenLabsStreamingAdapter
       signal?.removeEventListener("abort", onAbort);
       yield {
         type: "error",
-        message:
-          openErr instanceof Error ? openErr.message : String(openErr),
+        message: openErr instanceof Error ? openErr.message : String(openErr),
       };
       return;
     }
@@ -736,7 +837,9 @@ export class ElevenLabsStreamingAdapter
             style: config.style ?? 0,
             // Only when the turn asked for it; absent means the provider
             // default, which is what every turn sends today.
-            ...(typeof config.speed === "number" ? { speed: config.speed } : {}),
+            ...(typeof config.speed === "number"
+              ? { speed: config.speed }
+              : {}),
           },
         }),
       );
@@ -804,9 +907,7 @@ export interface CartesiaVoiceProviderConfig {
   modelId?: string;
 }
 
-export class CartesiaStreamingAdapter
-  implements StreamingTextToSpeechAdapter
-{
+export class CartesiaStreamingAdapter implements StreamingTextToSpeechAdapter {
   async *stream({
     text,
     voice,
@@ -825,7 +926,8 @@ export class CartesiaStreamingAdapter
       return;
     }
 
-    const config = (voice.providerConfig ?? {}) as Partial<CartesiaVoiceProviderConfig>;
+    const config = (voice.providerConfig ??
+      {}) as Partial<CartesiaVoiceProviderConfig>;
     if (!config.voiceId) {
       yield {
         type: "error",
@@ -834,8 +936,10 @@ export class CartesiaStreamingAdapter
       return;
     }
     const modelId =
-      config.modelId ?? (process.env.CARTESIA_MODEL_ID?.trim() || CARTESIA_DEFAULT_MODEL_ID);
-    const version = process.env.CARTESIA_VERSION?.trim() || CARTESIA_DEFAULT_VERSION;
+      config.modelId ??
+      (process.env.CARTESIA_MODEL_ID?.trim() || CARTESIA_DEFAULT_MODEL_ID);
+    const version =
+      process.env.CARTESIA_VERSION?.trim() || CARTESIA_DEFAULT_VERSION;
 
     // Auth in the query string is Cartesia's documented WS handshake. We
     // never echo the URL in error messages so the key can't leak into logs.
@@ -871,14 +975,19 @@ export class CartesiaStreamingAdapter
 
     ws.on("message", (data: unknown) => {
       try {
-        const raw = Buffer.isBuffer(data) ? data.toString("utf-8") : String(data);
+        const raw = Buffer.isBuffer(data)
+          ? data.toString("utf-8")
+          : String(data);
         const payload = JSON.parse(raw) as {
           type?: string;
           data?: string;
           error?: string;
         };
         if (payload.type === "error") {
-          push({ type: "error", message: `Cartesia: ${payload.error ?? "unknown error"}` });
+          push({
+            type: "error",
+            message: `Cartesia: ${payload.error ?? "unknown error"}`,
+          });
           end();
           return;
         }
@@ -1047,7 +1156,8 @@ export class FishAudioStreamingAdapter implements StreamingTextToSpeechAdapter {
       return;
     }
 
-    const config = (voice.providerConfig ?? {}) as Partial<FishAudioVoiceProviderConfig>;
+    const config = (voice.providerConfig ??
+      {}) as Partial<FishAudioVoiceProviderConfig>;
     if (!config.voiceId) {
       yield {
         type: "error",
@@ -1128,7 +1238,8 @@ export class FishAudioStreamingAdapter implements StreamingTextToSpeechAdapter {
           merged.set(value, 1);
           bytes = merged;
         }
-        carry = bytes.byteLength % 2 === 1 ? bytes[bytes.byteLength - 1]! : null;
+        carry =
+          bytes.byteLength % 2 === 1 ? bytes[bytes.byteLength - 1]! : null;
 
         const samples = (bytes.byteLength / 2) | 0;
         if (samples === 0) continue;
@@ -1214,8 +1325,10 @@ function withTextDialect(
  *  when set, else the provider default. Mirrors what each adapter resolves
  *  internally, so the dialect matches the request that gets sent. */
 function resolvedModelIdFor(voice: VoiceForRouting): string | null {
-  const configured = (voice.providerConfig as { modelId?: unknown } | undefined)?.modelId;
-  if (typeof configured === "string" && configured.trim()) return configured.trim();
+  const configured = (voice.providerConfig as { modelId?: unknown } | undefined)
+    ?.modelId;
+  if (typeof configured === "string" && configured.trim())
+    return configured.trim();
   return voiceCapability(voice.provider).defaultModelId;
 }
 

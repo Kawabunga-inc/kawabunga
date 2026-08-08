@@ -31,7 +31,8 @@
     "auth:db:ensure": "dotenv -e .env -- tsx scripts/ensure-auth-schema.ts",
     "auth:db:verify": "dotenv -e .env -- tsx scripts/ensure-auth-schema.ts --verify-only",
     "dev:ports": "dotenv -e .env -- node scripts/dev-ports.mjs",
-    "cost:coverage": "tsx scripts/cost-coverage.ts"
+    "cost:coverage": "tsx scripts/cost-coverage.ts",
+    "pocket:metrics": "tsx scripts/pocket-tts-metrics.ts"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.2",

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVoiceStore } from "@kawabunga/db";
 import {
+  getPocketTtsAuthHeaders,
+  getPocketTtsBaseUrl,
+} from "@kawabunga/engine";
+import {
   createEmbeddingSignedUrl,
   downloadSourceBytes,
   uploadEmbedding,
@@ -30,9 +34,9 @@ export const maxDuration = 30;
  *
  *   Background (detached promise, runs as long as the pod is alive):
  *     5. Download source clip from voice-sources
- *     6. POST to audio-rt /export-voice (base64 + mimeType)
+ *     6. POST to Pocket TTS /export-voice (base64 + mimeType)
  *     7. Upload returned .safetensors bytes to voice-embeddings/<slug>.safetensors
- *     8. Synthesize a short smoke-test phrase via audio-rt /speak using the
+ *     8. Synthesize a short smoke-test phrase via Pocket TTS /speak using the
  *        newly-extracted embedding, upload as .preview.wav (best-effort —
  *        failures don't break the extraction).
  *     9. Mark row status='ready' with embeddingPath + previewPath set
@@ -50,8 +54,6 @@ export const maxDuration = 30;
  * generic — works for any character. */
 const PREVIEW_TEXT =
   "Hello, this is your new voice — extracted just now from your reference clip.";
-
-const PUBLIC_TTS_FALLBACK = "https://audio-rt-production.up.railway.app";
 
 const MIME_BY_EXT: Record<string, string> = {
   wav: "audio/wav",
@@ -125,18 +127,19 @@ async function runExtraction(args: {
     const audioBase64 = sourceBytes.toString("base64");
     const mimeType = mimeFromPath(sourcePath);
 
-    const ttsBaseUrl =
-      (process.env.KYUTAI_TTS_BASE_URL ?? "").trim().replace(/\/+$/, "") ||
-      PUBLIC_TTS_FALLBACK;
+    const ttsBaseUrl = getPocketTtsBaseUrl();
 
     const upstream = await fetch(`${ttsBaseUrl}/export-voice`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getPocketTtsAuthHeaders(),
+      },
       body: JSON.stringify({ audioBase64, mimeType }),
     });
     if (!upstream.ok) {
       const errText = await upstream.text().catch(() => "");
-      // Audio-rt's FastAPI 500 responses come back as
+      // Pocket's FastAPI 500 responses come back as
       // {"detail": "<multi-line traceback>"}. Pull the detail string out
       // so the stored statusError has real newlines (not JSON-escaped \n)
       // and the Failed UI can render the traceback structurally.
@@ -147,17 +150,17 @@ async function runExtraction(args: {
       } catch {
         // fall through with the raw text
       }
-      throw new Error(`audio-rt /export-voice ${upstream.status}: ${detail}`);
+      throw new Error(`Pocket TTS /export-voice ${upstream.status}: ${detail}`);
     }
     const embeddingBytes = Buffer.from(await upstream.arrayBuffer());
     if (embeddingBytes.length === 0) {
-      throw new Error("audio-rt returned empty embedding");
+      throw new Error("Pocket TTS returned empty embedding");
     }
 
     const embeddingPath = `${voiceSlug}.safetensors`;
     await uploadEmbedding(embeddingPath, embeddingBytes);
 
-    // Best-effort smoke-test preview. Audio-rt fetches the embedding via the
+    // Best-effort smoke-test preview. Pocket fetches the embedding via the
     // signed URL we just signed, runs /speak, returns SSE. We drain + wrap
     // as WAV + upload. Failures here log but don't fail the extraction —
     // the voice is already usable; previewPath simply stays null.
@@ -220,7 +223,10 @@ async function synthAndUploadPreview(args: {
     const voiceUrl = await createEmbeddingSignedUrl(args.embeddingPath);
     const upstream = await fetch(`${args.ttsBaseUrl}/speak`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getPocketTtsAuthHeaders(),
+      },
       body: JSON.stringify({
         text: PREVIEW_TEXT,
         voice: args.voiceSlug,
@@ -228,7 +234,7 @@ async function synthAndUploadPreview(args: {
       }),
     });
     if (!upstream.ok || !upstream.body) {
-      throw new Error(`audio-rt /speak ${upstream.status}`);
+      throw new Error(`Pocket TTS /speak ${upstream.status}`);
     }
     const wavBytes = await drainSpeakStreamToWav(upstream.body);
     const previewPath = `${args.voiceSlug}.preview.wav`;

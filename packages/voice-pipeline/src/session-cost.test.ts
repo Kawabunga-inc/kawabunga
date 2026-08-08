@@ -13,6 +13,7 @@ afterEach(() => {
   delete process.env.SESSION_COST_STT_USD_PER_MINUTE;
   delete process.env.SESSION_COST_LIVEKIT_SESSION_USD_PER_MINUTE;
   delete process.env.SESSION_COST_EMBEDDING_USD_PER_MILLION_TOKENS;
+  delete process.env.SESSION_COST_POCKET_TTS_USD_PER_MILLION_CHARACTERS;
 });
 
 describe("session cost entries", () => {
@@ -75,6 +76,17 @@ describe("session cost entries", () => {
     });
     expect(entry.amountUsd).toBeNull();
     expect(entry.note).toContain("No pricing configured");
+  });
+
+  it("prices Pocket from the allocated infrastructure rate", () => {
+    process.env.SESSION_COST_POCKET_TTS_USD_PER_MILLION_CHARACTERS = "20";
+    const entry = buildTtsSessionCostEntry({
+      operationId: "turn-1:tts:pocket",
+      provider: "pocket_tts",
+      characters: 1_000,
+    });
+    expect(entry.amountUsd).toBe(0.02);
+    expect(entry.pricing[0]?.source).toBe("environment override");
   });
 
   it("keeps session infrastructure visible until a project rate is configured", () => {

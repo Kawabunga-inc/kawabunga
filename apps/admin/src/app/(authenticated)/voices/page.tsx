@@ -5,6 +5,7 @@ import type {
 } from "@kawabunga/db";
 import { VoicesGrid } from "@/components/voices-grid";
 import { listVoiceSummaries } from "@/lib/voices-cache";
+import { voiceCapabilityOverrides } from "@/lib/voice-capability-overrides";
 
 /** Summary shape consumed by VoicesGrid. Keeps the type co-located with the
  * page so server hydration and client rendering can't drift apart. */
@@ -37,5 +38,10 @@ export type VoiceSummary = {
 
 export default async function VoicesPage() {
   const summaries = await listVoiceSummaries();
-  return <VoicesGrid voices={summaries} />;
+  return (
+    <VoicesGrid
+      voices={summaries}
+      capabilityOverrides={voiceCapabilityOverrides()}
+    />
+  );
 }
