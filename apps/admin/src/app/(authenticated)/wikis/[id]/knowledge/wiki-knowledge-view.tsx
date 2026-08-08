@@ -73,7 +73,7 @@ const LAYOUT_SCALE = 600;
  *  categorical at a glance. The mint accent is reserved for `entity`; the
  *  rest follow the original network-viz convention. */
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--accent-strong)",
   event: "#60A5FA",
   concept: "#A78BFA",
   relationship: "#FACC15",
@@ -542,10 +542,10 @@ function WikiGraphNode({ data }: NodeProps<FlowNode<WikiNodeData>>) {
           borderRadius: 1,
           background: color,
           boxShadow: selected
-            ? `0 0 16px ${color}66`
+            ? `0 0 16px color-mix(in srgb, ${color} 40%, transparent)`
             : recent
-              ? `0 0 11px ${color}44`
-              : `0 0 ${8 + Math.round(activity * 8)}px ${color}${activity > 0.62 ? "3D" : "22"}`,
+              ? `0 0 11px color-mix(in srgb, ${color} 27%, transparent)`
+              : `0 0 ${8 + Math.round(activity * 8)}px color-mix(in srgb, ${color} ${activity > 0.62 ? 24 : 13}%, transparent)`,
           opacity:
             page.confidence < 0.5
               ? 0.52

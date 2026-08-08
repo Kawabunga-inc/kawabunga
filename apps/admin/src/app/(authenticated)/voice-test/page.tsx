@@ -5,7 +5,23 @@ import { MeshGradient } from "@paper-design/shaders-react";
 
 // ── Color palette ───────────────────────────────────────────────────────
 
-const BASE_COLORS = ["#0C0E14", "#0d2b2a", "#8fd1cb", "#1a3a38"];
+// The mesh shader and color lerping need concrete values (WebGL runs outside
+// CSS), so Ocean tokens are read from the computed style, with the canonical
+// values as SSR fallbacks — same pattern as apps/web mesh-gradient.tsx.
+function oceanToken(name: string, canonical: string): string {
+  if (typeof document === "undefined") return canonical;
+  return (
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() ||
+    canonical
+  );
+}
+
+const BASE_COLORS = [
+  oceanToken("--color-background", "rgb(19 24 29)"),
+  "#0d2b2a",
+  oceanToken("--color-accent-strong", "rgb(143 209 203)"),
+  "#1a3a38",
+];
 const WARM_COLORS = ["#0f1410", "#2a3020", "#7abfa0", "#2e4a30"];
 const COOL_COLORS = ["#0a0f1e", "#102848", "#8fd8ef", "#1a3060"];
 const CONFIDENT_COLORS = ["#0f1f1e", "#14524e", "#8fe8df", "#2a5c57"];
@@ -20,13 +36,23 @@ function lerp(a: number, b: number, t: number) {
   return a + (b - a) * clamp(t);
 }
 
-function lerpColor(hex1: string, hex2: string, t: number) {
+function parseColor(color: string): [number, number, number] {
+  if (color.startsWith("#")) {
+    const p = (o: number) => parseInt(color.slice(o, o + 2), 16);
+    return [p(1), p(3), p(5)];
+  }
+  // rgb()/rgba(), space- or comma-separated — the token fallbacks use this form.
+  const m = color.match(/[\d.]+/g);
+  return m ? [Number(m[0]), Number(m[1]), Number(m[2])] : [0, 0, 0];
+}
+
+function lerpColor(c1: string, c2: string, t: number) {
   const tc = clamp(t);
-  const p = (h: string, o: number) => parseInt(h.slice(o, o + 2), 16);
-  const r = Math.round(lerp(p(hex1, 1), p(hex2, 1), tc));
-  const g = Math.round(lerp(p(hex1, 3), p(hex2, 3), tc));
-  const b = Math.round(lerp(p(hex1, 5), p(hex2, 5), tc));
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  const a = parseColor(c1);
+  const b = parseColor(c2);
+  const ch = (i: number) =>
+    Math.round(lerp(a[i], b[i], tc)).toString(16).padStart(2, "0");
+  return `#${ch(0)}${ch(1)}${ch(2)}`;
 }
 
 function lerpColors(a: string[], b: string[], t: number) {
@@ -273,7 +299,8 @@ function drawAudioOverlay(
 ) {
   ctx.clearRect(0, 0, width, height);
 
-  const accentR = 143, accentG = 209, accentB = 203; // #8fd1cb
+  // Canonical --color-accent-strong RGB — the 2D canvas needs concrete values.
+  const accentR = 143, accentG = 209, accentB = 203;
 
   // ── 1. Spectrum analyzer (lower third) ──
   // Use only the first ~quarter of bins (voice-relevant frequencies)
@@ -518,8 +545,8 @@ export default function VoiceTestPage() {
           : "Resting";
 
   const confidenceColor =
-    metrics.confidence > 0.7 ? "var(--status-live, #8FD1CB)"
-      : metrics.confidence > 0.4 ? "var(--accent, #8fd1cb)"
+    metrics.confidence > 0.7 ? "var(--status-live)"
+      : metrics.confidence > 0.4 ? "var(--accent)"
         : "var(--text-tertiary)";
 
   return (
@@ -628,7 +655,7 @@ export default function VoiceTestPage() {
             <span
               style={{
                 width: 6, height: 6, borderRadius: "50%",
-                background: metrics.isSpeaking ? "#8fd1cb" : "#f87171",
+                background: metrics.isSpeaking ? "var(--accent-strong)" : "var(--status-error)",
                 animation: metrics.isSpeaking ? undefined : "pulse-rec 1.5s ease-in-out infinite",
               }}
             />
@@ -658,8 +685,8 @@ export default function VoiceTestPage() {
           onClick={audio.isRecording ? audio.stop : audio.start}
           style={{
             padding: "0.5rem 1.5rem", borderRadius: "var(--radius-pill)", border: "none",
-            background: audio.isRecording ? "var(--status-error, #f87171)" : "var(--accent, #8fd1cb)",
-            color: audio.isRecording ? "white" : "#0C0E14",
+            background: audio.isRecording ? "var(--status-error)" : "var(--accent)",
+            color: audio.isRecording ? "white" : "var(--accent-on)",
             fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",
             transition: "opacity 0.15s",
           }}
@@ -692,7 +719,7 @@ export default function VoiceTestPage() {
                 key={stat.label}
                 style={{
                   background: "var(--surface-1)",
-                  border: `1px solid ${stat.accent ? "var(--accent, #8fd1cb)" + "33" : "var(--border)"}`,
+                  border: `1px solid ${stat.accent ? "color-mix(in srgb, var(--accent) 20%, transparent)" : "var(--border)"}`,
                   borderRadius: "var(--radius-md)",
                   padding: "0.6rem 0.75rem",
                 }}
@@ -701,7 +728,7 @@ export default function VoiceTestPage() {
                   style={{
                     fontSize: "0.6rem", fontWeight: 600, letterSpacing: "0.1em",
                     textTransform: "uppercase", marginBottom: "0.25rem",
-                    color: stat.accent ? "var(--accent, #8fd1cb)" : "var(--text-tertiary)",
+                    color: stat.accent ? "var(--accent)" : "var(--text-tertiary)",
                   }}
                 >
                   {stat.label}
@@ -724,7 +751,7 @@ export default function VoiceTestPage() {
                     style={{
                       width: `${clamp(stat.value) * 100}%`, height: "100%",
                       borderRadius: "var(--radius-2xs)", transition: "width 0.15s ease-out",
-                      background: stat.accent ? "var(--accent, #8fd1cb)" : "var(--text-tertiary)",
+                      background: stat.accent ? "var(--accent)" : "var(--text-tertiary)",
                     }}
                   />
                 </div>

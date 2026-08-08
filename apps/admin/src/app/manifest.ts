@@ -7,8 +7,9 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Administration dashboard for Kawabunga simulation engine.",
     start_url: "/",
     display: "standalone",
-    background_color: "#0C0E14",
-    theme_color: "#0C0E14",
+    // Serialized manifest values, so no var(); canonical Ocean background.
+    background_color: "#13181D",
+    theme_color: "#13181D",
     icons: [
       {
         src: "/kawabunga_icon.svg",

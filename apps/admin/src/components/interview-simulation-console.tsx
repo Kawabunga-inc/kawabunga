@@ -462,37 +462,37 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
         <p className="font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
           {simulationLabel}
         </p>
-        <h1 className="mt-3 text-3xl font-semibold text-stone-900 md:text-5xl">
+        <h1 className="mt-3 text-3xl font-semibold text-text-primary md:text-5xl">
           {interviewTitle}
         </h1>
-        <p className="mt-3 text-sm leading-7 text-stone-700">{headerSubtitle}</p>
+        <p className="mt-3 text-sm leading-7 text-text-secondary">{headerSubtitle}</p>
       </section>
 
       {error ? (
-        <section className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</section>
+        <section className="rounded-2xl border border-critical-border bg-critical-wash p-4 text-sm text-status-error">{error}</section>
       ) : null}
 
       {!interviewStarted && !feedback ? (
         <section className="panel rounded-[2rem] p-6 md:p-8">
-          <p className="text-sm leading-7 text-stone-700">
+          <p className="text-sm leading-7 text-text-secondary">
             {session?.scenario.goal ?? "Preparing simulation context..."}
           </p>
-          <p className="mt-2 text-sm leading-7 text-stone-700">
-            Timer: <span className="font-semibold text-stone-900">{formatTime(timer)}</span>
+          <p className="mt-2 text-sm leading-7 text-text-secondary">
+            Timer: <span className="font-semibold text-text-primary">{formatTime(timer)}</span>
           </p>
-          <div className="mt-4 space-y-1 text-sm text-stone-700">
+          <div className="mt-4 space-y-1 text-sm text-text-secondary">
             {openingLines.map((line) => (
               <p key={line}>• {line}</p>
             ))}
           </div>
           {isGenericInterviewDefault ? (
-            <p className="mt-3 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-xs leading-6 text-stone-700">
+            <p className="mt-3 rounded-xl border border-[var(--border)] bg-white/70 px-3 py-2 text-xs leading-6 text-text-secondary">
               You selected a general interview simulation, so this run defaults to average difficulty (L5).
               If you want a specific interview style (for example Jane Street), specify it in the builder prompt before launch.
             </p>
           ) : null}
           <div className="mt-4 rounded-xl border border-[var(--border)] bg-white/70 p-3">
-            <p className="text-xs text-stone-700">
+            <p className="text-xs text-text-secondary">
               Want a more specific simulation? Set it here and regenerate before you begin.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -507,19 +507,19 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
                 type="button"
                 onClick={() => void regenerateInterviewFromTarget()}
                 disabled={!targetInterview.trim() || isRegenerating}
-                className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm font-medium text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isRegenerating ? "Regenerating..." : "Regenerate Simulation"}
               </button>
             </div>
             {profileReasoning ? (
-              <p className="mt-2 text-[11px] text-stone-600">{profileReasoning}</p>
+              <p className="mt-2 text-[11px] text-text-tertiary">{profileReasoning}</p>
             ) : null}
           </div>
           <button
             type="button"
             onClick={() => void beginInterview()}
-            className="mt-5 rounded-full bg-[var(--accent-strong)] px-6 py-3 text-sm font-medium text-amber-50 transition hover:bg-[var(--accent)]"
+            className="mt-5 rounded-full bg-[var(--accent-strong)] px-6 py-3 text-sm font-medium text-accent-on transition hover:bg-[var(--accent)]"
           >
             {targetInterview.trim() ? "Generate & Begin Simulation" : "Begin Simulation"}
           </button>
@@ -532,7 +532,7 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
             <p className="font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
               Active Prompt
             </p>
-            <p className="mt-3 text-base leading-7 text-stone-900">{prompt}</p>
+            <p className="mt-3 text-base leading-7 text-text-primary">{prompt}</p>
 
             <p className="mt-5 font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
               Your Response
@@ -548,12 +548,12 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
                 type="button"
                 onClick={submitTurn}
                 disabled={isSubmitting || !responseDraft.trim()}
-                className="rounded-full bg-[var(--accent-strong)] px-5 py-2.5 text-sm font-medium text-amber-50 transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-[var(--accent-strong)] px-5 py-2.5 text-sm font-medium text-accent-on transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? "Evaluating..." : "Submit Response"}
               </button>
-              <p className="text-sm text-stone-700">
-                Time Remaining: <span className="font-semibold text-stone-900">{formatTime(timer)}</span>
+              <p className="text-sm text-text-secondary">
+                Time Remaining: <span className="font-semibold text-text-primary">{formatTime(timer)}</span>
               </p>
             </div>
           </article>
@@ -562,17 +562,17 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
             <p className="font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
               Live Progress
             </p>
-            <div className="mt-3 space-y-2 text-sm text-stone-700">
-              <p>Latest score: <span className="font-semibold text-stone-900">{score ?? "—"}</span></p>
+            <div className="mt-3 space-y-2 text-sm text-text-secondary">
+              <p>Latest score: <span className="font-semibold text-text-primary">{score ?? "—"}</span></p>
               <p>
                 Score change:{" "}
                 <span
                   className={`font-semibold ${
                     scoreDelta > 0
-                      ? "text-emerald-700"
+                      ? "text-status-live"
                       : scoreDelta < 0
-                        ? "text-red-700"
-                        : "text-stone-900"
+                        ? "text-status-error"
+                        : "text-text-primary"
                   }`}
                 >
                   {score === null ? "—" : `${scoreDelta > 0 ? "+" : ""}${scoreDelta}`}
@@ -580,19 +580,19 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
               </p>
               <p>
                 Questions handled:{" "}
-                <span className="font-semibold text-stone-900">
+                <span className="font-semibold text-text-primary">
                   {turnCount === 0 ? "—" : `${correctCount}/${turnCount}`}
                 </span>
               </p>
               <p>
                 Accuracy:{" "}
-                <span className="font-semibold text-stone-900">
+                <span className="font-semibold text-text-primary">
                   {turnCount === 0 ? "—" : `${accuracyRate}%`}
                 </span>
               </p>
               <p>
                 Difficulty-relative:{" "}
-                <span className="font-semibold text-stone-900">
+                <span className="font-semibold text-text-primary">
                   {relativeScore === null ? "—" : `${relativeScore}/100`}
                 </span>
               </p>
@@ -601,10 +601,10 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
                 <span
                   className={`font-semibold ${
                     relativeStatus === "exceeding"
-                      ? "text-emerald-700"
+                      ? "text-status-live"
                       : relativeStatus === "below-target"
-                        ? "text-red-700"
-                        : "text-amber-700"
+                        ? "text-status-error"
+                        : "text-warning-amber"
                   }`}
                 >
                   {relativeStatus ?? "—"}
@@ -616,7 +616,7 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
             <p className="mt-5 font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
               Panel Reactions
             </p>
-            <div className="mt-2 space-y-2 text-sm text-stone-700">
+            <div className="mt-2 space-y-2 text-sm text-text-secondary">
               {panelReactions.length === 0 ? (
                 <p>No reactions yet.</p>
               ) : (
@@ -625,7 +625,7 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
                     {reaction.interrupt ? "Interrupt: " : ""}
                     {reaction.text}
                     {reaction.expression ? (
-                      <span className="ml-1 text-[11px] uppercase tracking-[0.12em] text-stone-500">
+                      <span className="ml-1 text-[11px] uppercase tracking-[0.12em] text-text-tertiary">
                         [{reaction.expression} • {reaction.emotionalImpact ?? "neutral"}]
                       </span>
                     ) : null}
@@ -637,7 +637,7 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
             <p className="mt-5 font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
               Live Coaching
             </p>
-            <div className="mt-2 space-y-2 text-sm text-stone-700">
+            <div className="mt-2 space-y-2 text-sm text-text-secondary">
               {liveCoaching.length === 0 ? <p>Submit a response to receive guidance.</p> : null}
               {liveCoaching.map((item) => (
                 <p key={item}>• {item}</p>
@@ -651,7 +651,7 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
                 </p>
                 <div className="mt-3 flex items-center gap-4">
                   <div className="relative flex h-16 w-16 items-center justify-center rounded-full border border-[var(--border)] bg-white">
-                    <span className="text-lg font-semibold text-stone-900">{difficultyLevel}</span>
+                    <span className="text-lg font-semibold text-text-primary">{difficultyLevel}</span>
                     <span className="absolute -right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-[var(--accent-strong)]" />
                   </div>
                   <div className="flex-1">
@@ -667,7 +667,7 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
                       }}
                       className="w-full accent-[var(--accent-strong)]"
                     />
-                    <div className="mt-1 flex justify-between text-[10px] text-stone-500">
+                    <div className="mt-1 flex justify-between text-[10px] text-text-tertiary">
                       <span>L1</span>
                       <span>L3</span>
                       <span>L5</span>
@@ -684,7 +684,7 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
                 <p className="font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">
                   Remembered Progress
                 </p>
-                <div className="mt-2 space-y-1 text-xs text-stone-700">
+                <div className="mt-2 space-y-1 text-xs text-text-secondary">
                   <p>Sessions: {domainProgress.sessionsCompleted}/{domainProgress.sessionsStarted} completed</p>
                   <p>Total questions: {domainProgress.questionsCorrect}/{domainProgress.questionsAttempted} correct</p>
                   <p>Domain accuracy: {domainProgress.accuracyRate}%</p>
@@ -700,18 +700,18 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
       {feedback ? (
         <section className="panel rounded-[2rem] p-6 md:p-8">
           <p className="font-mono text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">Final Feedback</p>
-          <h2 className="mt-3 text-2xl font-semibold text-stone-900">Overall Score: {feedback.overallScore}/100</h2>
-          <div className="mt-2 grid gap-2 text-sm text-stone-700 md:grid-cols-2">
+          <h2 className="mt-3 text-2xl font-semibold text-text-primary">Overall Score: {feedback.overallScore}/100</h2>
+          <div className="mt-2 grid gap-2 text-sm text-text-secondary md:grid-cols-2">
             <p>
-              Communication score: <span className="font-semibold text-stone-900">{feedback.communicationScore}/100</span>
+              Communication score: <span className="font-semibold text-text-primary">{feedback.communicationScore}/100</span>
             </p>
             <p>
-              Hireability score: <span className="font-semibold text-stone-900">{feedback.hireabilityScore}/100</span>
+              Hireability score: <span className="font-semibold text-text-primary">{feedback.hireabilityScore}/100</span>
             </p>
           </div>
           {feedback.serviceEvaluation ? (
-            <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/70 p-4 text-sm text-stone-700">
-              <p className="font-medium text-stone-900">Service Interview Categories</p>
+            <div className="mt-4 rounded-2xl border border-[var(--border)] bg-white/70 p-4 text-sm text-text-secondary">
+              <p className="font-medium text-text-primary">Service Interview Categories</p>
               <div className="mt-2 grid gap-1 md:grid-cols-2">
                 <p>Confidence: {feedback.serviceEvaluation.confidence}/100</p>
                 <p>Clarity: {feedback.serviceEvaluation.clarity}/100</p>
@@ -730,32 +730,32 @@ export function InterviewSimulationConsole({ sessionId }: { sessionId: string })
           ) : null}
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <div>
-              <p className="font-medium text-stone-900">Strengths</p>
+              <p className="font-medium text-text-primary">Strengths</p>
               {feedback.strengths.map((item) => (
-                <p key={item} className="mt-1 text-sm text-stone-700">• {item}</p>
+                <p key={item} className="mt-1 text-sm text-text-secondary">• {item}</p>
               ))}
             </div>
             <div>
-              <p className="font-medium text-stone-900">Weaknesses</p>
+              <p className="font-medium text-text-primary">Weaknesses</p>
               {feedback.weaknesses.map((item) => (
-                <p key={item} className="mt-1 text-sm text-stone-700">• {item}</p>
+                <p key={item} className="mt-1 text-sm text-text-secondary">• {item}</p>
               ))}
             </div>
             <div>
-              <p className="font-medium text-stone-900">Role-Specific Feedback</p>
+              <p className="font-medium text-text-primary">Role-Specific Feedback</p>
               {feedback.roleSpecificFeedback.map((item) => (
-                <p key={item} className="mt-1 text-sm text-stone-700">• {item}</p>
+                <p key={item} className="mt-1 text-sm text-text-secondary">• {item}</p>
               ))}
             </div>
             <div>
-              <p className="font-medium text-stone-900">Missed Opportunities</p>
+              <p className="font-medium text-text-primary">Missed Opportunities</p>
               {feedback.missedOpportunities.map((item) => (
-                <p key={item} className="mt-1 text-sm text-stone-700">• {item}</p>
+                <p key={item} className="mt-1 text-sm text-text-secondary">• {item}</p>
               ))}
             </div>
           </div>
-          <p className="mt-5 text-sm text-stone-700">
-            <span className="font-medium text-stone-900">Recommended next scenario: </span>
+          <p className="mt-5 text-sm text-text-secondary">
+            <span className="font-medium text-text-primary">Recommended next scenario: </span>
             {feedback.recommendedNextScenario}
           </p>
         </section>

@@ -6,7 +6,7 @@ import { LoadingIndicator } from "@/components/loading-indicator";
 
 const swatches = [
   { label: "Accent", color: "var(--accent)" },
-  { label: "Cyan", color: "#8fd1cb" },
+  { label: "Cyan", color: "var(--accent-strong)" },
   { label: "White", color: "#f8fafc" },
   { label: "Violet", color: "#a78bfa" },
 ];

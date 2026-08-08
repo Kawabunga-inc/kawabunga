@@ -96,7 +96,7 @@ const PRIORITY_COLORS: Record<string, { label: string; color: string }> = {
 
 const VERSION_STATUS: Record<string, { label: string; color: string; bg: string }> = {
   planned: { label: "Planned", color: "#64748B", bg: "rgba(100, 116, 139, 0.15)" },
-  active:  { label: "Active",  color: "#8FD1CB", bg: "color-mix(in srgb, var(--color-accent-strong) 15%, transparent)" },
+  active:  { label: "Active",  color: "var(--accent-strong)", bg: "color-mix(in srgb, var(--color-accent-strong) 15%, transparent)" },
   done:    { label: "Done",    color: "#22C55E", bg: "rgba(34, 197, 94, 0.15)" },
 };
 
@@ -115,7 +115,7 @@ const HEATMAP_LEVELS = [
   "#2A3E42",
   "#3A6B62",
   "#5DB0A1",
-  "#8FD1CB",
+  "var(--accent-strong)",
 ] as const;
 
 function intensityLevel(count: number, peak: number): 0 | 1 | 2 | 3 | 4 {
@@ -162,7 +162,7 @@ function ActivitySection({ data }: { data: ActivityData }) {
           </span>
         </div>
         {data.todayCount > 0 && (
-          <span style={{ fontSize: "var(--font-size-sm)", color: "#8FD1CB", fontWeight: 500 }}>
+          <span style={{ fontSize: "var(--font-size-sm)", color: "var(--accent-strong)", fontWeight: 500 }}>
             +{data.todayCount} today
           </span>
         )}
@@ -265,7 +265,7 @@ function ActivitySection({ data }: { data: ActivityData }) {
             <span style={{ fontSize: "var(--font-size-xs)", fontWeight: 500, color: "var(--text-quaternary)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Streak
             </span>
-            <span style={{ fontSize: "var(--font-size-md)", fontWeight: 600, color: data.streak > 0 ? "#8FD1CB" : "var(--text-tertiary)" }}>
+            <span style={{ fontSize: "var(--font-size-md)", fontWeight: 600, color: data.streak > 0 ? "var(--accent-strong)" : "var(--text-tertiary)" }}>
               {data.streak} {data.streak === 1 ? "day" : "days"}
             </span>
           </div>
@@ -295,7 +295,7 @@ function SectionHeader({ title, href, linkLabel }: { title: string; href?: strin
         {title}
       </h2>
       {href && (
-        <Link href={href} style={{ fontSize: "var(--font-size-sm)", color: "#8FD1CB", textDecoration: "none" }}>
+        <Link href={href} style={{ fontSize: "var(--font-size-sm)", color: "var(--accent-strong)", textDecoration: "none" }}>
           {linkLabel ?? "View all →"}
         </Link>
       )}
@@ -628,7 +628,7 @@ export default function DashboardClient({
                       width: 28, height: 28, borderRadius: "var(--radius-sm)",
                       background: "color-mix(in srgb, var(--color-accent-strong) 8%, transparent)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "var(--font-size-base)", flexShrink: 0, color: "#8FD1CB",
+                      fontSize: "var(--font-size-base)", flexShrink: 0, color: "var(--accent-strong)",
                     }}>
                       ¶
                     </span>

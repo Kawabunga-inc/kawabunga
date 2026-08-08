@@ -7,12 +7,12 @@ const FG = "#F1F5F9";
 const TEXT_MUTED = "#FFFFFF8C";
 const TEXT_FADED = "#FFFFFF73";
 const BORDER = "#FFFFFF14";
-const PANEL = "#0C0E14CC";
+const PANEL = "color-mix(in srgb, var(--color-deep) 80%, transparent)";
 const HEAD = '"Space Grotesk", system-ui, sans-serif';
 const MONO = '"JetBrains Mono", system-ui, sans-serif';
 
 const TYPE_COLOR: Record<string, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--color-accent-strong)",
   event: "#F4A3B8",
   concept: "#B197FC",
   relationship: "#F7D26B",
@@ -399,20 +399,22 @@ function RingsFingerprint({ size, stats }: { size: number; stats: IconStats }) {
 
   const nodeNorm = Math.min(1, Math.log10(stats.nodeCount + 1) / 3); // ~1000 nodes = full
 
-  const color = TYPE_COLOR[stats.dominantType] ?? "#8FD1CB";
+  // SVG presentation attributes can't resolve var(), so the type color is
+  // set as CSS `color` and referenced via currentColor.
+  const color = TYPE_COLOR[stats.dominantType] ?? "var(--color-accent-strong)";
   const cx = size / 2;
   const cy = size / 2;
   const outerR = size / 2 - 1;
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ color }}>
       {/* Outer ring — edge density */}
       <circle
         cx={cx}
         cy={cy}
         r={outerR}
         fill="none"
-        stroke={color}
+        stroke="currentColor"
         strokeWidth={1 + densityNorm * 3}
         opacity={0.7 + densityNorm * 0.3}
       />
@@ -422,7 +424,7 @@ function RingsFingerprint({ size, stats }: { size: number; stats: IconStats }) {
         cy={cy}
         r={outerR * 0.65}
         fill="none"
-        stroke={color}
+        stroke="currentColor"
         strokeWidth={0.5 + typeEntropy * 1.5}
         opacity={0.4 + typeEntropy * 0.4}
       />
@@ -437,7 +439,7 @@ function RingsFingerprint({ size, stats }: { size: number; stats: IconStats }) {
               cx={cx + Math.cos(a) * r}
               cy={cy + Math.sin(a) * r}
               r={Math.max(0.7, size * 0.025)}
-              fill={color}
+              fill="currentColor"
               opacity={0.9}
             />
           );
@@ -471,15 +473,16 @@ function RadialBarsFingerprint({
   }
   const maxBucket = Math.max(...buckets, 1);
 
-  const color = TYPE_COLOR[stats.dominantType] ?? "#8FD1CB";
+  // As above — currentColor lets the CSS variable reach SVG paint attributes.
+  const color = TYPE_COLOR[stats.dominantType] ?? "var(--color-accent-strong)";
   const cx = size / 2;
   const cy = size / 2;
   const innerR = size * 0.16;
   const outerR = size * 0.48;
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={innerR} fill={color} opacity={0.25} />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ color }}>
+      <circle cx={cx} cy={cy} r={innerR} fill="currentColor" opacity={0.25} />
       {buckets.map((count, i) => {
         const angle = (i / BUCKETS) * Math.PI * 2 - Math.PI / 2;
         const len = innerR + (count / maxBucket) * (outerR - innerR);
@@ -494,7 +497,7 @@ function RadialBarsFingerprint({
             y1={y1}
             x2={x2}
             y2={y2}
-            stroke={color}
+            stroke="currentColor"
             strokeWidth={Math.max(1, size * 0.04)}
             strokeLinecap="round"
             opacity={0.4 + (count / maxBucket) * 0.5}
@@ -591,7 +594,7 @@ function LayeredFingerprint({
     stats.edgeCount /
     Math.max(1, (stats.nodeCount * (stats.nodeCount - 1)) / 2);
   const densityNorm = Math.min(1, density / 0.4);
-  const color = TYPE_COLOR[stats.dominantType] ?? "#8FD1CB";
+  const color = TYPE_COLOR[stats.dominantType] ?? "var(--color-accent-strong)";
   const ringWidth = 1 + densityNorm * 3;
   const innerSize = size - ringWidth * 2 - 4;
 
@@ -606,7 +609,7 @@ function LayeredFingerprint({
         justifyContent: "center",
         borderRadius: "50%",
         border: `${ringWidth}px solid ${color}`,
-        background: `${color}10`,
+        background: `color-mix(in srgb, ${color} 6%, transparent)`,
       }}
     >
       {innerSize > 0 && (

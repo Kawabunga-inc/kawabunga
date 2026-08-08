@@ -57,7 +57,7 @@ const DANGER_SOFT = "var(--critical-wash)";
 const DANGER_RING = "var(--critical-border)";
 
 const TYPE_COLOR: Record<WikiPageType, string> = {
-  entity: "#8FD1CB",
+  entity: "var(--accent-strong)",
   event: "#60A5FA",
   concept: "#A78BFA",
   relationship: "#FACC15",
